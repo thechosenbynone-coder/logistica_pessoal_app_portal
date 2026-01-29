@@ -20,6 +20,14 @@ function equipTone(e) {
   return { label: 'OK', tone: 'green' };
 }
 
+// Normaliza para o novo domínio (base/unit), mantendo compatibilidade com dados antigos (hub/client).
+function normalizeEmployee(e) {
+  if (!e) return e;
+  const base = e.base ?? e.hub ?? '';
+  const unit = e.unit ?? e.client ?? '';
+  return { ...e, base, unit };
+}
+
 export default function EmployeesPage({ employees = [], focusEmployee, focus, onFocusHandled }) {
   const [q, setQ] = useState('');
   const [selectedId, setSelectedId] = useState(employees?.[0]?.id || null);
@@ -28,15 +36,17 @@ export default function EmployeesPage({ employees = [], focusEmployee, focus, on
   const focusId = focusEmployee?.employeeId ?? focus?.employeeId;
   const focusTab = focusEmployee?.tab ?? focus?.tab;
 
+  const normalized = useMemo(() => employees.map(normalizeEmployee), [employees]);
+
   useEffect(() => {
     // keep selection valid when employees list changes
-    if (!employees?.length) {
+    if (!normalized?.length) {
       setSelectedId(null);
       return;
     }
-    const exists = employees.some((e) => e.id === selectedId);
-    if (!exists) setSelectedId(employees[0].id);
-  }, [employees, selectedId]);
+    const exists = normalized.some((e) => e.id === selectedId);
+    if (!exists) setSelectedId(normalized[0].id);
+  }, [normalized, selectedId]);
 
   useEffect(() => {
     if (!focusId) return;
@@ -48,15 +58,15 @@ export default function EmployeesPage({ employees = [], focusEmployee, focus, on
   const filtered = useMemo(() => {
     const qt = q.trim().toLowerCase();
     const qd = digitsOnly(q);
-    if (!qt && !qd) return employees;
-    return employees.filter((e) => {
+    if (!qt && !qd) return normalized;
+    return normalized.filter((e) => {
       const name = (e.name || '').toLowerCase();
       const cpf = digitsOnly(e.cpf);
       return (qt && name.includes(qt)) || (qd && cpf.includes(qd));
     });
-  }, [employees, q]);
+  }, [normalized, q]);
 
-  const selected = useMemo(() => employees.find((e) => e.id === selectedId), [employees, selectedId]);
+  const selected = useMemo(() => normalized.find((e) => e.id === selectedId), [normalized, selectedId]);
 
   return (
     <div className="p-6 grid grid-cols-12 gap-6">
@@ -93,8 +103,9 @@ export default function EmployeesPage({ employees = [], focusEmployee, focus, on
                       {e.name}
                     </div>
                     <div className="text-xs text-slate-500 mt-0.5">
-                      {e.cpf || 'CPF não informado'} • {e.role || 'Função'} • {e.hub || 'HUB'}
+                      {e.cpf || 'CPF não informado'} • {e.role || 'Função'} • {e.base || 'Base'}
                     </div>
+                    {!!e.unit && <div className="text-[11px] text-slate-400 mt-1">Unidade: {e.unit}</div>}
                   </div>
 
                   <div className="flex items-center gap-2">

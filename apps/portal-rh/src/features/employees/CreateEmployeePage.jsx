@@ -31,8 +31,8 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
     name: '',
     cpf: '',
     role: '',
-    hub: '',
-    client: ''
+    base: '',
+    unit: ''
   });
 
   function setField(k, v) {
@@ -55,18 +55,30 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
     if (cpfDigits.length !== 11) return setErr('CPF inválido. Digite os 11 números.');
     if (existingCpfs.has(cpfDigits)) return setErr('Já existe um colaborador cadastrado com este CPF.');
 
+    const base = form.base.trim() || '—';
+    const unit = form.unit.trim() || '—';
+
     const employee = {
       id: uid(),
       name,
       cpf: formatCPF(cpfDigits),
       role: form.role.trim() || '—',
-      hub: form.hub.trim() || '—',
-      client: form.client.trim() || '—',
+
+      // ✅ Novo domínio
+      base,
+      unit,
+
+      // compat: evita quebrar partes antigas enquanto você migra
+      hub: base,
+      client: unit,
+
       status: 'ATIVO',
       docs: { valid: 0, warning: 0, expired: 0 },
       equipment: { assigned: 0, pendingReturn: 0 },
       nextDeployment: null,
       finance: {
+        status: 'Em análise',
+        note: '',
         bank: '—',
         pix: '—',
         lastPayment: null,
@@ -78,7 +90,7 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
     onCreateEmployee?.(employee);
     setOk('Colaborador cadastrado com sucesso.');
 
-    setForm({ name: '', cpf: '', role: '', hub: '', client: '' });
+    setForm({ name: '', cpf: '', role: '', base: '', unit: '' });
     setMode('choose');
   }
 
@@ -184,12 +196,12 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
                 <Input value={form.role} onChange={(e) => setField('role', e.target.value)} placeholder="Ex: Motorista" />
               </div>
               <div>
-                <div className="text-sm font-medium text-slate-700">HUB / Base</div>
-                <Input value={form.hub} onChange={(e) => setField('hub', e.target.value)} placeholder="Ex: São Gonçalo" />
+                <div className="text-sm font-medium text-slate-700">Base (terra)</div>
+                <Input value={form.base} onChange={(e) => setField('base', e.target.value)} placeholder="Ex: Base Cabiúnas" />
               </div>
               <div>
-                <div className="text-sm font-medium text-slate-700">Cliente</div>
-                <Input value={form.client} onChange={(e) => setField('client', e.target.value)} placeholder="Ex: Shopee" />
+                <div className="text-sm font-medium text-slate-700">Unidade (plataforma/embarcação)</div>
+                <Input value={form.unit} onChange={(e) => setField('unit', e.target.value)} placeholder="Ex: Plataforma P-74" />
               </div>
             </div>
 

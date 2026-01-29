@@ -25,14 +25,24 @@ function formatDeployment(dep) {
   return `${dep.destination} • ${dep.embarkDate}`;
 }
 
+// Normaliza para o novo domínio (base/unit), mantendo compatibilidade com dados antigos (hub/client).
+function normalizeEmployee(e) {
+  if (!e) return e;
+  const base = e.base ?? e.hub ?? '';
+  const unit = e.unit ?? e.client ?? '';
+  return { ...e, base, unit };
+}
+
 export default function EmployeeProfile({ employee, initialTab = 'overview' }) {
+  const emp = useMemo(() => normalizeEmployee(employee), [employee]);
+
   const tabs = useMemo(
     () => [
       { key: 'overview', label: 'Abrir Perfil', icon: UserCircle2 },
       { key: 'equipment', label: 'EPIs e Equipamentos', icon: HardHat },
       { key: 'docs', label: 'Documentação', icon: FileText },
       { key: 'requests', label: 'Solicitações', icon: ClipboardList },
-      { key: 'mobility', label: 'Escalas & Embarques', icon: Truck },
+      { key: 'mobility', label: 'Escala e Embarque', icon: Truck },
       { key: 'finance', label: 'Financeiro', icon: Wallet }
     ],
     []
@@ -44,7 +54,7 @@ export default function EmployeeProfile({ employee, initialTab = 'overview' }) {
     setCurrentTab(initialTab || 'overview');
   }, [initialTab]);
 
-  if (!employee) {
+  if (!emp) {
     return (
       <Card className="p-6">
         <div className="text-sm text-slate-500">Selecione um colaborador.</div>
@@ -57,19 +67,19 @@ export default function EmployeeProfile({ employee, initialTab = 'overview' }) {
       <Card className="p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="text-lg font-semibold text-slate-900">{employee.name}</div>
+            <div className="text-lg font-semibold text-slate-900">{emp.name}</div>
             <div className="text-sm text-slate-500">
-              {employee.role} • CPF: {formatCPF(employee.cpf)}
+              {emp.role} • CPF: {formatCPF(emp.cpf)}
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
-              <Badge tone="gray">{employee.hub}</Badge>
-              <Badge tone="gray">{employee.client}</Badge>
-              <Badge tone={employee.status === 'ATIVO' ? 'green' : 'gray'}>{employee.status}</Badge>
+              <Badge tone="gray">{emp.base || 'Base —'}</Badge>
+              <Badge tone="gray">{emp.unit || 'Unidade —'}</Badge>
+              <Badge tone={emp.status === 'ATIVO' ? 'green' : 'gray'}>{emp.status}</Badge>
             </div>
           </div>
           <div className="text-right">
             <div className="text-xs text-slate-500">Próximo embarque</div>
-            <div className="text-sm font-medium text-slate-900">{formatDeployment(employee.nextDeployment)}</div>
+            <div className="text-sm font-medium text-slate-900">{formatDeployment(emp.nextDeployment)}</div>
           </div>
         </div>
 
@@ -102,11 +112,11 @@ export default function EmployeeProfile({ employee, initialTab = 'overview' }) {
             <div>
               <div className="text-xs text-slate-500">Documentos</div>
               <div className="mt-1 flex items-center gap-2">
-                <Badge tone={employee.docs?.expired > 0 ? 'red' : employee.docs?.warning > 0 ? 'yellow' : 'green'}>
-                  {employee.docs?.expired > 0 ? 'Vencido' : employee.docs?.warning > 0 ? 'Atenção' : 'OK'}
+                <Badge tone={emp.docs?.expired > 0 ? 'red' : emp.docs?.warning > 0 ? 'yellow' : 'green'}>
+                  {emp.docs?.expired > 0 ? 'Vencido' : emp.docs?.warning > 0 ? 'Atenção' : 'OK'}
                 </Badge>
                 <div className="text-sm text-slate-700">
-                  {employee.docs?.valid ?? 0} válidos • {employee.docs?.warning ?? 0} atenção • {employee.docs?.expired ?? 0}{' '}
+                  {emp.docs?.valid ?? 0} válidos • {emp.docs?.warning ?? 0} atenção • {emp.docs?.expired ?? 0}{' '}
                   vencidos
                 </div>
               </div>
@@ -114,28 +124,28 @@ export default function EmployeeProfile({ employee, initialTab = 'overview' }) {
             <div>
               <div className="text-xs text-slate-500">EPIs/Equipamentos</div>
               <div className="mt-1 flex items-center gap-2">
-                <Badge tone={(employee.equipment?.pendingReturn ?? 0) > 0 ? 'yellow' : 'green'}>
-                  {(employee.equipment?.pendingReturn ?? 0) > 0 ? 'Pendência' : 'OK'}
+                <Badge tone={(emp.equipment?.pendingReturn ?? 0) > 0 ? 'yellow' : 'green'}>
+                  {(emp.equipment?.pendingReturn ?? 0) > 0 ? 'Pendência' : 'OK'}
                 </Badge>
                 <div className="text-sm text-slate-700">
-                  {employee.equipment?.assigned ?? 0} atribuídos • {employee.equipment?.pendingReturn ?? 0} pendente
+                  {emp.equipment?.assigned ?? 0} atribuídos • {emp.equipment?.pendingReturn ?? 0} pendente
                 </div>
               </div>
             </div>
             <div>
               <div className="text-xs text-slate-500">Financeiro</div>
               <div className="mt-1 flex items-center gap-2">
-                <Badge tone={employee.finance?.status === 'OK' ? 'green' : 'yellow'}>
-                  {employee.finance?.status || 'Em análise'}
+                <Badge tone={emp.finance?.status === 'OK' ? 'green' : 'yellow'}>
+                  {emp.finance?.status || 'Em análise'}
                 </Badge>
-                <div className="text-sm text-slate-700">{employee.finance?.note || 'Sem apontamentos.'}</div>
+                <div className="text-sm text-slate-700">{emp.finance?.note || 'Sem apontamentos.'}</div>
               </div>
             </div>
           </div>
         </Card>
       )}
 
-      {currentTab === 'equipment' && <EquipmentTab employee={employee} />}
+      {currentTab === 'equipment' && <EquipmentTab employee={emp} />}
       {currentTab === 'docs' && (
         <Card className="p-6">
           <div className="text-sm text-slate-600">
@@ -155,8 +165,8 @@ export default function EmployeeProfile({ employee, initialTab = 'overview' }) {
           </div>
         </Card>
       )}
-      {currentTab === 'mobility' && <EmbarqueEscalaTab employee={employee} />}
-      {currentTab === 'finance' && <FinanceTab employee={employee} />}
+      {currentTab === 'mobility' && <EmbarqueEscalaTab employee={emp} />}
+      {currentTab === 'finance' && <FinanceTab employee={emp} />}
     </div>
   );
 }
