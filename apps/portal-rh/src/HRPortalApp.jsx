@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Sidebar from './layout/Sidebar';
 import Topbar from './layout/Topbar';
 import DashboardPage from './features/dashboard/DashboardPage';
@@ -9,15 +9,32 @@ import FinancePage from './features/finance/FinancePage';
 import MobilityPage from './features/mobility/MobilityPage';
 import HotelPage from './features/hotel/HotelPage';
 import WorkPage from './features/work/WorkPage';
-import { mockEmployees } from './data/mock';
-import { useLocalStorageState } from './state/useLocalStorageState';
+import { api } from './services/api';
 import CreateEmployeePage from './features/employees/CreateEmployeePage';
 
 export default function HRPortalApp() {
   // Must start on Dashboard
   const [activePage, setActivePage] = useState('dashboard');
-  const [employees, setEmployees] = useLocalStorageState('portalRH.employees', mockEmployees);
+  const [employees, setEmployees] = useState([]);
   const [focus, setFocus] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadEmployees() {
+      try {
+        const data = await api.employees.list();
+        if (isMounted) {
+          setEmployees(data.employees || []);
+        }
+      } catch (err) {
+        console.error('Failed to load employees', err);
+      }
+    }
+    loadEmployees();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const openEmployee = useCallback((employeeId, tab = 'overview') => {
     setActivePage('employees');

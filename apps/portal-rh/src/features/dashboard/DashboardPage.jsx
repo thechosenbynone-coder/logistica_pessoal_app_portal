@@ -1,6 +1,7 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { cn } from "../../ui/ui.js";
+import { api } from "../../services/api";
 import {
   AlertTriangle,
   ArrowDown,
@@ -160,6 +161,27 @@ export default function DashboardPage({ onNavigate }) {
     if (typeof onNavigate === "function") onNavigate(key);
   };
 
+  const [stats, setStats] = useState({
+    totalEmployees: 0,
+    activeDeployments: 0,
+    pendingDocs: 0,
+    pendingExpenses: 0,
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    api.dashboard
+      .get()
+      .then((data) => {
+        if (!isMounted) return;
+        if (data?.stats) setStats(data.stats);
+      })
+      .catch((err) => console.error("Failed to load dashboard stats", err));
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // MOCK USER (depois puxamos do login)
   const user = useMemo(() => ({ name: "Ana Silva" }), []);
   const firstName = (user?.name || "").trim().split(" ")[0] || "Usuário";
@@ -233,10 +255,30 @@ export default function DashboardPage({ onNavigate }) {
     []
   );
 
-  const docsTotalIssues = mock.docs.expired + mock.docs.expiring30; // ✅ só vencido + vencendo
-  const totalByPlatform = mock.distribution.platforms.reduce((s, x) => s + x.value, 0);
-  const totalByVessel = mock.distribution.vessels.reduce((s, x) => s + x.value, 0);
-  const missingTotal = mock.rdo.missingDays + mock.os.missingDays;
+  const currentData = useMemo(
+    () => ({
+      ...mock,
+      hc: {
+        ...mock.hc,
+        total: stats.totalEmployees || mock.hc.total,
+        embarked: stats.activeDeployments || mock.hc.embarked,
+      },
+      docs: {
+        ...mock.docs,
+        expired: stats.pendingDocs || mock.docs.expired,
+      },
+      requests: {
+        ...mock.requests,
+        pendingApprovals: stats.pendingExpenses || mock.requests.pendingApprovals,
+      },
+    }),
+    [mock, stats]
+  );
+
+  const docsTotalIssues = currentData.docs.expired + currentData.docs.expiring30; // ✅ só vencido + vencendo
+  const totalByPlatform = currentData.distribution.platforms.reduce((s, x) => s + x.value, 0);
+  const totalByVessel = currentData.distribution.vessels.reduce((s, x) => s + x.value, 0);
+  const missingTotal = currentData.rdo.missingDays + currentData.os.missingDays;
 
   return (
     <div className="p-6 lg:p-8">
@@ -249,24 +291,29 @@ export default function DashboardPage({ onNavigate }) {
 
         <div className="flex flex-wrap gap-2">
           <Pill
-            tone={mock.docs.expired > 0 ? "red" : "amber"}
+            tone={currentData.docs.expired > 0 ? "red" : "amber"}
             icon={FileText}
-            label={`Docs: ${mock.docs.expired} vencidas • ${mock.docs.expiring30} vencendo`}
+            label={`Docs: ${currentData.docs.expired} vencidas • ${currentData.docs.expiring30} vencendo`}
             onClick={() => go("employees")}
           />
           <Pill
-            tone={mock.rdo.pendingApproval > 0 ? "amber" : "slate"}
+            tone={currentData.rdo.pendingApproval > 0 ? "amber" : "slate"}
             icon={ClipboardList}
-            label={`${mock.rdo.pendingApproval} RDOs pendentes`}
+            label={`${currentData.rdo.pendingApproval} RDOs pendentes`}
             onClick={() => go("work")}
           />
           <Pill
-            tone={mock.inventory.critical > 0 ? "red" : "blue"}
+            tone={currentData.inventory.critical > 0 ? "red" : "blue"}
             icon={HardHat}
-            label={`${mock.inventory.epiLowStock} EPIs com estoque baixo`}
+            label={`${currentData.inventory.epiLowStock} EPIs com estoque baixo`}
             onClick={() => go("equipment")}
           />
-          <Pill tone="blue" icon={Plane} label={`${mock.requests.upcomingEmbark} próximos embarques`} onClick={() => go("mobility")} />
+          <Pill
+            tone="blue"
+            icon={Plane}
+            label={`${currentData.requests.upcomingEmbark} próximos embarques`}
+            onClick={() => go("mobility")}
+          />
         </div>
       </div>
 
@@ -274,11 +321,11 @@ export default function DashboardPage({ onNavigate }) {
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <DashboardMetricCard
           title="HC (Colaboradores)"
-          value={`${mock.hc.total}`}
+          value={`${currentData.hc.total}`}
           icon={Users}
-          trendChange={mock.hc.delta}
+          trendChange={currentData.hc.delta}
           trendType="up"
-          hint={`Embarcados ${mock.hc.embarked} • Base ${mock.hc.base}`}
+          hint={`Embarcados ${currentData.hc.embarked} • Base ${currentData.hc.base}`}
           onClick={() => go("employees")}
         />
 
@@ -287,27 +334,27 @@ export default function DashboardPage({ onNavigate }) {
           title="Documentos - Atenção"
           value={`${docsTotalIssues}`}
           icon={FileText}
-          trendType={mock.docs.expired > 0 ? "down" : "neutral"}
-          hint={`Vencidas ${mock.docs.expired} • Vencendo ${mock.docs.expiring30}`}
+          trendType={currentData.docs.expired > 0 ? "down" : "neutral"}
+          hint={`Vencidas ${currentData.docs.expired} • Vencendo ${currentData.docs.expiring30}`}
           onClick={() => go("employees")}
         />
 
         {/* ✅ Card que faltou: RDOs aguardando aprovação */}
         <DashboardMetricCard
           title="RDOs aguardando aprovação"
-          value={`${mock.rdo.pendingApproval}`}
+          value={`${currentData.rdo.pendingApproval}`}
           icon={ClipboardCheck}
-          trendType={mock.rdo.pendingApproval > 0 ? "up" : "neutral"}
-          hint={`Reprovados ${mock.rdo.rejected}`}
+          trendType={currentData.rdo.pendingApproval > 0 ? "up" : "neutral"}
+          hint={`Reprovados ${currentData.rdo.rejected}`}
           onClick={() => go("work")}
         />
 
         <DashboardMetricCard
           title="OS aguardando aprovação"
-          value={`${mock.os.pendingApproval}`}
+          value={`${currentData.os.pendingApproval}`}
           icon={ClipboardCheck}
-          trendType={mock.os.pendingApproval > 0 ? "up" : "neutral"}
-          hint={`Reprovadas ${mock.os.rejected}`}
+          trendType={currentData.os.pendingApproval > 0 ? "up" : "neutral"}
+          hint={`Reprovadas ${currentData.os.rejected}`}
           onClick={() => go("work")}
         />
       </div>
@@ -316,9 +363,9 @@ export default function DashboardPage({ onNavigate }) {
       <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <DashboardMetricCard
           title="Solicitações pendentes"
-          value={`${mock.requests.pendingApprovals}`}
+          value={`${currentData.requests.pendingApprovals}`}
           icon={AlertTriangle}
-          trendChange={mock.requests.deltaPending}
+          trendChange={currentData.requests.deltaPending}
           trendType="up"
           hint="Aguardando aprovação"
           onClick={() => go("employees")}
@@ -327,17 +374,17 @@ export default function DashboardPage({ onNavigate }) {
         {/* ✅ EPIs: estoque baixo */}
         <DashboardMetricCard
           title="EPIs com estoque baixo"
-          value={`${mock.inventory.epiLowStock}`}
+          value={`${currentData.inventory.epiLowStock}`}
           icon={HardHat}
-          trendChange={mock.inventory.deltaLowStock}
-          trendType={mock.inventory.epiLowStock > 0 ? "down" : "neutral"}
-          hint={`Crítico ${mock.inventory.critical}`}
+          trendChange={currentData.inventory.deltaLowStock}
+          trendType={currentData.inventory.epiLowStock > 0 ? "down" : "neutral"}
+          hint={`Crítico ${currentData.inventory.critical}`}
           onClick={() => go("equipment")}
         />
 
         <DashboardMetricCard
           title="Próximos embarques (7 dias)"
-          value={`${mock.requests.upcomingEmbark}`}
+          value={`${currentData.requests.upcomingEmbark}`}
           icon={Plane}
           trendType="neutral"
           hint="Checar pendências"
@@ -350,7 +397,7 @@ export default function DashboardPage({ onNavigate }) {
           icon={ClipboardX}
           trendChange={missingTotal > 0 ? "atenção" : "ok"}
           trendType={missingTotal > 0 ? "down" : "neutral"}
-          hint={`RDO ${mock.rdo.missingDays} • OS ${mock.os.missingDays}`}
+          hint={`RDO ${currentData.rdo.missingDays} • OS ${currentData.os.missingDays}`}
           onClick={() => go("work")}
         />
       </div>
@@ -367,7 +414,7 @@ export default function DashboardPage({ onNavigate }) {
           }
         >
           <div className="space-y-4">
-            {mock.distribution.platforms.map((p) => (
+            {currentData.distribution.platforms.map((p) => (
               <ProgressRow key={p.label} label={p.label} value={p.value} total={totalByPlatform} tone="blue" />
             ))}
           </div>
@@ -383,7 +430,7 @@ export default function DashboardPage({ onNavigate }) {
           }
         >
           <div className="space-y-4">
-            {mock.distribution.vessels.map((p) => (
+            {currentData.distribution.vessels.map((p) => (
               <ProgressRow key={p.label} label={p.label} value={p.value} total={totalByVessel} tone="amber" />
             ))}
           </div>
@@ -391,7 +438,7 @@ export default function DashboardPage({ onNavigate }) {
 
         <SectionCard title="Ações recomendadas" subtitle="Atalhos para resolver o que dói primeiro">
           <div className="flex flex-col gap-2.5">
-            {mock.recommendedActions.map((a, idx) => (
+            {currentData.recommendedActions.map((a, idx) => (
               <button
                 key={idx}
                 type="button"
@@ -414,7 +461,7 @@ export default function DashboardPage({ onNavigate }) {
           <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
             <div className="text-xs font-extrabold text-slate-900">Últimas movimentações</div>
             <div className="mt-3 space-y-2">
-              {mock.recentActivity.map((x, i) => (
+              {currentData.recentActivity.map((x, i) => (
                 <div key={i} className="flex items-start justify-between gap-3">
                   <div className="text-xs text-slate-500 shrink-0">{x.ts}</div>
                   <div className="text-xs font-semibold text-slate-700 text-right">{x.text}</div>

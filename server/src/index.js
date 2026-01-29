@@ -24,6 +24,49 @@ app.get('/health', (req, res) => {
   res.json({ ok: true, service: 'employee-logistics-api', time: new Date().toISOString() });
 });
 
+// --- Employees (Full list for HR) ---
+app.get('/api/employees', async (req, res) => {
+  try {
+    const employees = await prisma.user.findMany({
+      orderBy: { name: 'asc' },
+      include: {
+        deployments: {
+          where: { status: { in: ['SCHEDULED', 'IN_TRANSIT', 'ACTIVE'] } },
+          take: 1
+        }
+      }
+    });
+    res.json(toJson({ employees }));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'INTERNAL_ERROR' });
+  }
+});
+
+// --- Dashboard (Summary stats) ---
+app.get('/api/dashboard', async (req, res) => {
+  try {
+    const [totalEmployees, activeDeployments, pendingDocs, pendingExpenses] = await Promise.all([
+      prisma.user.count(),
+      prisma.deployment.count({ where: { status: 'ACTIVE' } }),
+      prisma.userDocument.count({ where: { status: { in: ['WARNING', 'EXPIRED'] } } }),
+      prisma.expense.count({ where: { status: 'PENDING' } })
+    ]);
+
+    res.json({
+      stats: {
+        totalEmployees,
+        activeDeployments,
+        pendingDocs,
+        pendingExpenses
+      }
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'INTERNAL_ERROR' });
+  }
+});
+
 // Helper: resolve user by registration (matrícula) or id
 async function resolveUser({ userId, registration }) {
   if (userId) {
