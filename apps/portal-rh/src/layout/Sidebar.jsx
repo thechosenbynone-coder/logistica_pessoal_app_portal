@@ -51,11 +51,7 @@ function TooltipPortal({ open, text, x, y }) {
         zIndex: 99999,
         pointerEvents: "none",
       }}
-      className={cn(
-        "opacity-0 scale-[0.98] translate-x-[2px]",
-        "animate-in fade-in zoom-in-95 slide-in-from-left-1",
-        "duration-100"
-      )}
+      className="opacity-100 transition-opacity duration-100"
       aria-hidden="true"
     >
       <div className="relative rounded-xl bg-slate-900/95 text-white text-xs font-semibold px-3 py-2 shadow-xl whitespace-nowrap border border-white/10 backdrop-blur-sm">
@@ -83,7 +79,7 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
   const [barY, setBarY] = useState(0);
   const [barVisible, setBarVisible] = useState(false);
 
-  // Tooltip (portal) - não depende de overflow do sidebar
+  // Tooltip (portal): não é cortado por overflow do sidebar e não cria scroll
   const ttAnchorRef = useRef(null);
   const [tt, setTt] = useState({ open: false, text: "", x: 0, y: 0 });
 
@@ -145,6 +141,7 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
   const isOpen = open;
 
   const showTooltip = (el, text) => {
+    // Tooltip só quando fechado
     if (!el || isOpen) return;
     ttAnchorRef.current = el;
     const r = el.getBoundingClientRect();
@@ -174,6 +171,7 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
     const onScroll = () => update();
     const onResize = () => update();
 
+    // capture=true pra pegar scroll em containers também
     window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", onResize);
 
@@ -222,7 +220,7 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
 
       <aside
         className={cn(
-          // ✅ Sem scroll interno e sem “vazar” tooltip (tooltip agora é portal)
+          // ✅ Sidebar fixo visualmente, sem scroll interno e sem “vazar” tooltip
           "h-screen sticky top-0 bg-white border-r border-slate-100 flex flex-col overflow-hidden",
           "transition-[width] duration-200 ease-in-out",
           isOpen ? "w-72" : "w-[76px]"
@@ -243,9 +241,9 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
             )}
             aria-label="Portal RH"
             onMouseEnter={(e) => showTooltip(e.currentTarget, "Portal RH")}
-            onMouseLeave={() => hideTooltip()}
+            onMouseLeave={hideTooltip}
             onFocus={(e) => showTooltip(e.currentTarget, "Portal RH")}
-            onBlur={() => hideTooltip()}
+            onBlur={hideTooltip}
           >
             <div className="h-10 w-10 rounded-xl bg-gradient-to-b from-blue-600 to-blue-700 grid place-items-center shrink-0 overflow-hidden">
               <div className="h-5 w-5 rounded-md bg-white/95" />
@@ -308,9 +306,9 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
                           "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-200/70 focus-visible:ring-offset-0"
                         )}
                         onMouseEnter={(e) => showTooltip(e.currentTarget, it.label)}
-                        onMouseLeave={() => hideTooltip()}
+                        onMouseLeave={hideTooltip}
                         onFocus={(e) => showTooltip(e.currentTarget, it.label)}
-                        onBlur={() => hideTooltip()}
+                        onBlur={hideTooltip}
                       >
                         <div
                           className={cn(
@@ -362,7 +360,7 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
           )}
         </nav>
 
-        {/* Footer profile (sempre visível, sem “sumir”) */}
+        {/* Footer profile (sempre visível) */}
         <div className="p-3 shrink-0 overflow-hidden">
           <button
             type="button"
@@ -374,9 +372,9 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
               "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-200/70 focus-visible:ring-offset-0"
             )}
             onMouseEnter={(e) => showTooltip(e.currentTarget, `${user.name} • ${user.role}`)}
-            onMouseLeave={() => hideTooltip()}
+            onMouseLeave={hideTooltip}
             onFocus={(e) => showTooltip(e.currentTarget, `${user.name} • ${user.role}`)}
-            onBlur={() => hideTooltip()}
+            onBlur={hideTooltip}
           >
             {user.avatar ? (
               <img
