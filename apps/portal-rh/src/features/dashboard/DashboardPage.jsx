@@ -205,10 +205,10 @@ export default function DashboardPage({ onNavigate }) {
 
       distribution: {
         platforms: [
-          { label: "Shopee", value: 46 },
-          { label: "Mercado Livre", value: 38 },
-          { label: "iFood", value: 21 },
-          { label: "Outros", value: 23 },
+          { label: "P-74", value: 46 },
+          { label: "MODEC", value: 38 },
+          { label: "SBM", value: 21 },
+          { label: "ESS", value: 23 },
         ],
         vessels: [
           { label: "Embarcação Alpha", value: 28 },
