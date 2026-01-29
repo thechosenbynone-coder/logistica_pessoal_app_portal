@@ -20,7 +20,7 @@ const NAV = [
   {
     title: "Operação",
     items: [
-      { key: "mobility", label: "Operação", icon: Plane },
+      { key: "mobility", label: "Escala e Embarque", icon: Plane },
       { key: "equipment", label: "EPIs", icon: HardHat },
       { key: "work", label: "OS / RDO", icon: ClipboardList },
     ],
