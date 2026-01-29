@@ -1,6 +1,15 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '../ui/ui.js';
-import { ClipboardList, HardHat, LayoutDashboard, Lightbulb, Plane, UserRound, Users, Wallet } from 'lucide-react';
+import {
+  ClipboardList,
+  HardHat,
+  LayoutDashboard,
+  Lightbulb,
+  Plane,
+  UserRound,
+  Users,
+  Wallet,
+} from 'lucide-react';
 
 const NAV = [
   {
@@ -10,22 +19,14 @@ const NAV = [
   {
     title: 'Operação',
     items: [
-      // ✅ Mantém como hub do operacional (Hospedagem vira parte interna daqui)
-      { key: 'mobility', label: 'Embarque / Translado', icon: Plane },
-
-      // ✅ EPIs dentro da Operação (ícone capacete)
+      { key: 'mobility', label: 'Operação', icon: Plane },
       { key: 'equipment', label: 'EPIs', icon: HardHat },
-
-      // ✅ OS/RDO permanece na sidebar
       { key: 'work', label: 'OS / RDO', icon: ClipboardList },
     ],
   },
   {
     title: 'RH',
-    items: [
-      // ✅ Colaboradores é módulo próprio (Cadastro e Docs saem da sidebar por enquanto)
-      { key: 'employees', label: 'Colaboradores', icon: Users },
-    ],
+    items: [{ key: 'employees', label: 'Colaboradores', icon: Users }],
   },
   {
     title: 'Financeiro',
@@ -51,13 +52,12 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
 
   // ✅ Se cair numa rota antiga que agora “mora” dentro de um módulo, marca o módulo pai
   const activeKey = useMemo(() => {
-    if (active === 'hotel') return 'mobility'; // Hospedagem agora é parte de Embarque/Translado
-    if (active === 'docs') return 'employees'; // Documentações agora é parte de Colaboradores
-    if (active === 'employeeCreate') return 'employees'; // Cadastro vira parte de Colaboradores
+    if (active === 'hotel') return 'mobility';
+    if (active === 'docs') return 'employees';
+    if (active === 'employeeCreate') return 'employees';
     return active;
   }, [active]);
 
-  // limpa timer ao desmontar
   useEffect(() => {
     return () => {
       if (openTimer.current) clearTimeout(openTimer.current);
@@ -148,7 +148,8 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
   return (
     <aside
       className={cn(
-        'min-h-screen bg-white border-r border-slate-100 flex flex-col',
+        // ✅ FIXO NA TELA, NÃO “ESTICA” COM A PÁGINA
+        'h-screen sticky top-0 bg-white border-r border-slate-100 flex flex-col overflow-hidden',
         'transition-[width] duration-200 ease-in-out',
         isOpen ? 'w-72' : 'w-[76px]'
       )}
@@ -157,7 +158,7 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
       aria-label="Menu lateral"
     >
       {/* Header */}
-      <div className="p-4">
+      <div className="p-4 shrink-0">
         <button
           type="button"
           onClick={toggleOpen}
@@ -181,8 +182,8 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
         </button>
       </div>
 
-      {/* Nav */}
-      <nav className="px-3 pb-3 flex-1">
+      {/* Nav (rolável por dentro) */}
+      <nav className="px-3 pb-3 flex-1 overflow-y-auto">
         <div ref={barWrapRef} className="relative">
           <span
             aria-hidden="true"
@@ -280,8 +281,8 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
         )}
       </nav>
 
-      {/* Footer profile */}
-      <div className="p-3">
+      {/* Footer profile (sempre visível) */}
+      <div className="p-3 shrink-0">
         <button
           type="button"
           aria-label={`${user.name} • ${user.role}`}
