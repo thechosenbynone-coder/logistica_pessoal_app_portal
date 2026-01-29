@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Bell } from 'lucide-react';
 
 // Components
@@ -15,6 +15,7 @@ import { FinanceTab } from './features/finance';
 import { ProfileTab } from './features/profile';
 import { EquipmentView } from './features/equipment';
 import { HistoryView } from './features/history';
+import { api } from './services/api';
 
 // Data
 import {
@@ -41,9 +42,11 @@ export default function EmployeeLogisticsApp() {
   const [activeTab, setActiveTab] = useState('home');
   const [profileView, setProfileView] = useState('main'); // main | equipment | history
 
-  // Mock secure token for QR code
-  const [qrCodeData] = useState('SECURE_TOKEN_V1_748291_HMAC_SIG');
-
+  const [employee, setEmployee] = useState(mockEmployee);
+  const [currentTrip, setCurrentTrip] = useState(mockCurrentTrip);
+  const [timeline] = useState(mockTimeline);
+  const [boarding] = useState(mockBoarding);
+  const [deploymentId, setDeploymentId] = useState(null);
   // Financial state
   const [expenses, setExpenses] = useState(mockExpenses);
   const [advances, setAdvances] = useState(mockAdvances);
@@ -52,6 +55,9 @@ export default function EmployeeLogisticsApp() {
   // Equipment state
   const [equipment, setEquipment] = useState(mockEquipment);
 
+  // Mock secure token for QR code
+  const [qrCodeData, setQrCodeData] = useState('SECURE_TOKEN_V1_748291_HMAC_SIG');
+
   // Work state
   const initialWorkOrders = useMemo(() => createInitialWorkOrders(), []);
   const [workOrders, setWorkOrders] = useLocalStorageState('el_workOrders', initialWorkOrders);
@@ -59,22 +65,199 @@ export default function EmployeeLogisticsApp() {
   const [syncLog, setSyncLog] = useLocalStorageState('el_syncLog', []);
   const [isOnBase, setIsOnBase] = useLocalStorageState('el_isOnBase', false);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const statusMap = {
+      ACTIVE: 'Embarcado',
+      IN_TRANSIT: 'Em Trânsito',
+      SCHEDULED: 'Agendado',
+      COMPLETED: 'Concluído',
+      CANCELLED: 'Cancelado',
+    };
+
+    const transportMap = {
+      HELICOPTER: 'Helicóptero',
+      BOAT: 'Barco',
+    };
+
+    const assetStatusMap = {
+      ON_BOARD: 'embarcado',
+      ON_BASE: 'base',
+      LOST: 'pendente',
+      RETURNED: 'base',
+    };
+
+    async function loadData() {
+      try {
+        const profileData = await api.profile.get();
+        if (profileData?.user && isMounted) {
+          const deployment = profileData.currentDeployment || null;
+          setEmployee({
+            name: profileData.user.name,
+            registration: profileData.user.registration,
+            currentStatus: statusMap[deployment?.status] || mockEmployee.currentStatus,
+            photo: profileData.user.photoUrl || mockEmployee.photo,
+          });
+
+          if (deployment) {
+            setDeploymentId(deployment.id);
+            const embarkDate = new Date(deployment.embarkDate);
+            const disembarkDate = new Date(deployment.disembarkDate);
+            const daysRemaining = Math.max(
+              0,
+              Math.ceil((embarkDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+            );
+            setCurrentTrip({
+              destination: deployment.destination,
+              embarkDate: deployment.embarkDate,
+              disembarkDate: deployment.disembarkDate,
+              daysRemaining,
+              location: deployment.location,
+              transportation: transportMap[deployment.transportType] || mockCurrentTrip.transportation,
+            });
+            setQrCodeData((prev) => deployment.qrCodeData || prev);
+          }
+
+          if (Array.isArray(profileData.assets)) {
+            setEquipment(
+              profileData.assets.map((asset) => ({
+                id: asset.id,
+                name: asset.name,
+                code: asset.code,
+                status: assetStatusMap[asset.status] || 'base',
+                condition: asset.condition || 'bom',
+                required: asset.isRequired,
+              }))
+            );
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load profile data', err);
+      }
+
+      const [expensesResult, advancesResult] = await Promise.allSettled([
+        api.expenses.list(),
+        api.advances.list(),
+      ]);
+
+      if (isMounted && expensesResult.status === 'fulfilled') {
+        const mappedExpenses = (expensesResult.value.expenses || []).map((expense) => ({
+          id: expense.id,
+          type: expense.type,
+          value: Number(expense.value),
+          date: expense.date,
+          description: expense.description,
+          receipt: Boolean(expense.receiptUrl),
+          status: (expense.status || 'PENDING').toLowerCase(),
+          trip: expense.deployment?.destination || mockCurrentTrip.destination,
+        }));
+        if (mappedExpenses.length) setExpenses(mappedExpenses);
+      }
+
+      if (isMounted && advancesResult.status === 'fulfilled') {
+        const mappedAdvances = (advancesResult.value.advances || []).map((advance) => ({
+          id: advance.id,
+          value: Number(advance.value),
+          date: advance.date,
+          status: (advance.status || 'PENDING').toLowerCase(),
+          trip: advance.deployment?.destination || mockCurrentTrip.destination,
+          justification: advance.justification,
+          used: 0,
+        }));
+        if (mappedAdvances.length) setAdvances(mappedAdvances);
+      }
+    }
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Handlers
   const handleCheckIn = async () => {
-    // TODO: POST /api/checkins when backend is connected
+    await api.checkins.create({
+      type: 'CHECK_IN',
+      latitude: -22.9068,
+      longitude: -43.1729,
+      address: 'Rio de Janeiro, RJ',
+    });
     console.log('Check-in registered');
   };
 
   const handleCheckOut = async () => {
-    // TODO: POST /api/checkins when backend is connected
+    await api.checkins.create({
+      type: 'CHECK_OUT',
+      latitude: -22.9068,
+      longitude: -43.1729,
+      address: 'Rio de Janeiro, RJ',
+    });
     console.log('Check-out registered');
   };
 
-  const handleAddExpense = (expense) => {
+  const handleAddExpense = async (expense) => {
+    try {
+      const created = await api.expenses.create({
+        type: expense.type,
+        value: expense.value,
+        date: expense.date,
+        description: expense.description,
+        ...(deploymentId ? { deploymentId } : {}),
+      });
+      if (created?.expense) {
+        setExpenses((prev) => [
+          ...prev,
+          {
+            id: created.expense.id,
+            type: created.expense.type,
+            value: Number(created.expense.value),
+            date: created.expense.date,
+            description: created.expense.description,
+            receipt: Boolean(created.expense.receiptUrl),
+            status: (created.expense.status || 'PENDING').toLowerCase(),
+            trip: currentTrip.destination,
+          },
+        ]);
+        return;
+      }
+    } catch (err) {
+      console.error('Failed to create expense', err);
+    }
+
     setExpenses((prev) => [...prev, expense]);
   };
 
-  const handleRequestAdvance = (advance) => {
+  const handleRequestAdvance = async (advance) => {
+    try {
+      if (!deploymentId) {
+        throw new Error('No deployment available for advance request');
+      }
+      const created = await api.advances.create({
+        value: advance.value,
+        justification: advance.justification,
+        deploymentId,
+      });
+      if (created?.advance) {
+        setAdvances((prev) => [
+          ...prev,
+          {
+            id: created.advance.id,
+            value: Number(created.advance.value),
+            date: created.advance.date || advance.date,
+            status: (created.advance.status || 'PENDING').toLowerCase(),
+            trip: currentTrip.destination,
+            justification: created.advance.justification || advance.justification,
+            used: 0,
+          },
+        ]);
+        return;
+      }
+    } catch (err) {
+      console.error('Failed to request advance', err);
+    }
+
     setAdvances((prev) => [...prev, advance]);
   };
 
@@ -111,7 +294,7 @@ export default function EmployeeLogisticsApp() {
       }
       return (
         <ProfileTab
-          employee={mockEmployee}
+          employee={employee}
           personalDocuments={mockPersonalDocuments}
           emergencyContacts={mockEmergencyContacts}
           onNavigateToEquipment={() => setProfileView('equipment')}
@@ -124,9 +307,9 @@ export default function EmployeeLogisticsApp() {
       case 'home':
         return (
           <HomeTab
-            employee={mockEmployee}
-            currentTrip={mockCurrentTrip}
-            timeline={mockTimeline}
+            employee={employee}
+            currentTrip={currentTrip}
+            timeline={timeline}
             onCheckIn={handleCheckIn}
             onCheckOut={handleCheckOut}
           />
@@ -135,8 +318,8 @@ export default function EmployeeLogisticsApp() {
       case 'trip':
         return (
           <TripTab
-            employee={mockEmployee}
-            boarding={mockBoarding}
+            employee={employee}
+            boarding={boarding}
             qrCodeData={qrCodeData}
           />
         );
@@ -179,13 +362,13 @@ export default function EmployeeLogisticsApp() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <img
-                src={mockEmployee.photo}
-                alt={mockEmployee.name}
+                src={employee.photo}
+                alt={employee.name}
                 className="w-10 h-10 rounded-full border-2 border-white/30"
               />
               <div>
-                <p className="font-semibold">{mockEmployee.name}</p>
-                <p className="text-xs text-blue-200">Mat: {mockEmployee.registration}</p>
+                <p className="font-semibold">{employee.name}</p>
+                <p className="text-xs text-blue-200">Mat: {employee.registration}</p>
               </div>
             </div>
             <button className="relative p-2 hover:bg-white/10 rounded-lg transition-colors">
