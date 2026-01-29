@@ -18,18 +18,28 @@ import {
 
 /**
  * DashboardMetricCard (JSX)
- * - Design: lift + shadow no hover
- * - Header com título + ícone
+ * - Lift + shadow no hover
+ * - Header: título + ícone
  * - Valor grande + trend
  * - Clicável (atalho) via onNavigate
  */
 
-// Trend types: 'up' | 'down' | 'neutral'
-const TrendIconFor = (trendType) => (trendType === "up" ? ArrowUp : trendType === "down" ? ArrowDown : Minus);
+const TrendIconFor = (trendType) =>
+  trendType === "up" ? ArrowUp : trendType === "down" ? ArrowDown : Minus;
+
 const TrendColorClassFor = (trendType) =>
   trendType === "up" ? "text-green-600" : trendType === "down" ? "text-red-600" : "text-slate-500";
 
-function DashboardMetricCard({ value, title, icon: IconComponent, trendChange, trendType = "neutral", className, onClick, hint }) {
+function DashboardMetricCard({
+  value,
+  title,
+  icon: IconComponent,
+  trendChange,
+  trendType = "neutral",
+  className,
+  onClick,
+  hint,
+}) {
   const TrendIcon = TrendIconFor(trendType);
   const trendColorClass = TrendColorClassFor(trendType);
   const clickable = typeof onClick === "function";
@@ -127,7 +137,9 @@ function Pill({ tone = "slate", icon: Icon, label, onClick }) {
 
 function ProgressRow({ label, value, total, tone = "blue" }) {
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
-  const barTone = tone === "amber" ? "bg-amber-500" : tone === "red" ? "bg-red-500" : tone === "green" ? "bg-green-500" : "bg-blue-600";
+  const barTone =
+    tone === "amber" ? "bg-amber-500" : tone === "red" ? "bg-red-500" : tone === "green" ? "bg-green-500" : "bg-blue-600";
+
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-3">
@@ -148,36 +160,49 @@ export default function DashboardPage({ onNavigate }) {
     if (typeof onNavigate === "function") onNavigate(key);
   };
 
+  // MOCK USER (depois puxamos do login)
+  const user = useMemo(() => ({ name: "Ana Silva" }), []);
+  const firstName = (user?.name || "").trim().split(" ")[0] || "Usuário";
+
   // MOCK DATA (depois plugamos API)
   const mock = useMemo(
     () => ({
       hc: { total: 128, embarked: 84, base: 44, delta: "+6 (últimos 7d)" },
+
       docs: {
         expiring30: 19,
         expired: 7,
+        // “faltando” continua existindo no mock p/ usar depois,
+        // mas não vai mais aparecer como card separado agora.
         missing: 11,
-        deltaExpiring: "+4",
-        deltaExpired: "+1",
-        deltaMissing: "-2",
       },
+
+      inventory: {
+        epiLowStock: 6,
+        critical: 2, // subset: muito baixo
+        deltaLowStock: "+1 (7d)",
+      },
+
       requests: {
         pendingApprovals: 14,
-        epiPending: 9,
         upcomingEmbark: 12,
         deltaPending: "+3",
       },
+
       rdo: {
         generated: 92,
         pendingApproval: 8,
         rejected: 3,
-        missingDays: 6, // dias com RDO faltando
+        missingDays: 6,
       },
+
       os: {
         generated: 41,
         pendingApproval: 5,
         rejected: 2,
-        missingDays: 3, // dias com OS faltando
+        missingDays: 3,
       },
+
       distribution: {
         platforms: [
           { label: "Shopee", value: 46 },
@@ -192,11 +217,13 @@ export default function DashboardPage({ onNavigate }) {
           { label: "Plataforma P-12", value: 15 },
         ],
       },
+
       recommendedActions: [
-        { tone: "red", label: "7 documentações vencidas para regularizar", go: () => go("employees") },
-        { tone: "amber", label: "8 RDOs aguardando aprovação", go: () => go("work") },
-        { tone: "blue", label: "9 EPIs pendentes para liberar", go: () => go("equipment") },
+        { tone: "red", label: "Documentações vencidas para regularizar", go: () => go("employees") },
+        { tone: "amber", label: "RDOs aguardando aprovação", go: () => go("work") },
+        { tone: "blue", label: "EPIs com estoque baixo para repor", go: () => go("equipment") },
       ],
+
       recentActivity: [
         { ts: "Hoje 09:12", text: "OS #1043 enviada por João S." },
         { ts: "Hoje 08:40", text: "Doc. CNH de Maria L. vence em 12 dias" },
@@ -206,23 +233,39 @@ export default function DashboardPage({ onNavigate }) {
     []
   );
 
+  const docsTotalIssues = mock.docs.expired + mock.docs.expiring30; // ✅ só vencido + vencendo
   const totalByPlatform = mock.distribution.platforms.reduce((s, x) => s + x.value, 0);
   const totalByVessel = mock.distribution.vessels.reduce((s, x) => s + x.value, 0);
   const missingTotal = mock.rdo.missingDays + mock.os.missingDays;
 
   return (
     <div className="p-6 lg:p-8">
-      {/* Header */}
-      <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      {/* Cabeçalho do Dashboard (novo) */}
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="text-2xl font-extrabold text-slate-900">Dashboard</div>
-          <div className="text-sm text-slate-500">Atalhos rápidos para o RH acompanhar operação, pendências e alertas.</div>
+          <div className="text-2xl font-extrabold text-slate-900">Olá, {firstName}</div>
+          <div className="text-sm text-slate-500">Qual o plano de hoje?</div>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Pill tone="red" icon={AlertTriangle} label={`${mock.docs.expired} docs vencidas`} onClick={() => go("employees")} />
-          <Pill tone="amber" icon={Clock} label={`${mock.docs.expiring30} docs vencem em 30 dias`} onClick={() => go("employees")} />
-          <Pill tone={missingTotal > 0 ? "red" : "slate"} icon={ClipboardX} label={`${missingTotal} dias com RDO/OS faltando`} onClick={() => go("work")} />
+          <Pill
+            tone={mock.docs.expired > 0 ? "red" : "amber"}
+            icon={FileText}
+            label={`Docs: ${mock.docs.expired} vencidas • ${mock.docs.expiring30} vencendo`}
+            onClick={() => go("employees")}
+          />
+          <Pill
+            tone={mock.rdo.pendingApproval > 0 ? "amber" : "slate"}
+            icon={ClipboardList}
+            label={`${mock.rdo.pendingApproval} RDOs pendentes`}
+            onClick={() => go("work")}
+          />
+          <Pill
+            tone={mock.inventory.critical > 0 ? "red" : "blue"}
+            icon={HardHat}
+            label={`${mock.inventory.epiLowStock} EPIs com estoque baixo`}
+            onClick={() => go("equipment")}
+          />
           <Pill tone="blue" icon={Plane} label={`${mock.requests.upcomingEmbark} próximos embarques`} onClick={() => go("mobility")} />
         </div>
       </div>
@@ -238,9 +281,35 @@ export default function DashboardPage({ onNavigate }) {
           hint={`Embarcados ${mock.hc.embarked} • Base ${mock.hc.base}`}
           onClick={() => go("employees")}
         />
-        <DashboardMetricCard title="Docs vencidas" value={`${mock.docs.expired}`} icon={FileText} trendChange={mock.docs.deltaExpired} trendType="up" hint="Ação imediata" onClick={() => go("employees")} />
-        <DashboardMetricCard title="Docs vencendo (30 dias)" value={`${mock.docs.expiring30}`} icon={Clock} trendChange={mock.docs.deltaExpiring} trendType="up" hint="Planejar renovação" onClick={() => go("employees")} />
-        <DashboardMetricCard title="Docs faltando" value={`${mock.docs.missing}`} icon={AlertTriangle} trendChange={mock.docs.deltaMissing} trendType="down" hint="Completar cadastro" onClick={() => go("employees")} />
+
+        {/* ✅ DOCS em 1 card só */}
+        <DashboardMetricCard
+          title="Documentações"
+          value={`${docsTotalIssues}`}
+          icon={FileText}
+          trendType={mock.docs.expired > 0 ? "down" : "neutral"}
+          hint={`Vencidas ${mock.docs.expired} • Vencendo ${mock.docs.expiring30}`}
+          onClick={() => go("employees")}
+        />
+
+        {/* ✅ Card que faltou: RDOs aguardando aprovação */}
+        <DashboardMetricCard
+          title="RDOs aguardando aprovação"
+          value={`${mock.rdo.pendingApproval}`}
+          icon={ClipboardCheck}
+          trendType={mock.rdo.pendingApproval > 0 ? "up" : "neutral"}
+          hint={`Reprovados ${mock.rdo.rejected}`}
+          onClick={() => go("work")}
+        />
+
+        <DashboardMetricCard
+          title="OS aguardando aprovação"
+          value={`${mock.os.pendingApproval}`}
+          icon={ClipboardCheck}
+          trendType={mock.os.pendingApproval > 0 ? "up" : "neutral"}
+          hint={`Reprovadas ${mock.os.rejected}`}
+          onClick={() => go("work")}
+        />
       </div>
 
       {/* Cards operação */}
@@ -254,32 +323,35 @@ export default function DashboardPage({ onNavigate }) {
           hint="Aguardando aprovação"
           onClick={() => go("employees")}
         />
-        <DashboardMetricCard title="EPIs pendentes" value={`${mock.requests.epiPending}`} icon={HardHat} trendType="neutral" hint="Liberar para operação" onClick={() => go("equipment")} />
-        <DashboardMetricCard title="Próximos embarques (7 dias)" value={`${mock.requests.upcomingEmbark}`} icon={Plane} trendType="neutral" hint="Checar pendências" onClick={() => go("mobility")} />
-        <DashboardMetricCard title="RDO/OS faltando" value={`${missingTotal}`} icon={ClipboardX} trendChange={missingTotal > 0 ? "atenção" : "ok"} trendType={missingTotal > 0 ? "down" : "neutral"} hint={`RDO ${mock.rdo.missingDays} • OS ${mock.os.missingDays}`} onClick={() => go("work")} />
-      </div>
 
-      {/* RDO/OS */}
-      <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        {/* ✅ EPIs: estoque baixo */}
         <DashboardMetricCard
-          title="RDOs (período)"
-          value={`${mock.rdo.generated}`}
-          icon={ClipboardList}
-          trendChange={`${mock.rdo.pendingApproval} pend • ${mock.rdo.rejected} reprov`}
-          trendType={mock.rdo.pendingApproval > 0 ? "up" : "neutral"}
-          hint="Gerados"
-          onClick={() => go("work")}
-          className="lg:col-span-2"
+          title="EPIs com estoque baixo"
+          value={`${mock.inventory.epiLowStock}`}
+          icon={HardHat}
+          trendChange={mock.inventory.deltaLowStock}
+          trendType={mock.inventory.epiLowStock > 0 ? "down" : "neutral"}
+          hint={`Crítico ${mock.inventory.critical}`}
+          onClick={() => go("equipment")}
         />
+
         <DashboardMetricCard
-          title="OSs (período)"
-          value={`${mock.os.generated}`}
-          icon={ClipboardCheck}
-          trendChange={`${mock.os.pendingApproval} pend • ${mock.os.rejected} reprov`}
-          trendType={mock.os.pendingApproval > 0 ? "up" : "neutral"}
-          hint="Geradas"
+          title="Próximos embarques (7 dias)"
+          value={`${mock.requests.upcomingEmbark}`}
+          icon={Plane}
+          trendType="neutral"
+          hint="Checar pendências"
+          onClick={() => go("mobility")}
+        />
+
+        <DashboardMetricCard
+          title="RDO/OS faltando"
+          value={`${missingTotal}`}
+          icon={ClipboardX}
+          trendChange={missingTotal > 0 ? "atenção" : "ok"}
+          trendType={missingTotal > 0 ? "down" : "neutral"}
+          hint={`RDO ${mock.rdo.missingDays} • OS ${mock.os.missingDays}`}
           onClick={() => go("work")}
-          className="lg:col-span-2"
         />
       </div>
 
@@ -354,7 +426,7 @@ export default function DashboardPage({ onNavigate }) {
       </div>
 
       <div className="mt-6 text-xs text-slate-500">
-        Dados mock por enquanto. Depois conectamos API e fazemos cada card abrir com o filtro correto (ex.: “docs vencidas”, “RDO pendente”, “EPI aguardando”).
+        Dados mock por enquanto. Depois conectamos API e fazemos cada card abrir com o filtro correto (ex.: “docs vencidas”, “RDO pendente”, “estoque baixo”).
       </div>
     </div>
   );
