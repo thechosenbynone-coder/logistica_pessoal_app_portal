@@ -1,155 +1,360 @@
-import React, { useMemo, useState } from 'react';
-import { CalendarClock, ClipboardList, FileText, HardHat, Users } from 'lucide-react';
-import Card from '../../ui/Card';
-import Badge from '../../ui/Badge';
-import Button from '../../ui/Button';
-import EmployeePickerModal from '../../components/EmployeePickerModal';
+import React, { useMemo } from "react";
+import { motion } from "framer-motion";
+import { cn } from "../../ui/ui.js";
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  ClipboardCheck,
+  ClipboardList,
+  ClipboardX,
+  FileText,
+  HardHat,
+  Minus,
+  Plane,
+  Users,
+  Clock,
+} from "lucide-react";
 
-function countDocsStatus(e) {
-  const expired = e.docs?.expired ?? 0;
-  const warning = e.docs?.warning ?? 0;
-  if (expired > 0) return 'Vencido';
-  if (warning > 0) return 'Atenção';
-  return 'OK';
-}
+/**
+ * DashboardMetricCard (JSX)
+ * - Design: lift + shadow no hover
+ * - Header com título + ícone
+ * - Valor grande + trend
+ * - Clicável (atalho) via onNavigate
+ */
 
-function formatDeployment(dep) {
-  if (!dep) return 'Sem embarque';
-  const parts = [dep.destination, dep.embarkDate, dep.transport].filter(Boolean);
-  return parts.join(' • ');
-}
+// Trend types: 'up' | 'down' | 'neutral'
+const TrendIconFor = (trendType) => (trendType === "up" ? ArrowUp : trendType === "down" ? ArrowDown : Minus);
+const TrendColorClassFor = (trendType) =>
+  trendType === "up" ? "text-green-600" : trendType === "down" ? "text-red-600" : "text-slate-500";
 
-export default function DashboardPage({ employees = [], onOpenEmployee }) {
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [pickerTab, setPickerTab] = useState('overview');
-
-  const openPicker = (tabKey) => {
-    setPickerTab(tabKey);
-    setPickerOpen(true);
-  };
-
-  const summary = useMemo(() => {
-    const total = employees.length;
-    const active = employees.filter((e) => e.status === 'ATIVO').length;
-    const docsAttention = employees.filter((e) => countDocsStatus(e) !== 'OK').length;
-    const epiPending = employees.filter((e) => (e.equipment?.pendingReturn ?? 0) > 0).length;
-    return { total, active, docsAttention, epiPending };
-  }, [employees]);
-
-  const nextDeployments = useMemo(() => {
-    return employees
-      .filter((e) => e.nextDeployment)
-      .slice()
-      .sort((a, b) =>
-        (a.nextDeployment?.embarkDate || '').localeCompare(b.nextDeployment?.embarkDate || '')
-      )
-      .slice(0, 5);
-  }, [employees]);
+function DashboardMetricCard({ value, title, icon: IconComponent, trendChange, trendType = "neutral", className, onClick, hint }) {
+  const TrendIcon = TrendIconFor(trendType);
+  const trendColorClass = TrendColorClassFor(trendType);
+  const clickable = typeof onClick === "function";
 
   return (
-    <div className="space-y-6">
-      <EmployeePickerModal
-        isOpen={pickerOpen}
-        onClose={() => setPickerOpen(false)}
-        employees={employees}
-        title="Selecione o colaborador"
-        onSelect={(emp) => onOpenEmployee?.(emp.id, pickerTab)}
-      />
+    <motion.div
+      whileHover={
+        clickable
+          ? { y: -4, boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.08)" }
+          : undefined
+      }
+      transition={{ type: "spring", stiffness: 400, damping: 22 }}
+      className={cn(clickable ? "cursor-pointer" : "", "rounded-2xl", className)}
+      onClick={onClick}
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={
+        clickable
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") onClick?.();
+            }
+          : undefined
+      }
+      aria-label={clickable ? `${title}: ${value}` : undefined}
+    >
+      <div className="h-full rounded-2xl border border-slate-200 bg-white shadow-sm transition-colors duration-200">
+        <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-2">
+          <div className="text-sm font-semibold text-slate-500">{title}</div>
+          {IconComponent ? <IconComponent className="h-4 w-4 text-slate-400" aria-hidden="true" /> : null}
+        </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <Card className="p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xs text-slate-500">Colaboradores</div>
-              <div className="text-2xl font-semibold text-slate-900">{summary.total}</div>
-              <div className="mt-1 text-xs text-slate-500">{summary.active} ativos</div>
-            </div>
-            <Users />
+        <div className="px-4 pb-4">
+          <div className="text-2xl font-extrabold text-slate-900">{value}</div>
+
+          <div className="mt-2 flex items-center justify-between gap-3">
+            {trendChange ? (
+              <div className={cn("flex items-center text-xs font-semibold", trendColorClass)}>
+                <TrendIcon className="h-3 w-3 mr-1" aria-hidden="true" />
+                <span className="whitespace-nowrap">{trendChange}</span>
+              </div>
+            ) : (
+              <div className="text-xs text-slate-400"> </div>
+            )}
+
+            {hint ? <div className="text-xs text-slate-500 truncate">{hint}</div> : null}
           </div>
-        </Card>
-        <Card className="p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xs text-slate-500">Docs em atenção</div>
-              <div className="text-2xl font-semibold text-slate-900">{summary.docsAttention}</div>
-              <div className="mt-1 text-xs text-slate-500">vencidos / atenção</div>
-            </div>
-            <FileText />
-          </div>
-        </Card>
-        <Card className="p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xs text-slate-500">Pendências de EPI</div>
-              <div className="text-2xl font-semibold text-slate-900">{summary.epiPending}</div>
-              <div className="mt-1 text-xs text-slate-500">devolução / troca</div>
-            </div>
-            <HardHat />
-          </div>
-        </Card>
-        <Card className="p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xs text-slate-500">Próximos embarques</div>
-              <div className="text-2xl font-semibold text-slate-900">{nextDeployments.length}</div>
-              <div className="mt-1 text-xs text-slate-500">nos próximos dias</div>
-            </div>
-            <CalendarClock />
-          </div>
-        </Card>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function SectionCard({ title, subtitle, children, right }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-start justify-between gap-3 px-5 pt-5">
+        <div className="min-w-0">
+          <div className="text-sm font-extrabold text-slate-900">{title}</div>
+          {subtitle ? <div className="mt-1 text-xs text-slate-500">{subtitle}</div> : null}
+        </div>
+        {right ? <div className="shrink-0">{right}</div> : null}
+      </div>
+      <div className="px-5 pb-5 pt-4">{children}</div>
+    </div>
+  );
+}
+
+function Pill({ tone = "slate", icon: Icon, label, onClick }) {
+  const clickable = typeof onClick === "function";
+  const toneCls =
+    tone === "red"
+      ? "border-red-200 bg-red-50 text-red-700"
+      : tone === "amber"
+        ? "border-amber-200 bg-amber-50 text-amber-800"
+        : tone === "blue"
+          ? "border-blue-200 bg-blue-50 text-blue-700"
+          : "border-slate-200 bg-slate-50 text-slate-700";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+        clickable ? "hover:brightness-[0.98] active:brightness-[0.96]" : "cursor-default",
+        toneCls
+      )}
+      aria-label={label}
+    >
+      {Icon ? <Icon className="h-3.5 w-3.5" aria-hidden="true" /> : null}
+      <span className="whitespace-nowrap">{label}</span>
+    </button>
+  );
+}
+
+function ProgressRow({ label, value, total, tone = "blue" }) {
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+  const barTone = tone === "amber" ? "bg-amber-500" : tone === "red" ? "bg-red-500" : tone === "green" ? "bg-green-500" : "bg-blue-600";
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-xs font-semibold text-slate-700 truncate">{label}</div>
+        <div className="text-xs font-semibold text-slate-600">
+          {value} <span className="text-slate-400">({pct}%)</span>
+        </div>
+      </div>
+      <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+        <div className={cn("h-full rounded-full", barTone)} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+export default function DashboardPage({ onNavigate }) {
+  const go = (key) => {
+    if (typeof onNavigate === "function") onNavigate(key);
+  };
+
+  // MOCK DATA (depois plugamos API)
+  const mock = useMemo(
+    () => ({
+      hc: { total: 128, embarked: 84, base: 44, delta: "+6 (últimos 7d)" },
+      docs: {
+        expiring30: 19,
+        expired: 7,
+        missing: 11,
+        deltaExpiring: "+4",
+        deltaExpired: "+1",
+        deltaMissing: "-2",
+      },
+      requests: {
+        pendingApprovals: 14,
+        epiPending: 9,
+        upcomingEmbark: 12,
+        deltaPending: "+3",
+      },
+      rdo: {
+        generated: 92,
+        pendingApproval: 8,
+        rejected: 3,
+        missingDays: 6, // dias com RDO faltando
+      },
+      os: {
+        generated: 41,
+        pendingApproval: 5,
+        rejected: 2,
+        missingDays: 3, // dias com OS faltando
+      },
+      distribution: {
+        platforms: [
+          { label: "Shopee", value: 46 },
+          { label: "Mercado Livre", value: 38 },
+          { label: "iFood", value: 21 },
+          { label: "Outros", value: 23 },
+        ],
+        vessels: [
+          { label: "Embarcação Alpha", value: 28 },
+          { label: "Embarcação Delta", value: 22 },
+          { label: "Plataforma P-09", value: 19 },
+          { label: "Plataforma P-12", value: 15 },
+        ],
+      },
+      recommendedActions: [
+        { tone: "red", label: "7 documentações vencidas para regularizar", go: () => go("employees") },
+        { tone: "amber", label: "8 RDOs aguardando aprovação", go: () => go("work") },
+        { tone: "blue", label: "9 EPIs pendentes para liberar", go: () => go("equipment") },
+      ],
+      recentActivity: [
+        { ts: "Hoje 09:12", text: "OS #1043 enviada por João S." },
+        { ts: "Hoje 08:40", text: "Doc. CNH de Maria L. vence em 12 dias" },
+        { ts: "Ontem 18:06", text: "EPI (Capacete) aprovado para Carlos F." },
+      ],
+    }),
+    []
+  );
+
+  const totalByPlatform = mock.distribution.platforms.reduce((s, x) => s + x.value, 0);
+  const totalByVessel = mock.distribution.vessels.reduce((s, x) => s + x.value, 0);
+  const missingTotal = mock.rdo.missingDays + mock.os.missingDays;
+
+  return (
+    <div className="p-6 lg:p-8">
+      {/* Header */}
+      <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <div className="text-2xl font-extrabold text-slate-900">Dashboard</div>
+          <div className="text-sm text-slate-500">Atalhos rápidos para o RH acompanhar operação, pendências e alertas.</div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Pill tone="red" icon={AlertTriangle} label={`${mock.docs.expired} docs vencidas`} onClick={() => go("employees")} />
+          <Pill tone="amber" icon={Clock} label={`${mock.docs.expiring30} docs vencem em 30 dias`} onClick={() => go("employees")} />
+          <Pill tone={missingTotal > 0 ? "red" : "slate"} icon={ClipboardX} label={`${missingTotal} dias com RDO/OS faltando`} onClick={() => go("work")} />
+          <Pill tone="blue" icon={Plane} label={`${mock.requests.upcomingEmbark} próximos embarques`} onClick={() => go("mobility")} />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <Card className="p-6 lg:col-span-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-lg font-semibold text-slate-900">Atalhos rápidos</div>
-              <div className="text-sm text-slate-500">Selecione o colaborador antes de abrir o módulo.</div>
+      {/* Cards topo */}
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <DashboardMetricCard
+          title="HC (Colaboradores)"
+          value={`${mock.hc.total}`}
+          icon={Users}
+          trendChange={mock.hc.delta}
+          trendType="up"
+          hint={`Embarcados ${mock.hc.embarked} • Base ${mock.hc.base}`}
+          onClick={() => go("employees")}
+        />
+        <DashboardMetricCard title="Docs vencidas" value={`${mock.docs.expired}`} icon={FileText} trendChange={mock.docs.deltaExpired} trendType="up" hint="Ação imediata" onClick={() => go("employees")} />
+        <DashboardMetricCard title="Docs vencendo (30 dias)" value={`${mock.docs.expiring30}`} icon={Clock} trendChange={mock.docs.deltaExpiring} trendType="up" hint="Planejar renovação" onClick={() => go("employees")} />
+        <DashboardMetricCard title="Docs faltando" value={`${mock.docs.missing}`} icon={AlertTriangle} trendChange={mock.docs.deltaMissing} trendType="down" hint="Completar cadastro" onClick={() => go("employees")} />
+      </div>
+
+      {/* Cards operação */}
+      <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <DashboardMetricCard
+          title="Solicitações pendentes"
+          value={`${mock.requests.pendingApprovals}`}
+          icon={AlertTriangle}
+          trendChange={mock.requests.deltaPending}
+          trendType="up"
+          hint="Aguardando aprovação"
+          onClick={() => go("employees")}
+        />
+        <DashboardMetricCard title="EPIs pendentes" value={`${mock.requests.epiPending}`} icon={HardHat} trendType="neutral" hint="Liberar para operação" onClick={() => go("equipment")} />
+        <DashboardMetricCard title="Próximos embarques (7 dias)" value={`${mock.requests.upcomingEmbark}`} icon={Plane} trendType="neutral" hint="Checar pendências" onClick={() => go("mobility")} />
+        <DashboardMetricCard title="RDO/OS faltando" value={`${missingTotal}`} icon={ClipboardX} trendChange={missingTotal > 0 ? "atenção" : "ok"} trendType={missingTotal > 0 ? "down" : "neutral"} hint={`RDO ${mock.rdo.missingDays} • OS ${mock.os.missingDays}`} onClick={() => go("work")} />
+      </div>
+
+      {/* RDO/OS */}
+      <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <DashboardMetricCard
+          title="RDOs (período)"
+          value={`${mock.rdo.generated}`}
+          icon={ClipboardList}
+          trendChange={`${mock.rdo.pendingApproval} pend • ${mock.rdo.rejected} reprov`}
+          trendType={mock.rdo.pendingApproval > 0 ? "up" : "neutral"}
+          hint="Gerados"
+          onClick={() => go("work")}
+          className="lg:col-span-2"
+        />
+        <DashboardMetricCard
+          title="OSs (período)"
+          value={`${mock.os.generated}`}
+          icon={ClipboardCheck}
+          trendChange={`${mock.os.pendingApproval} pend • ${mock.os.rejected} reprov`}
+          trendType={mock.os.pendingApproval > 0 ? "up" : "neutral"}
+          hint="Geradas"
+          onClick={() => go("work")}
+          className="lg:col-span-2"
+        />
+      </div>
+
+      {/* Seções inferiores */}
+      <div className="mt-6 grid gap-5 lg:grid-cols-3">
+        <SectionCard
+          title="Colaboradores por plataforma"
+          subtitle="Distribuição de HC (mock)"
+          right={
+            <button type="button" onClick={() => go("employees")} className="text-xs font-semibold text-blue-700 hover:underline">
+              Ver detalhes
+            </button>
+          }
+        >
+          <div className="space-y-4">
+            {mock.distribution.platforms.map((p) => (
+              <ProgressRow key={p.label} label={p.label} value={p.value} total={totalByPlatform} tone="blue" />
+            ))}
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title="Colaboradores por embarcação/plataforma"
+          subtitle="Top alocações (mock)"
+          right={
+            <button type="button" onClick={() => go("mobility")} className="text-xs font-semibold text-blue-700 hover:underline">
+              Abrir operação
+            </button>
+          }
+        >
+          <div className="space-y-4">
+            {mock.distribution.vessels.map((p) => (
+              <ProgressRow key={p.label} label={p.label} value={p.value} total={totalByVessel} tone="amber" />
+            ))}
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Ações recomendadas" subtitle="Atalhos para resolver o que dói primeiro">
+          <div className="flex flex-col gap-2.5">
+            {mock.recommendedActions.map((a, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={a.go}
+                className={cn(
+                  "flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition",
+                  a.tone === "red"
+                    ? "border-red-200 bg-red-50 hover:brightness-[0.98]"
+                    : a.tone === "amber"
+                      ? "border-amber-200 bg-amber-50 hover:brightness-[0.98]"
+                      : "border-blue-200 bg-blue-50 hover:brightness-[0.98]"
+                )}
+              >
+                <div className="text-sm font-semibold text-slate-900">{a.label}</div>
+                <span className="text-xs font-extrabold text-slate-600">Ir</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+            <div className="text-xs font-extrabold text-slate-900">Últimas movimentações</div>
+            <div className="mt-3 space-y-2">
+              {mock.recentActivity.map((x, i) => (
+                <div key={i} className="flex items-start justify-between gap-3">
+                  <div className="text-xs text-slate-500 shrink-0">{x.ts}</div>
+                  <div className="text-xs font-semibold text-slate-700 text-right">{x.text}</div>
+                </div>
+              ))}
             </div>
-            <ClipboardList />
           </div>
+        </SectionCard>
+      </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button onClick={() => openPicker('overview')}>Abrir perfil</Button>
-            <Button variant="secondary" onClick={() => openPicker('equipment')}>
-              EPIs e Equipamentos
-            </Button>
-            <Button variant="secondary" onClick={() => openPicker('docs')}>
-              Documentação
-            </Button>
-            <Button variant="secondary" onClick={() => openPicker('mobility')}>
-              Escalas & Embarques
-            </Button>
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <div className="text-lg font-semibold text-slate-900">Próximos embarques</div>
-          <div className="mt-1 text-sm text-slate-500">Top 5 por data</div>
-
-          <div className="mt-4 space-y-3">
-            {nextDeployments.length === 0 ? (
-              <div className="text-sm text-slate-500">Sem embarques cadastrados.</div>
-            ) : (
-              nextDeployments.map((e) => (
-                <button
-                  key={e.id}
-                  type="button"
-                  className="w-full rounded-xl border border-slate-200 p-3 text-left hover:bg-slate-50"
-                  onClick={() => onOpenEmployee?.(e.id, 'mobility')}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-medium text-slate-900">{e.name}</div>
-                      <div className="text-xs text-slate-500">{formatDeployment(e.nextDeployment)}</div>
-                    </div>
-                    <Badge tone="gray">Ver</Badge>
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-        </Card>
+      <div className="mt-6 text-xs text-slate-500">
+        Dados mock por enquanto. Depois conectamos API e fazemos cada card abrir com o filtro correto (ex.: “docs vencidas”, “RDO pendente”, “EPI aguardando”).
       </div>
     </div>
   );
