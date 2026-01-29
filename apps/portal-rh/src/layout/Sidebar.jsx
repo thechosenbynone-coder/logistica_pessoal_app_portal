@@ -1,5 +1,5 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { cn } from '../ui/ui.js';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { cn } from "../ui/ui.js";
 import {
   ClipboardList,
   HardHat,
@@ -9,28 +9,28 @@ import {
   UserRound,
   Users,
   Wallet,
-} from 'lucide-react';
+} from "lucide-react";
 
 const NAV = [
   {
-    title: 'Principal',
-    items: [{ key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }],
+    title: "Principal",
+    items: [{ key: "dashboard", label: "Dashboard", icon: LayoutDashboard }],
   },
   {
-    title: 'Operação',
+    title: "Operação",
     items: [
-      { key: 'mobility', label: 'Operação', icon: Plane },
-      { key: 'equipment', label: 'EPIs', icon: HardHat },
-      { key: 'work', label: 'OS / RDO', icon: ClipboardList },
+      { key: "mobility", label: "Operação", icon: Plane },
+      { key: "equipment", label: "EPIs", icon: HardHat },
+      { key: "work", label: "OS / RDO", icon: ClipboardList },
     ],
   },
   {
-    title: 'RH',
-    items: [{ key: 'employees', label: 'Colaboradores', icon: Users }],
+    title: "RH",
+    items: [{ key: "employees", label: "Colaboradores", icon: Users }],
   },
   {
-    title: 'Financeiro',
-    items: [{ key: 'finance', label: 'Gestão Financeira', icon: Wallet }],
+    title: "Financeiro",
+    items: [{ key: "finance", label: "Gestão Financeira", icon: Wallet }],
   },
 ];
 
@@ -52,9 +52,9 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
 
   // ✅ Se cair numa rota antiga que agora “mora” dentro de um módulo, marca o módulo pai
   const activeKey = useMemo(() => {
-    if (active === 'hotel') return 'mobility';
-    if (active === 'docs') return 'employees';
-    if (active === 'employeeCreate') return 'employees';
+    if (active === "hotel") return "mobility";
+    if (active === "docs") return "employees";
+    if (active === "employeeCreate") return "employees";
     return active;
   }, [active]);
 
@@ -86,15 +86,14 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
 
   const handleSelect = (key) => {
     const fn = onNavigate || onSelect;
-    if (typeof fn === 'function') fn(key);
+    if (typeof fn === "function") fn(key);
   };
 
   const user = useMemo(
     () => ({
-      name: 'Ana Silva',
-      role: 'Analista RH',
-      avatar:
-        'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=96&q=60',
+      name: "Ana Silva",
+      role: "Analista RH",
+      avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=96&q=60",
     }),
     []
   );
@@ -104,11 +103,11 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
   const Tooltip = ({ text }) => (
     <div
       className={cn(
-        'pointer-events-none absolute left-[86px] top-1/2 -translate-y-1/2 z-50',
-        'opacity-0 scale-[0.98] translate-x-[2px]',
-        'group-hover:opacity-100 group-hover:scale-100 group-hover:translate-x-0',
-        'transition-all duration-100 ease-out',
-        'delay-[80ms] group-hover:delay-0'
+        "pointer-events-none absolute left-[86px] top-1/2 -translate-y-1/2 z-50",
+        "opacity-0 scale-[0.98] translate-x-[2px]",
+        "group-hover:opacity-100 group-hover:scale-100 group-hover:translate-x-0",
+        "transition-all duration-100 ease-out",
+        "delay-[80ms] group-hover:delay-0"
       )}
     >
       <div className="relative rounded-xl bg-slate-900/95 text-white text-xs font-semibold px-3 py-2 shadow-xl whitespace-nowrap border border-white/10 backdrop-blur-sm">
@@ -140,18 +139,18 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
 
   useEffect(() => {
     const onResize = () => computeBar();
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeKey, isOpen]);
 
   return (
     <aside
       className={cn(
-        // ✅ FIXO NA TELA, NÃO “ESTICA” COM A PÁGINA
-        'h-screen sticky top-0 bg-white border-r border-slate-100 flex flex-col overflow-hidden',
-        'transition-[width] duration-200 ease-in-out',
-        isOpen ? 'w-72' : 'w-[76px]'
+        // ✅ Sidebar fixo, sem “esticada”, sem scroll interno visível
+        "h-screen sticky top-0 bg-white border-r border-slate-100 flex flex-col overflow-hidden",
+        "transition-[width] duration-200 ease-in-out",
+        isOpen ? "w-72" : "w-[76px]"
       )}
       onMouseEnter={scheduleOpen}
       onMouseLeave={closeNow}
@@ -163,9 +162,9 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
           type="button"
           onClick={toggleOpen}
           className={cn(
-            'w-full rounded-2xl border border-slate-100 bg-white shadow-sm',
-            'flex items-center p-3',
-            isOpen ? 'gap-3 justify-start' : 'gap-0 justify-center'
+            "w-full rounded-2xl border border-slate-100 bg-white shadow-sm",
+            "flex items-center p-3",
+            isOpen ? "gap-3 justify-start" : "gap-0 justify-center"
           )}
           aria-label="Portal RH"
         >
@@ -182,16 +181,16 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
         </button>
       </div>
 
-      {/* Nav (rolável por dentro) */}
-      <nav className="px-3 pb-3 flex-1 overflow-y-auto">
+      {/* Nav (SEM rolagem) */}
+      <nav className="px-3 pb-3 flex-1 min-h-0 overflow-hidden">
         <div ref={barWrapRef} className="relative">
           <span
             aria-hidden="true"
             className={cn(
-              'absolute left-0 w-1 rounded-r-full',
-              'bg-gradient-to-b from-blue-500 to-blue-700',
-              'shadow-[0_0_18px_rgba(37,99,235,0.45)]',
-              'transition-[transform,opacity] duration-300 ease-out'
+              "absolute left-0 w-1 rounded-r-full",
+              "bg-gradient-to-b from-blue-500 to-blue-700",
+              "shadow-[0_0_18px_rgba(37,99,235,0.45)]",
+              "transition-[transform,opacity] duration-300 ease-out"
             )}
             style={{
               height: BAR_H,
@@ -223,28 +222,25 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
                       onClick={() => handleSelect(it.key)}
                       aria-label={it.label}
                       className={cn(
-                        'group relative w-full',
-                        'flex items-center px-2 py-2 transition-colors',
-                        isOpen ? 'gap-3 justify-start rounded-2xl' : 'gap-0 justify-center rounded-2xl',
-                        isActive ? (isOpen ? 'bg-blue-50/70' : 'bg-transparent') : 'hover:bg-slate-50',
-                        'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-200/70 focus-visible:ring-offset-0'
+                        "group relative w-full",
+                        "flex items-center px-2 py-2 transition-colors",
+                        isOpen ? "gap-3 justify-start rounded-2xl" : "gap-0 justify-center rounded-2xl",
+                        isActive ? (isOpen ? "bg-blue-50/70" : "bg-transparent") : "hover:bg-slate-50",
+                        "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-200/70 focus-visible:ring-offset-0"
                       )}
                     >
                       <div
                         className={cn(
-                          'h-11 w-11 min-w-[44px] rounded-2xl shrink-0',
-                          'grid place-items-center overflow-hidden relative leading-none',
+                          "h-11 w-11 min-w-[44px] rounded-2xl shrink-0",
+                          "grid place-items-center overflow-hidden relative leading-none",
                           isActive
-                            ? 'bg-blue-50 ring-1 ring-blue-200 shadow-[0_0_16px_rgba(37,99,235,0.18)]'
-                            : 'bg-slate-100'
+                            ? "bg-blue-50 ring-1 ring-blue-200 shadow-[0_0_16px_rgba(37,99,235,0.18)]"
+                            : "bg-slate-100"
                         )}
                       >
                         <Icon
                           size={ICON_SIZE}
-                          className={cn(
-                            'block !max-w-none !max-h-none',
-                            isActive ? 'text-blue-700' : 'text-slate-700'
-                          )}
+                          className={cn("block !max-w-none !max-h-none", isActive ? "text-blue-700" : "text-slate-700")}
                         />
                       </div>
 
@@ -253,8 +249,8 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
                       {isOpen && (
                         <span
                           className={cn(
-                            'text-sm font-semibold whitespace-nowrap',
-                            isActive ? 'text-blue-700' : 'text-slate-700'
+                            "text-sm font-semibold whitespace-nowrap",
+                            isActive ? "text-blue-700" : "text-slate-700"
                           )}
                         >
                           {it.label}
@@ -268,8 +264,9 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
           ))}
         </div>
 
+        {/* Dica só aparece em telas grandes para não “apertar” o footer e gerar overflow */}
         {isOpen && (
-          <div className="mt-4 mx-1 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mt-4 mx-1 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hidden lg:block">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
               <Lightbulb className="h-4 w-4 text-amber-500" />
               Dica
@@ -281,24 +278,20 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
         )}
       </nav>
 
-      {/* Footer profile (sempre visível) */}
+      {/* Footer profile (sempre visível, sem “sumir”) */}
       <div className="p-3 shrink-0">
         <button
           type="button"
           aria-label={`${user.name} • ${user.role}`}
           className={cn(
-            'group relative w-full rounded-2xl border border-slate-100 bg-white shadow-sm',
-            'flex items-center p-3',
-            isOpen ? 'gap-3 justify-start' : 'gap-0 justify-center',
-            'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-200/70 focus-visible:ring-offset-0'
+            "group relative w-full rounded-2xl border border-slate-100 bg-white shadow-sm",
+            "flex items-center p-3",
+            isOpen ? "gap-3 justify-start" : "gap-0 justify-center",
+            "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-200/70 focus-visible:ring-offset-0"
           )}
         >
           {user.avatar ? (
-            <img
-              src={user.avatar}
-              alt={user.name}
-              className="h-11 w-11 rounded-2xl object-cover border border-slate-100"
-            />
+            <img src={user.avatar} alt={user.name} className="h-11 w-11 rounded-2xl object-cover border border-slate-100" />
           ) : (
             <div className="h-11 w-11 rounded-2xl bg-slate-100 grid place-items-center">
               <UserRound size={ICON_SIZE} className="text-slate-600" />
