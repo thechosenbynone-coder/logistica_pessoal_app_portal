@@ -93,17 +93,21 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
     () => ({
       name: "Ana Silva",
       role: "Analista RH",
-      avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=96&q=60",
+      avatar:
+        "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=96&q=60",
     }),
     []
   );
 
   const isOpen = open;
 
+  // ✅ Tooltip “caseiro” (quando fechado)
+  // Importante: Sidebar e Nav NÃO podem ter overflow-hidden no eixo X, senão o tooltip é cortado.
   const Tooltip = ({ text }) => (
     <div
       className={cn(
-        "pointer-events-none absolute left-[86px] top-1/2 -translate-y-1/2 z-50",
+        "pointer-events-none absolute left-[86px] top-1/2 -translate-y-1/2",
+        "z-[9999]",
         "opacity-0 scale-[0.98] translate-x-[2px]",
         "group-hover:opacity-100 group-hover:scale-100 group-hover:translate-x-0",
         "transition-all duration-100 ease-out",
@@ -147,8 +151,10 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
   return (
     <aside
       className={cn(
-        // ✅ Sidebar fixo, sem “esticada”, sem scroll interno visível
-        "h-screen sticky top-0 bg-white border-r border-slate-100 flex flex-col overflow-hidden",
+        // ✅ Sidebar fixo visualmente e sem rolagem interna
+        // ⚠️ Tooltips precisam de overflow-x visível (senão são cortados)
+        "h-screen sticky top-0 bg-white border-r border-slate-100 flex flex-col",
+        "overflow-x-visible overflow-y-hidden",
         "transition-[width] duration-200 ease-in-out",
         isOpen ? "w-72" : "w-[76px]"
       )}
@@ -182,7 +188,7 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
       </div>
 
       {/* Nav (SEM rolagem) */}
-      <nav className="px-3 pb-3 flex-1 min-h-0 overflow-hidden">
+      <nav className="px-3 pb-3 flex-1 min-h-0 overflow-x-visible overflow-y-hidden">
         <div ref={barWrapRef} className="relative">
           <span
             aria-hidden="true"
@@ -240,7 +246,10 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
                       >
                         <Icon
                           size={ICON_SIZE}
-                          className={cn("block !max-w-none !max-h-none", isActive ? "text-blue-700" : "text-slate-700")}
+                          className={cn(
+                            "block !max-w-none !max-h-none",
+                            isActive ? "text-blue-700" : "text-slate-700"
+                          )}
                         />
                       </div>
 
@@ -279,7 +288,7 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
       </nav>
 
       {/* Footer profile (sempre visível, sem “sumir”) */}
-      <div className="p-3 shrink-0">
+      <div className="p-3 shrink-0 overflow-x-visible overflow-y-hidden">
         <button
           type="button"
           aria-label={`${user.name} • ${user.role}`}
@@ -291,7 +300,11 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
           )}
         >
           {user.avatar ? (
-            <img src={user.avatar} alt={user.name} className="h-11 w-11 rounded-2xl object-cover border border-slate-100" />
+            <img
+              src={user.avatar}
+              alt={user.name}
+              className="h-11 w-11 rounded-2xl object-cover border border-slate-100"
+            />
           ) : (
             <div className="h-11 w-11 rounded-2xl bg-slate-100 grid place-items-center">
               <UserRound size={ICON_SIZE} className="text-slate-600" />
