@@ -284,7 +284,7 @@ export default function DashboardPage({ onNavigate }) {
 
         {/* ✅ DOCS em 1 card só */}
         <DashboardMetricCard
-          title="Documentações"
+          title="Documentos - Atenção"
           value={`${docsTotalIssues}`}
           icon={FileText}
           trendType={mock.docs.expired > 0 ? "down" : "neutral"}
