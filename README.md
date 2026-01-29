@@ -1,79 +1,117 @@
-# Employee Logistics (Demo)
+# Logística de Pessoal (Monorepo)
 
-Este projeto é uma **demo** do app de Logística Pessoal (embarque/offshore) com:
+Sistema de logística de pessoal para gestão de colaboradores, embarques, ordens de serviço e equipamentos.
 
-- **Web (Vite + React + Tailwind)**
-- **API (Express + Prisma)** opcional
+## Estrutura do Projeto
 
-## 1) Rodar só o Frontend (mais rápido)
-
-✅ **Modo DEMO (sem API e sem banco)**: por padrão o app roda em **mock mode**.
-
-Você não precisa configurar `.env` nem `DATABASE_URL` para ver e editar a UI.
-
-```bash
-npm i
-npm run dev
+```
+logistica_pessoal_preparado/
+├── apps/
+│   ├── colaborador/          # App do Colaborador (Vite + React + Tailwind)
+│   │   └── src/
+│   │       ├── components/   # Componentes UI reutilizáveis
+│   │       ├── features/     # Módulos de domínio
+│   │       │   ├── home/     # Tela inicial e check-in
+│   │       │   ├── trip/     # QR code e cartão de embarque
+│   │       │   ├── work/     # OS, RDO, Timesheet
+│   │       │   ├── finance/  # Despesas e adiantamentos
+│   │       │   ├── profile/  # Perfil e documentos
+│   │       │   ├── equipment/# Equipamentos e EPI
+│   │       │   └── history/  # Histórico de embarques
+│   │       ├── hooks/        # Hooks reutilizáveis
+│   │       ├── utils/        # Utilitários (datas, moeda, etc.)
+│   │       └── data/         # Dados mock
+│   │
+│   └── portal-rh/            # Portal do RH (Vite + React + Tailwind)
+│       └── src/
+│           ├── components/   # Componentes globais
+│           ├── features/     # Módulos (dashboard, employees, etc.)
+│           ├── layout/       # Sidebar e Topbar
+│           ├── ui/           # Componentes de UI base
+│           └── state/        # Gerenciamento de estado
+│
+├── server/                   # API (Express + Prisma)
+│   ├── src/
+│   └── prisma/
+│
+├── .eslintrc.cjs             # Configuração ESLint
+├── .prettierrc               # Configuração Prettier
+├── vitest.config.js          # Configuração Vitest
+└── package.json              # Root package (workspaces)
 ```
 
-Acesse `http://localhost:5173`.
-
-## 2) Rodar Frontend + API + Banco (recomendado)
-
-### Requisitos
-- Node 18+
-- Postgres (local ou cloud)
-
-### Passo a passo
-
-**API**
+## Instalação
 
 ```bash
-cd server
-cp .env.example .env
-# coloque sua DATABASE_URL
-npm i
-npx prisma generate
-npx prisma migrate dev --name init
-npm run seed
-npm run dev
+# Instalar dependências (na raiz)
+npm install
 ```
 
-**Web**
-
-Em outro terminal:
+## Rodando em Desenvolvimento
 
 ```bash
-# na raiz do projeto
-npm i
-npm run dev
+# Rodar tudo (colaborador + portal + API)
+npm run dev:all
+
+# Ou individualmente:
+npm run dev:colaborador   # http://localhost:5173
+npm run dev:portal        # http://localhost:5174
+npm run dev:api           # http://localhost:3001
 ```
 
-## Configuração de API no Web
+## Scripts Disponíveis
 
-### Mock mode (sem backend)
+| Script | Descrição |
+|--------|-----------|
+| `npm run dev:all` | Roda todos os serviços |
+| `npm run dev:colaborador` | Roda app do colaborador |
+| `npm run dev:portal` | Roda portal RH |
+| `npm run dev:api` | Roda API |
+| `npm run build` | Build de produção (ambos apps) |
+| `npm run lint` | Executa ESLint |
+| `npm run lint:fix` | Corrige problemas de lint |
+| `npm run format` | Formata código com Prettier |
+| `npm run test` | Executa testes com Vitest |
+| `npm run test:watch` | Testes em modo watch |
 
-Se você quer continuar o desenvolvimento só com dados mockados, crie um `.env` na **raiz** (opcional, já vem assim por padrão):
+## Arquitetura
 
-```bash
-VITE_MOCK_MODE=true
-```
+### App Colaborador
+- **Estrutura modular**: Features isoladas por domínio
+- **Componentes reutilizáveis**: ErrorBoundary, LoadingSpinner, SignaturePad
+- **Hooks customizados**: useLocalStorageState, useGeolocation
+- **Tratamento de erros**: Error Boundary global
 
-### Modo API (com backend)
+### Portal RH
+- **Layout**: Sidebar + Topbar responsivos
+- **Features**: Dashboard, Colaboradores, Equipamentos, Documentos, Financeiro
+- **Estado**: localStorage para persistência
 
-- Local: o Vite faz proxy de `/api` para `http://localhost:3001`.
-- Produção: configure `VITE_API_BASE_URL` apontando para a URL da sua API e desligue o mock:
+### API (Server)
+- **Express**: REST API
+- **Prisma**: ORM para banco de dados
+- **Endpoints**: /api/profile, /api/checkins, /api/expenses, etc.
 
-Exemplo `.env` (na raiz):
+## Refatoração Aplicada
 
-```bash
-VITE_MOCK_MODE=false
-VITE_API_BASE_URL=https://sua-api.render.com
-```
+1. **God Component eliminado**: EmployeeLogisticsApp.jsx reduzido de 2935 para ~180 linhas
+2. **Separação por features**: Cada domínio em sua própria pasta
+3. **Componentes reutilizáveis**: ErrorBoundary, LoadingSpinner, EmptyState
+4. **Utilitários centralizados**: Formatação de datas, moeda, CPF
+5. **ESLint + Prettier**: Padronização de código
+6. **Vitest**: Testes unitários para utilitários
 
-## Deploy (rápido)
+## Convenções
 
-- **Web**: Vercel / Netlify / Cloudflare Pages (build: `npm run build`, output: `dist`)
-- **API**: Render / Railway / Fly.io (com `server/`)
-- **DB**: Neon / Supabase / Railway Postgres
+- **Nomes de arquivos**: PascalCase para componentes, camelCase para hooks/utils
+- **Exportações**: Barrel exports (index.js) por feature
+- **Estilização**: Tailwind CSS
+- **Formato de datas**: DD/MM/YYYY (exibição), YYYY-MM-DD (armazenamento)
 
+## Próximos Passos Recomendados
+
+1. Integrar API real (remover mocks)
+2. Adicionar autenticação JWT
+3. Implementar React Query para cache de dados
+4. Expandir cobertura de testes
+5. Adicionar TypeScript gradualmente

@@ -1,31 +1,37 @@
 {
-  "name": "employee-logistics-demo",
+  "name": "logistica-pessoal-monorepo",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
+  "workspaces": [
+    "apps/colaborador",
+    "apps/portal-rh",
+    "server"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "lint": "echo \"(optional) add eslint\"",
-    "prisma:format": "prisma format",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "dev:all": "concurrently \"npm run dev\" \"npm --prefix server run dev\""
-  },
-  "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "lucide-react": "^0.542.0"
+    "dev:colaborador": "npm --workspace apps/colaborador run dev",
+    "dev:portal": "npm --workspace apps/portal-rh run dev",
+    "dev:api": "npm --workspace server run dev",
+    "dev:all": "concurrently \"npm run dev:colaborador\" \"npm run dev:portal\" \"npm run dev:api\"",
+    "build": "npm --workspace apps/colaborador run build && npm --workspace apps/portal-rh run build",
+    "preview:colaborador": "npm --workspace apps/colaborador run preview",
+    "preview:portal": "npm --workspace apps/portal-rh run preview",
+    "lint": "eslint apps/colaborador/src apps/portal-rh/src --ext .js,.jsx",
+    "lint:fix": "eslint apps/colaborador/src apps/portal-rh/src --ext .js,.jsx --fix",
+    "format": "prettier --write \"apps/**/src/**/*.{js,jsx,json,css}\"",
+    "format:check": "prettier --check \"apps/**/src/**/*.{js,jsx,json,css}\"",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
-    "@prisma/client": "^5.22.0",
-    "prisma": "^5.22.0",
-    "@vitejs/plugin-react": "^4.3.1",
-    "autoprefixer": "^10.4.20",
-    "postcss": "^8.4.47",
-    "tailwindcss": "^3.4.10",
-    "vite": "^5.4.8",
-    "concurrently": "^9.1.2"
+    "concurrently": "^9.1.2",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react": "^7.34.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "prettier": "^3.2.5",
+    "vitest": "^1.4.0",
+    "@testing-library/react": "^14.2.0",
+    "@testing-library/jest-dom": "^6.4.0",
+    "jsdom": "^24.0.0"
   }
 }

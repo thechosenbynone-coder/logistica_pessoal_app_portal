@@ -1,0 +1,1 @@
+export { EquipmentView } from './EquipmentView';
