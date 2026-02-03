@@ -1,9 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { UserCircle2 } from 'lucide-react';
 import Card from '../../ui/Card';
 import Badge from '../../ui/Badge';
 import Input from '../../ui/Input';
+import Button from '../../ui/Button';
 import EmployeeProfile from './EmployeeProfile';
+import { buildMinimalCollaborators, computeDashboardMetrics, parseXlsxToDataset } from '../../services/portalXlsxImporter';
 
 function digitsOnly(s) {
   return (s || '').toString().replace(/\D/g, '');
@@ -32,6 +34,7 @@ export default function EmployeesPage({ employees = [], focusEmployee, focus, on
   const [q, setQ] = useState('');
   const [selectedId, setSelectedId] = useState(employees?.[0]?.id || null);
   const [initialTab, setInitialTab] = useState('overview');
+  const fileInputRef = useRef(null);
 
   const focusId = focusEmployee?.employeeId ?? focus?.employeeId;
   const focusTab = focusEmployee?.tab ?? focus?.tab;
@@ -68,6 +71,33 @@ export default function EmployeesPage({ employees = [], focusEmployee, focus, on
 
   const selected = useMemo(() => normalized.find((e) => e.id === selectedId), [normalized, selectedId]);
 
+  async function handleXlsxImport(file) {
+    if (!file) return;
+    try {
+      const dataset = await parseXlsxToDataset(file);
+      const metrics = computeDashboardMetrics(dataset);
+      const importedAt = new Date().toISOString();
+      try {
+        window.localStorage.setItem('portal_rh_xlsx_v1', JSON.stringify({ version: 1, importedAt, dataset, metrics }));
+        window.dispatchEvent(new Event('portal_rh_xlsx_updated'));
+        return;
+      } catch (storageErr) {
+        try {
+          const colaboradores_minimos = buildMinimalCollaborators(dataset.colaboradores);
+          window.localStorage.setItem(
+            'portal_rh_xlsx_v1',
+            JSON.stringify({ version: 1, importedAt, metrics, colaboradores_minimos })
+          );
+          window.dispatchEvent(new Event('portal_rh_xlsx_updated'));
+        } catch (fallbackErr) {
+          console.error('Falha ao salvar dados XLSX no navegador.', fallbackErr);
+        }
+      }
+    } catch (err) {
+      console.error('Falha ao importar planilha XLSX.', err);
+    }
+  }
+
   return (
     <div className="p-6 grid grid-cols-12 gap-6">
       <div className="col-span-5 space-y-4">
@@ -75,6 +105,28 @@ export default function EmployeesPage({ employees = [], focusEmployee, focus, on
           <div>
             <div className="text-xl font-bold">Colaboradores</div>
             <div className="text-sm text-slate-500">Selecione um colaborador para ver os detalhes</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={() => {
+                fileInputRef.current?.click();
+              }}
+            >
+              Importar Planilha (.xlsx)
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (e.target) e.target.value = '';
+                handleXlsxImport(file);
+              }}
+            />
           </div>
         </div>
 

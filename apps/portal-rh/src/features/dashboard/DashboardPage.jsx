@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { cn } from "../../ui/ui.js";
 import { api } from "../../services/api";
@@ -183,7 +183,7 @@ export default function DashboardPage({ onNavigate }) {
     };
   }, []);
 
-  const storedMetrics = useMemo(() => {
+  const readStoredMetrics = useCallback(() => {
     if (typeof window === "undefined") return null;
     const raw = window.localStorage.getItem("portal_rh_xlsx_v1");
     if (!raw) return null;
@@ -196,6 +196,18 @@ export default function DashboardPage({ onNavigate }) {
       return null;
     }
   }, []);
+
+  const [storedMetrics, setStoredMetrics] = useState(() => readStoredMetrics());
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setStoredMetrics(readStoredMetrics());
+    };
+    window.addEventListener("portal_rh_xlsx_updated", handleUpdate);
+    return () => {
+      window.removeEventListener("portal_rh_xlsx_updated", handleUpdate);
+    };
+  }, [readStoredMetrics]);
 
   const fallbackMetrics = useMemo(() => computeDashboardMetrics(null), []);
 

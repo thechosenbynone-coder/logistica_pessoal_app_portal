@@ -30,7 +30,7 @@ function parseConfigSheet(workbook) {
   const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
   return rows.reduce((acc, row) => {
     const key = normalizeText(row?.[0]);
-    if (!key) return acc;
+    if (!key || !/^[A-Z0-9_]+$/.test(key)) return acc;
     const value = row?.[1];
     acc[key] = value;
     return acc;
@@ -125,7 +125,7 @@ export function computeDashboardMetrics(dataset) {
   const colaboradores = Array.isArray(dataset.colaboradores) ? dataset.colaboradores : [];
   const validColabs = colaboradores.filter(isValidCollaborator);
   const embarked = validColabs.filter((row) => {
-    const status = normalizeText(row.STATUS_ATUAL).toLowerCase();
+    const status = normalizeText(row.STATUS_ATUAL || row.STATUS).toLowerCase();
     const offshore = normalizeText(row.FUNCAO_OFFSHORE).toLowerCase();
     return status.includes('embar') || offshore === 'sim';
   }).length;
@@ -171,7 +171,7 @@ export function buildMinimalCollaborators(colaboradores) {
     cpf: normalizeText(row.CPF),
     base: normalizeText(row.BASE_OPERACIONAL),
     unidade: normalizeText(row.UNIDADE),
-    status: normalizeText(row.STATUS_ATUAL),
+    status: normalizeText(row.STATUS_ATUAL || row.STATUS),
     plataforma: normalizeText(row.BASE_OPERACIONAL)
   }));
 }

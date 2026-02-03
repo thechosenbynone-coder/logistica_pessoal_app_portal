@@ -107,6 +107,7 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
       try {
         window.localStorage.setItem('portal_rh_xlsx_v1', JSON.stringify(payload));
         setOk('Planilha importada com sucesso.');
+        window.dispatchEvent(new Event('portal_rh_xlsx_updated'));
         return;
       } catch (storageErr) {
         try {
@@ -116,6 +117,7 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
             JSON.stringify({ version: 1, importedAt, metrics, colaboradores_minimos })
           );
           setOk('Planilha importada com sucesso (dados resumidos).');
+          window.dispatchEvent(new Event('portal_rh_xlsx_updated'));
           return;
         } catch (fallbackErr) {
           setErr('Planilha carregada, mas não foi possível salvar os dados no navegador.');
