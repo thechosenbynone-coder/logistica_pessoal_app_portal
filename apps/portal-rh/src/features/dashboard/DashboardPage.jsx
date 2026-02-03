@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { cn } from "../../ui/ui.js";
 import { api } from "../../services/api";
+import { computeDashboardMetrics } from "../../services/portalXlsxImporter";
 import {
   AlertTriangle,
   ArrowDown,
@@ -182,6 +183,34 @@ export default function DashboardPage({ onNavigate }) {
     };
   }, []);
 
+  const readStoredMetrics = useCallback(() => {
+    if (typeof window === "undefined") return null;
+    const raw = window.localStorage.getItem("portal_rh_xlsx_v1");
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed?.metrics) return parsed.metrics;
+      if (parsed?.dataset) return computeDashboardMetrics(parsed.dataset);
+      return null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const [storedMetrics, setStoredMetrics] = useState(() => readStoredMetrics());
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setStoredMetrics(readStoredMetrics());
+    };
+    window.addEventListener("portal_rh_xlsx_updated", handleUpdate);
+    return () => {
+      window.removeEventListener("portal_rh_xlsx_updated", handleUpdate);
+    };
+  }, [readStoredMetrics]);
+
+  const fallbackMetrics = useMemo(() => computeDashboardMetrics(null), []);
+
   // MOCK USER (depois puxamos do login)
   const user = useMemo(() => ({ name: "Ana Silva" }), []);
   const firstName = (user?.name || "").trim().split(" ")[0] || "Usuário";
@@ -255,24 +284,56 @@ export default function DashboardPage({ onNavigate }) {
     []
   );
 
+  const fallbackDistribution = useMemo(
+    () => ({
+      platforms: mock.distribution.platforms.map((p) => ({ ...p, value: 0 })),
+      vessels: mock.distribution.vessels.map((p) => ({ ...p, value: 0 })),
+    }),
+    [mock]
+  );
+
   const currentData = useMemo(
     () => ({
       ...mock,
+      ...(storedMetrics || fallbackMetrics),
       hc: {
         ...mock.hc,
-        total: stats.totalEmployees || mock.hc.total,
-        embarked: stats.activeDeployments || mock.hc.embarked,
+        ...(storedMetrics || fallbackMetrics).hc,
       },
       docs: {
         ...mock.docs,
-        expired: stats.pendingDocs || mock.docs.expired,
+        ...(storedMetrics || fallbackMetrics).docs,
+      },
+      inventory: {
+        ...mock.inventory,
+        ...(storedMetrics || fallbackMetrics).inventory,
       },
       requests: {
         ...mock.requests,
-        pendingApprovals: stats.pendingExpenses || mock.requests.pendingApprovals,
+        ...(storedMetrics || fallbackMetrics).requests,
       },
+      rdo: {
+        ...mock.rdo,
+        ...(storedMetrics || fallbackMetrics).rdo,
+      },
+      os: {
+        ...mock.os,
+        ...(storedMetrics || fallbackMetrics).os,
+      },
+      distribution: {
+        platforms:
+          (storedMetrics || fallbackMetrics).distribution?.platforms?.length > 0
+            ? (storedMetrics || fallbackMetrics).distribution.platforms
+            : fallbackDistribution.platforms,
+        vessels:
+          (storedMetrics || fallbackMetrics).distribution?.vessels?.length > 0
+            ? (storedMetrics || fallbackMetrics).distribution.vessels
+            : fallbackDistribution.vessels,
+      },
+      recommendedActions: mock.recommendedActions,
+      recentActivity: mock.recentActivity,
     }),
-    [mock, stats]
+    [fallbackDistribution, fallbackMetrics, mock, storedMetrics]
   );
 
   const docsTotalIssues = currentData.docs.expired + currentData.docs.expiring30; // ✅ só vencido + vencendo
