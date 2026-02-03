@@ -30,16 +30,78 @@ function normalizeEmployee(e) {
   return { ...e, base, unit };
 }
 
+function toImportedEmployees(payload) {
+  const rows = payload?.dataset?.colaboradores || payload?.colaboradores_minimos;
+  if (!Array.isArray(rows)) return null;
+  return rows.map((row, index) => {
+    const id = row.COLABORADOR_ID || row.id || row.cpf || row.CPF || `import_${index}`;
+    const name = row.NOME_COMPLETO || row.nome || row.name || '';
+    const cpf = row.CPF || row.cpf || '';
+    const role = row.CARGO_FUNCAO || row.CARGO || row.cargo || row.role || '—';
+    const base = row.BASE_OPERACIONAL || row.base || row.hub || '—';
+    const unit = row.UNIDADE || row.unidade || row.unit || row.client || '';
+    const status = row.STATUS_ATUAL || row.STATUS || row.status || '';
+    return {
+      id,
+      name,
+      cpf,
+      role,
+      base,
+      unit,
+      hub: base,
+      client: unit,
+      status,
+      docs: { valid: 0, warning: 0, expired: 0 },
+      equipment: { assigned: 0, pendingReturn: 0 },
+      nextDeployment: null,
+      finance: {
+        status: '—',
+        note: '',
+        bank: '—',
+        pix: '—',
+        lastPayment: null,
+        lastAmount: null,
+        notes: ''
+      }
+    };
+  });
+}
+
+function loadImportedEmployees() {
+  if (typeof window === 'undefined') return null;
+  const raw = window.localStorage.getItem('portal_rh_xlsx_v1');
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return toImportedEmployees(parsed);
+  } catch {
+    return null;
+  }
+}
+
 export default function EmployeesPage({ employees = [], focusEmployee, focus, onFocusHandled }) {
   const [q, setQ] = useState('');
   const [selectedId, setSelectedId] = useState(employees?.[0]?.id || null);
   const [initialTab, setInitialTab] = useState('overview');
   const fileInputRef = useRef(null);
+  const [importedEmployees, setImportedEmployees] = useState(null);
 
   const focusId = focusEmployee?.employeeId ?? focus?.employeeId;
   const focusTab = focusEmployee?.tab ?? focus?.tab;
 
-  const normalized = useMemo(() => employees.map(normalizeEmployee), [employees]);
+  useEffect(() => {
+    setImportedEmployees(loadImportedEmployees());
+    const handleUpdate = () => {
+      setImportedEmployees(loadImportedEmployees());
+    };
+    window.addEventListener('portal_rh_xlsx_updated', handleUpdate);
+    return () => {
+      window.removeEventListener('portal_rh_xlsx_updated', handleUpdate);
+    };
+  }, []);
+
+  const employeesEffective = importedEmployees ?? employees;
+  const normalized = useMemo(() => employeesEffective.map(normalizeEmployee), [employeesEffective]);
 
   useEffect(() => {
     // keep selection valid when employees list changes
