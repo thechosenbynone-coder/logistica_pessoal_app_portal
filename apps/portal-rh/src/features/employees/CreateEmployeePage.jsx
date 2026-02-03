@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { FileSpreadsheet, FileText, IdCard, UserPlus } from 'lucide-react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import Input from '../../ui/Input';
 import Badge from '../../ui/Badge';
+import { buildMinimalCollaborators, computeDashboardMetrics, parseXlsxToDataset } from '../../services/portalXlsxImporter';
 
 function digitsOnly(s) {
   return (s || '').toString().replace(/\D/g, '');
@@ -24,6 +25,7 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
   const [mode, setMode] = useState('choose'); // choose | manual
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
+  const fileInputRef = useRef(null);
 
   const existingCpfs = useMemo(() => new Set(employees.map((e) => digitsOnly(e.cpf))), [employees]);
 
@@ -94,6 +96,36 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
     setMode('choose');
   }
 
+  async function handleXlsxImport(file) {
+    if (!file) return;
+    resetMessages();
+    try {
+      const dataset = await parseXlsxToDataset(file);
+      const metrics = computeDashboardMetrics(dataset);
+      const importedAt = new Date().toISOString();
+      const payload = { version: 1, importedAt, dataset, metrics };
+      try {
+        window.localStorage.setItem('portal_rh_xlsx_v1', JSON.stringify(payload));
+        setOk('Planilha importada com sucesso.');
+        return;
+      } catch (storageErr) {
+        try {
+          const colaboradores_minimos = buildMinimalCollaborators(dataset.colaboradores);
+          window.localStorage.setItem(
+            'portal_rh_xlsx_v1',
+            JSON.stringify({ version: 1, importedAt, metrics, colaboradores_minimos })
+          );
+          setOk('Planilha importada com sucesso (dados resumidos).');
+          return;
+        } catch (fallbackErr) {
+          setErr('Planilha carregada, mas não foi possível salvar os dados no navegador.');
+        }
+      }
+    } catch (parseErr) {
+      setErr('Falha ao importar planilha XLSX. Verifique o arquivo.');
+    }
+  }
+
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
       <Card className="p-6">
@@ -144,7 +176,7 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
             type="button"
             onClick={() => {
               resetMessages();
-              setErr('Importação via Excel: em breve.');
+              fileInputRef.current?.click();
             }}
             className="w-full rounded-xl border border-slate-200 p-4 text-left hover:bg-slate-50"
           >
@@ -156,6 +188,17 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
               <FileSpreadsheet />
             </div>
           </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (e.target) e.target.value = '';
+              handleXlsxImport(file);
+            }}
+          />
 
           {err && (
             <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{err}</div>
