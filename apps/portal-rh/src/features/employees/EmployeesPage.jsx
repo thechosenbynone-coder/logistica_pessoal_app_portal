@@ -148,13 +148,16 @@ export default function EmployeesPage({ employees = [], focusEmployee, focus, on
       const dataset = await parseXlsxToDataset(file);
       const metrics = computeDashboardMetrics(dataset);
       const importedAt = new Date().toISOString();
+      const colaboradores_minimos = buildMinimalCollaborators(dataset.colaboradores);
       try {
-        window.localStorage.setItem('portal_rh_xlsx_v1', JSON.stringify({ version: 1, importedAt, dataset, metrics }));
+        window.localStorage.setItem(
+          'portal_rh_xlsx_v1',
+          JSON.stringify({ version: 1, importedAt, dataset, metrics, colaboradores_minimos })
+        );
         window.dispatchEvent(new Event('portal_rh_xlsx_updated'));
         return;
       } catch (storageErr) {
         try {
-          const colaboradores_minimos = buildMinimalCollaborators(dataset.colaboradores);
           window.localStorage.setItem(
             'portal_rh_xlsx_v1',
             JSON.stringify({ version: 1, importedAt, metrics, colaboradores_minimos })

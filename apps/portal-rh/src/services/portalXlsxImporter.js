@@ -8,6 +8,15 @@ const SHEET_ALIASES = {
   CONFIG: ['CONFIG', 'Config', 'config']
 };
 
+const REQUIRED_COLAB_HEADERS = [
+  'COLABORADOR_ID',
+  'NOME_COMPLETO',
+  'CPF',
+  'CARGO_FUNCAO',
+  'BASE_OPERACIONAL',
+  'UNIDADE'
+];
+
 function findSheetName(workbook, sheetKey) {
   const aliases = SHEET_ALIASES[sheetKey] || [sheetKey];
   const names = workbook.SheetNames || [];
@@ -43,8 +52,20 @@ function toNumber(value) {
   return Number.isNaN(n) ? null : n;
 }
 
+function digitsOnly(value) {
+  return (value || '').toString().replace(/\D/g, '');
+}
+
 function normalizeText(value) {
   return (value || '').toString().trim();
+}
+
+function normalizeHeader(value) {
+  return normalizeText(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '_')
+    .toUpperCase();
 }
 
 function isValidCollaborator(row) {
@@ -80,6 +101,64 @@ function countStatus(rows, alertDays) {
   );
 }
 
+function getHeaderRows(sheet) {
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+  if (!rows.length) return { header: [], rows: [] };
+  const header = rows[0].map((cell) => normalizeHeader(cell));
+  return { header, rows: rows.slice(1) };
+}
+
+function hasRequiredHeaders(header) {
+  if (!header.length) return false;
+  return REQUIRED_COLAB_HEADERS.every((required) => header.includes(required));
+}
+
+function findCollaboradoresSheet(workbook) {
+  const names = workbook.SheetNames || [];
+  const direct = names.find((name) => normalizeHeader(name) === 'COLABORADORES');
+  if (direct) return { sheetName: direct, reason: 'COLABORADORES' };
+  for (const name of names) {
+    const sheet = workbook.Sheets[name];
+    if (!sheet) continue;
+    const { header } = getHeaderRows(sheet);
+    if (hasRequiredHeaders(header)) return { sheetName: name, reason: 'HEADERS' };
+  }
+  return { sheetName: null, reason: 'NOT_FOUND' };
+}
+
+function parseCollaboradoresSheet(workbook) {
+  const { sheetName, reason } = findCollaboradoresSheet(workbook);
+  if (!sheetName) return { rows: [], reason, sheetName: null };
+  const sheet = workbook.Sheets[sheetName];
+  if (!sheet) return { rows: [], reason: 'NOT_FOUND', sheetName: null };
+  const { header, rows } = getHeaderRows(sheet);
+  if (!hasRequiredHeaders(header)) {
+    return { rows: [], reason: 'MISSING_HEADERS', sheetName };
+  }
+  const items = [];
+  rows.forEach((row) => {
+    const isEmpty = row.every((cell) => normalizeText(cell) === '');
+    if (isEmpty) return;
+    const item = {};
+    header.forEach((key, idx) => {
+      if (!key) return;
+      const rawValue = row[idx];
+      if (rawValue == null || rawValue === '') {
+        item[key] = '';
+        return;
+      }
+      if (key === 'CPF' || key === 'TELEFONE') {
+        item[key] = digitsOnly(rawValue);
+        return;
+      }
+      item[key] = normalizeText(rawValue);
+    });
+    if (!isValidCollaborator(item)) return;
+    items.push(item);
+  });
+  return { rows: items, reason: 'OK', sheetName };
+}
+
 export function parseXlsxToDataset(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -89,11 +168,25 @@ export function parseXlsxToDataset(file) {
         const data = new Uint8Array(evt.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
 
-        const colaboradores = toRows(workbook, 'Colaboradores');
+        const colaboradoresResult = parseCollaboradoresSheet(workbook);
+        const colaboradores = colaboradoresResult.rows;
         const docs_pessoais = toRows(workbook, 'Docs_Pessoais');
         const certificacoes = toRows(workbook, 'Certificacoes');
         const saude_exames = toRows(workbook, 'Saude_Exames');
         const config = parseConfigSheet(workbook);
+
+        if (colaboradoresResult.sheetName) {
+          console.debug(
+            `[portal-rh] Aba colaboradores: ${colaboradoresResult.sheetName} (${colaboradores.length} linhas).`
+          );
+        }
+        if (!colaboradores.length) {
+          const reason =
+            colaboradoresResult.reason === 'MISSING_HEADERS'
+              ? 'headers obrigatórios ausentes'
+              : 'aba não encontrada';
+          console.warn(`[portal-rh] Nenhum colaborador importado (${reason}).`);
+        }
 
         resolve({ colaboradores, docs_pessoais, certificacoes, saude_exames, config });
       } catch (err) {
@@ -140,12 +233,20 @@ export function computeDashboardMetrics(dataset) {
   const docsCounts = countStatus(docsRows, alertDays);
 
   const platformTotals = new Map();
+  const vesselTotals = new Map();
   validColabs.forEach((row) => {
     const platform = normalizeText(row.BASE_OPERACIONAL);
+    const vessel = normalizeText(row.UNIDADE);
     if (!platform) return;
     platformTotals.set(platform, (platformTotals.get(platform) || 0) + 1);
+    if (!vessel) return;
+    vesselTotals.set(vessel, (vesselTotals.get(vessel) || 0) + 1);
   });
   const platforms = Array.from(platformTotals.entries())
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 4);
+  const vessels = Array.from(vesselTotals.entries())
     .map(([label, value]) => ({ label, value }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 4);
@@ -157,7 +258,7 @@ export function computeDashboardMetrics(dataset) {
     requests: { pendingApprovals: 0, upcomingEmbark: 0, deltaPending: '' },
     rdo: { generated: 0, pendingApproval: 0, rejected: 0, missingDays: 0 },
     os: { generated: 0, pendingApproval: 0, rejected: 0, missingDays: 0 },
-    distribution: { platforms, vessels: platforms },
+    distribution: { platforms, vessels },
     recommendedActions: [],
     recentActivity: []
   };
