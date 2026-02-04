@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { cn } from "../ui/ui.js";
 import {
   ClipboardList,
+  FileText,
   HardHat,
   LayoutDashboard,
   Lightbulb,
@@ -27,7 +28,10 @@ const NAV = [
   },
   {
     title: "RH",
-    items: [{ key: "employees", label: "Colaboradores", icon: Users }],
+    items: [
+      { key: "employees", label: "Colaboradores", icon: Users },
+      { key: "docs", label: "Documentações", icon: FileText },
+    ],
   },
   {
     title: "Financeiro",
@@ -86,7 +90,6 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
   // ✅ Se cair numa rota antiga que agora “mora” dentro de um módulo, marca o módulo pai
   const activeKey = useMemo(() => {
     if (active === "hotel") return "mobility";
-    if (active === "docs") return "employees";
     if (active === "employeeCreate") return "employees";
     return active;
   }, [active]);

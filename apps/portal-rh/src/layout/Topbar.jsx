@@ -4,6 +4,14 @@ import Input from '../ui/Input.jsx'
 import Button from '../ui/Button.jsx'
 import Modal from '../ui/Modal.jsx'
 import Badge from '../ui/Badge.jsx'
+import {
+  clearDemoData,
+  getDemoScenario,
+  isDemoMode,
+  seedDemoDataIfNeeded,
+  setDemoMode,
+  setDemoScenario
+} from '../services/demoMode'
 import { cn } from '../ui/ui.js'
 
 export default function Topbar({
@@ -14,6 +22,8 @@ export default function Topbar({
   employees = []
 }) {
   const [quickOpen, setQuickOpen] = useState(false)
+  const [demoScenario, setDemoScenarioState] = useState(getDemoScenario())
+  const demoMode = isDemoMode()
 
   // Busca do modal (Ctrl/Cmd + K)
   const [q, setQ] = useState('')
@@ -70,6 +80,10 @@ export default function Topbar({
   useEffect(() => {
     setActiveIndex(0)
   }, [q])
+
+  useEffect(() => {
+    setDemoScenarioState(getDemoScenario())
+  }, [demoMode])
 
   useEffect(() => {
     const onKeyDown = (e) => {
@@ -144,6 +158,53 @@ export default function Topbar({
       </div>
 
       <div className="flex items-center gap-2">
+        {demoMode && (
+          <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1">
+            <Badge tone="amber">DEMO</Badge>
+            {['saudavel', 'risco', 'critico'].map((scenario) => (
+              <Button
+                key={scenario}
+                type="button"
+                variant={demoScenario === scenario ? 'primary' : 'secondary'}
+                className="text-xs"
+                onClick={() => {
+                  setDemoScenario(scenario)
+                  setDemoScenarioState(scenario)
+                  seedDemoDataIfNeeded(scenario, true)
+                }}
+              >
+                {scenario === 'saudavel' ? 'Saudável' : scenario === 'risco' ? 'Em risco' : 'Crítico'}
+              </Button>
+            ))}
+            <Button
+              type="button"
+              variant="secondary"
+              className="text-xs"
+              onClick={() => {
+                clearDemoData()
+                seedDemoDataIfNeeded(demoScenario, true)
+              }}
+            >
+              Recarregar
+            </Button>
+          </div>
+        )}
+        <Button
+          type="button"
+          variant="secondary"
+          className="text-sm"
+          onClick={() => {
+            if (demoMode) {
+              setDemoMode(false)
+              window.location.assign('/')
+            } else {
+              setDemoMode(true)
+              window.location.assign('/demo')
+            }
+          }}
+        >
+          Modo: {demoMode ? 'Demo' : 'Produção'}
+        </Button>
         <Button
           variant="secondary"
           className="text-sm"

@@ -5,13 +5,12 @@ import Button from '../../ui/Button';
 import Input from '../../ui/Input';
 import Badge from '../../ui/Badge';
 import { buildMinimalCollaborators, computeDashboardMetrics, parseXlsxToDataset } from '../../services/portalXlsxImporter';
-
-function digitsOnly(s) {
-  return (s || '').toString().replace(/\D/g, '');
-}
+import { normalizeDigitsOnly } from '../../lib/documentationUtils';
+import { mergePortalPayload, readPortalPayload, writePortalPayload } from '../../lib/portalStorage';
+import { isDemoMode } from '../../services/demoMode';
 
 function formatCPF(digits) {
-  const d = digitsOnly(digits).slice(0, 11);
+  const d = normalizeDigitsOnly(digits).slice(0, 11);
   if (d.length !== 11) return digits;
   return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9, 11)}`;
 }
@@ -26,8 +25,9 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
   const fileInputRef = useRef(null);
+  const demoMode = isDemoMode();
 
-  const existingCpfs = useMemo(() => new Set(employees.map((e) => digitsOnly(e.cpf))), [employees]);
+  const existingCpfs = useMemo(() => new Set(employees.map((e) => normalizeDigitsOnly(e.cpf))), [employees]);
 
   const [form, setForm] = useState({
     name: '',
@@ -51,7 +51,7 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
     resetMessages();
 
     const name = form.name.trim();
-    const cpfDigits = digitsOnly(form.cpf);
+    const cpfDigits = normalizeDigitsOnly(form.cpf);
 
     if (!name) return setErr('Informe o nome do colaborador.');
     if (cpfDigits.length !== 11) return setErr('CPF inválido. Digite os 11 números.');
@@ -101,23 +101,43 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
     resetMessages();
     try {
       const dataset = await parseXlsxToDataset(file);
-      const metrics = computeDashboardMetrics(dataset);
+      const prevPayload = readPortalPayload();
+      const nextDataset = { ...prevPayload.dataset, ...dataset };
+      if (!Array.isArray(nextDataset.documentacoes) && Array.isArray(prevPayload.dataset?.documentacoes)) {
+        nextDataset.documentacoes = prevPayload.dataset.documentacoes;
+      }
+      if (!Array.isArray(nextDataset.colaboradores) || nextDataset.colaboradores.length === 0) {
+        nextDataset.colaboradores = prevPayload.dataset?.colaboradores || [];
+      }
+      const colaboradores_minimos = buildMinimalCollaborators(nextDataset.colaboradores);
+      const metrics = computeDashboardMetrics(nextDataset);
       const importedAt = new Date().toISOString();
-      const payload = { version: 1, importedAt, dataset, metrics };
+      const payload = mergePortalPayload(prevPayload, {
+        importedAt,
+        dataset: nextDataset,
+        metrics,
+        colaboradores_minimos:
+          colaboradores_minimos.length > 0
+            ? colaboradores_minimos
+            : prevPayload.colaboradores_minimos || prevPayload.dataset?.colaboradores_minimos || []
+      });
       try {
-        window.localStorage.setItem('portal_rh_xlsx_v1', JSON.stringify(payload));
+        writePortalPayload(payload);
         setOk('Planilha importada com sucesso.');
-        window.dispatchEvent(new Event('portal_rh_xlsx_updated'));
         return;
       } catch (storageErr) {
         try {
-          const colaboradores_minimos = buildMinimalCollaborators(dataset.colaboradores);
-          window.localStorage.setItem(
-            'portal_rh_xlsx_v1',
-            JSON.stringify({ version: 1, importedAt, metrics, colaboradores_minimos })
+          writePortalPayload(
+            mergePortalPayload(prevPayload, {
+              importedAt,
+              metrics,
+              colaboradores_minimos:
+                colaboradores_minimos.length > 0
+                  ? colaboradores_minimos
+                  : prevPayload.colaboradores_minimos || prevPayload.dataset?.colaboradores_minimos || []
+            })
           );
           setOk('Planilha importada com sucesso (dados resumidos).');
-          window.dispatchEvent(new Event('portal_rh_xlsx_updated'));
           return;
         } catch (fallbackErr) {
           setErr('Planilha carregada, mas não foi possível salvar os dados no navegador.');
@@ -174,33 +194,37 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
             </div>
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              resetMessages();
-              fileInputRef.current?.click();
-            }}
-            className="w-full rounded-xl border border-slate-200 p-4 text-left hover:bg-slate-50"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="font-medium text-slate-900">Inserir via Excel</div>
-                <div className="text-sm text-slate-500">Upload de planilha com validação (em breve).</div>
-              </div>
-              <FileSpreadsheet />
-            </div>
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (e.target) e.target.value = '';
-              handleXlsxImport(file);
-            }}
-          />
+          {!demoMode && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  resetMessages();
+                  fileInputRef.current?.click();
+                }}
+                className="w-full rounded-xl border border-slate-200 p-4 text-left hover:bg-slate-50"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-medium text-slate-900">Inserir via Excel</div>
+                    <div className="text-sm text-slate-500">Upload de planilha com validação (em breve).</div>
+                  </div>
+                  <FileSpreadsheet />
+                </div>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (e.target) e.target.value = '';
+                  handleXlsxImport(file);
+                }}
+              />
+            </>
+          )}
 
           {err && (
             <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{err}</div>

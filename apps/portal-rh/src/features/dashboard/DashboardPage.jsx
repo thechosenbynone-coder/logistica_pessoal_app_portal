@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { cn } from "../../ui/ui.js";
 import { api } from "../../services/api";
 import { computeDashboardMetrics } from "../../services/portalXlsxImporter";
+import { readPortalPayload } from "../../lib/portalStorage";
 import {
   AlertTriangle,
   ArrowDown,
@@ -184,17 +185,10 @@ export default function DashboardPage({ onNavigate }) {
   }, []);
 
   const readStoredMetrics = useCallback(() => {
-    if (typeof window === "undefined") return null;
-    const raw = window.localStorage.getItem("portal_rh_xlsx_v1");
-    if (!raw) return null;
-    try {
-      const parsed = JSON.parse(raw);
-      if (parsed?.metrics) return parsed.metrics;
-      if (parsed?.dataset) return computeDashboardMetrics(parsed.dataset);
-      return null;
-    } catch {
-      return null;
-    }
+    const payload = readPortalPayload();
+    if (payload?.metrics) return payload.metrics;
+    if (payload?.dataset) return computeDashboardMetrics(payload.dataset);
+    return null;
   }, []);
 
   const [storedMetrics, setStoredMetrics] = useState(() => readStoredMetrics());

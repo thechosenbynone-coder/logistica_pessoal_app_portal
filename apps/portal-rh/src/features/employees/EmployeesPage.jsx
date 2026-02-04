@@ -6,15 +6,22 @@ import Input from '../../ui/Input';
 import Button from '../../ui/Button';
 import EmployeeProfile from './EmployeeProfile';
 import { buildMinimalCollaborators, computeDashboardMetrics, parseXlsxToDataset } from '../../services/portalXlsxImporter';
-
-function digitsOnly(s) {
-  return (s || '').toString().replace(/\D/g, '');
-}
+import {
+  REQUIRED_DOC_TYPES,
+  docValidityStatus,
+  evidenceStatus,
+  normalizeDigitsOnly,
+  normalizeDocType,
+  normalizeText
+} from '../../lib/documentationUtils';
+import { mergePortalPayload, readPortalPayload, writePortalPayload } from '../../lib/portalStorage';
+import { isDemoMode } from '../../services/demoMode';
 
 function docTone(d) {
-  if ((d?.expired || 0) > 0) return { label: 'Vencido', tone: 'red' };
-  if ((d?.warning || 0) > 0) return { label: 'Atenção', tone: 'amber' };
-  return { label: 'OK', tone: 'green' };
+  const suffix = d?.evidencePending ? ' •' : '';
+  if ((d?.missing || 0) > 0 || (d?.expired || 0) > 0) return { label: `Vencido${suffix}`, tone: 'red' };
+  if ((d?.warning || 0) > 0) return { label: `Atenção${suffix}`, tone: 'amber' };
+  return { label: `OK${suffix}`, tone: 'green' };
 }
 
 function equipTone(e) {
@@ -31,7 +38,11 @@ function normalizeEmployee(e) {
 }
 
 function toImportedEmployees(payload) {
-  const rows = payload?.dataset?.colaboradores || payload?.colaboradores_minimos;
+  const rows =
+    payload?.colaboradores_minimos ||
+    payload?.colaboradores ||
+    payload?.dataset?.colaboradores_minimos ||
+    payload?.dataset?.colaboradores;
   if (!Array.isArray(rows)) return null;
   return rows.map((row, index) => {
     const id = row.COLABORADOR_ID || row.id || row.cpf || row.CPF || `import_${index}`;
@@ -41,16 +52,21 @@ function toImportedEmployees(payload) {
     const base = row.BASE_OPERACIONAL || row.base || row.hub || '—';
     const unit = row.UNIDADE || row.unidade || row.unit || row.client || '';
     const status = row.STATUS_ATUAL || row.STATUS || row.status || '';
+    const offshore = row.FUNCAO_OFFSHORE || row.offshore || '';
     return {
       id,
       name,
+      nome: name,
       cpf,
       role,
+      cargo: role,
       base,
       unit,
+      unidade: unit,
       hub: base,
       client: unit,
       status,
+      offshore,
       docs: { valid: 0, warning: 0, expired: 0 },
       equipment: { assigned: 0, pendingReturn: 0 },
       nextDeployment: null,
@@ -68,15 +84,45 @@ function toImportedEmployees(payload) {
 }
 
 function loadImportedEmployees() {
-  if (typeof window === 'undefined') return null;
-  const raw = window.localStorage.getItem('portal_rh_xlsx_v1');
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    return toImportedEmployees(parsed);
-  } catch {
-    return null;
+  const payload = readPortalPayload();
+  const employees = toImportedEmployees(payload);
+  const documentacoes = Array.isArray(payload?.dataset?.documentacoes) ? payload.dataset.documentacoes : [];
+  return { employees, documentacoes };
+}
+
+function summarizeEmployeeDocs(documentacoes, employeeId) {
+  if (!Array.isArray(documentacoes) || documentacoes.length === 0 || !employeeId) return null;
+  const id = normalizeText(employeeId);
+  const docsForEmployee = documentacoes.filter((doc) => normalizeText(doc.COLABORADOR_ID) === id);
+  if (!docsForEmployee.length) {
+    return {
+      valid: 0,
+      warning: 0,
+      expired: 0,
+      missing: REQUIRED_DOC_TYPES.length,
+      evidencePending: false
+    };
   }
+  let valid = 0;
+  let warning = 0;
+  let expired = 0;
+  let missing = 0;
+  let evidencePending = false;
+  REQUIRED_DOC_TYPES.forEach((type) => {
+    const docsOfType = docsForEmployee.filter((doc) => normalizeDocType(doc.TIPO_DOCUMENTO) === type);
+    if (!docsOfType.length) {
+      missing += 1;
+      return;
+    }
+    const doc = docsOfType[0];
+    const status = docValidityStatus(doc);
+    if (status === 'VENCIDO') expired += 1;
+    if (status === 'VENCENDO') warning += 1;
+    if (status === 'OK') valid += 1;
+    const evidence = evidenceStatus(doc);
+    if (evidence !== 'VERIFICADO') evidencePending = true;
+  });
+  return { valid, warning, expired, missing, evidencePending };
 }
 
 export default function EmployeesPage({ employees = [], focusEmployee, focus, onFocusHandled }) {
@@ -85,14 +131,20 @@ export default function EmployeesPage({ employees = [], focusEmployee, focus, on
   const [initialTab, setInitialTab] = useState('overview');
   const fileInputRef = useRef(null);
   const [importedEmployees, setImportedEmployees] = useState(null);
+  const [storedDocumentacoes, setStoredDocumentacoes] = useState([]);
+  const demoMode = isDemoMode();
 
   const focusId = focusEmployee?.employeeId ?? focus?.employeeId;
   const focusTab = focusEmployee?.tab ?? focus?.tab;
 
   useEffect(() => {
-    setImportedEmployees(loadImportedEmployees());
+    const stored = loadImportedEmployees();
+    setImportedEmployees(stored.employees);
+    setStoredDocumentacoes(stored.documentacoes);
     const handleUpdate = () => {
-      setImportedEmployees(loadImportedEmployees());
+      const updated = loadImportedEmployees();
+      setImportedEmployees(updated.employees);
+      setStoredDocumentacoes(updated.documentacoes);
     };
     window.addEventListener('portal_rh_xlsx_updated', handleUpdate);
     return () => {
@@ -102,16 +154,25 @@ export default function EmployeesPage({ employees = [], focusEmployee, focus, on
 
   const employeesEffective = importedEmployees ?? employees;
   const normalized = useMemo(() => employeesEffective.map(normalizeEmployee), [employeesEffective]);
+  const enriched = useMemo(
+    () =>
+      normalized.map((emp) => {
+        const summary = summarizeEmployeeDocs(storedDocumentacoes, emp.id);
+        if (!summary) return emp;
+        return { ...emp, docs: { ...emp.docs, ...summary } };
+      }),
+    [normalized, storedDocumentacoes]
+  );
 
   useEffect(() => {
     // keep selection valid when employees list changes
-    if (!normalized?.length) {
+    if (!enriched?.length) {
       setSelectedId(null);
       return;
     }
-    const exists = normalized.some((e) => e.id === selectedId);
-    if (!exists) setSelectedId(normalized[0].id);
-  }, [normalized, selectedId]);
+    const exists = enriched.some((e) => e.id === selectedId);
+    if (!exists) setSelectedId(enriched[0].id);
+  }, [enriched, selectedId]);
 
   useEffect(() => {
     if (!focusId) return;
@@ -122,35 +183,56 @@ export default function EmployeesPage({ employees = [], focusEmployee, focus, on
 
   const filtered = useMemo(() => {
     const qt = q.trim().toLowerCase();
-    const qd = digitsOnly(q);
-    if (!qt && !qd) return normalized;
-    return normalized.filter((e) => {
+    const qd = normalizeDigitsOnly(q);
+    if (!qt && !qd) return enriched;
+    return enriched.filter((e) => {
       const name = (e.name || '').toLowerCase();
-      const cpf = digitsOnly(e.cpf);
+      const cpf = normalizeDigitsOnly(e.cpf);
       return (qt && name.includes(qt)) || (qd && cpf.includes(qd));
     });
-  }, [normalized, q]);
+  }, [enriched, q]);
 
-  const selected = useMemo(() => normalized.find((e) => e.id === selectedId), [normalized, selectedId]);
+  const selected = useMemo(() => enriched.find((e) => e.id === selectedId), [enriched, selectedId]);
 
   async function handleXlsxImport(file) {
     if (!file) return;
     try {
       const dataset = await parseXlsxToDataset(file);
-      const metrics = computeDashboardMetrics(dataset);
+      const prevPayload = readPortalPayload();
+      const nextDataset = { ...prevPayload.dataset, ...dataset };
+      if (!Array.isArray(nextDataset.documentacoes) && Array.isArray(prevPayload.dataset?.documentacoes)) {
+        nextDataset.documentacoes = prevPayload.dataset.documentacoes;
+      }
+      if (!Array.isArray(nextDataset.colaboradores) || nextDataset.colaboradores.length === 0) {
+        nextDataset.colaboradores = prevPayload.dataset?.colaboradores || [];
+      }
+      const colaboradores_minimos = buildMinimalCollaborators(nextDataset.colaboradores);
+      const metrics = computeDashboardMetrics(nextDataset);
       const importedAt = new Date().toISOString();
+      const payload = mergePortalPayload(prevPayload, {
+        importedAt,
+        dataset: nextDataset,
+        metrics,
+        colaboradores_minimos:
+          colaboradores_minimos.length > 0
+            ? colaboradores_minimos
+            : prevPayload.colaboradores_minimos || prevPayload.dataset?.colaboradores_minimos || []
+      });
       try {
-        window.localStorage.setItem('portal_rh_xlsx_v1', JSON.stringify({ version: 1, importedAt, dataset, metrics }));
-        window.dispatchEvent(new Event('portal_rh_xlsx_updated'));
+        writePortalPayload(payload);
         return;
       } catch (storageErr) {
         try {
-          const colaboradores_minimos = buildMinimalCollaborators(dataset.colaboradores);
-          window.localStorage.setItem(
-            'portal_rh_xlsx_v1',
-            JSON.stringify({ version: 1, importedAt, metrics, colaboradores_minimos })
+          writePortalPayload(
+            mergePortalPayload(prevPayload, {
+              importedAt,
+              metrics,
+              colaboradores_minimos:
+                colaboradores_minimos.length > 0
+                  ? colaboradores_minimos
+                  : prevPayload.colaboradores_minimos || prevPayload.dataset?.colaboradores_minimos || []
+            })
           );
-          window.dispatchEvent(new Event('portal_rh_xlsx_updated'));
         } catch (fallbackErr) {
           console.error('Falha ao salvar dados XLSX no navegador.', fallbackErr);
         }
@@ -169,26 +251,30 @@ export default function EmployeesPage({ employees = [], focusEmployee, focus, on
             <div className="text-sm text-slate-500">Selecione um colaborador para ver os detalhes</div>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              type="button"
-              onClick={() => {
-                fileInputRef.current?.click();
-              }}
-            >
-              Importar Planilha (.xlsx)
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (e.target) e.target.value = '';
-                handleXlsxImport(file);
-              }}
-            />
+            {!demoMode && (
+              <>
+                <Button
+                  variant="secondary"
+                  type="button"
+                  onClick={() => {
+                    fileInputRef.current?.click();
+                  }}
+                >
+                  Importar Planilha (.xlsx)
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (e.target) e.target.value = '';
+                    handleXlsxImport(file);
+                  }}
+                />
+              </>
+            )}
           </div>
         </div>
 
