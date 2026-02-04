@@ -16,6 +16,7 @@ import { mergePortalPayload, readPortalPayload, writePortalPayload } from '../..
 const STATUS_OPTIONS = ['Planejado', 'Confirmado', 'Em andamento', 'Finalizado', 'Cancelado'];
 const LOCAL_OPTIONS = ['Base', 'Embarcado', 'Hospedado'];
 const PASSAGEM_OPTIONS = ['Não comprada', 'Comprada', 'Emitida'];
+const REQUIRED_DOCS = REQUIRED_DOC_TYPES;
 
 function buildProgramacao(prog) {
   return {
@@ -83,6 +84,9 @@ export default function MobilityPage() {
   const [employees, setEmployees] = useState([]);
   const [documentacoes, setDocumentacoes] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterAptidao, setFilterAptidao] = useState(null);
+  const [filterDocType, setFilterDocType] = useState(null);
+  const [filterEvidence, setFilterEvidence] = useState(null);
 
   useEffect(() => {
     const payload = readPortalPayload();
@@ -131,17 +135,120 @@ export default function MobilityPage() {
     [programacoes, selectedProgId]
   );
 
+  const hasWindow = Boolean(selectedProgramacao?.EMBARQUE_DT && selectedProgramacao?.DESEMBARQUE_DT);
+
+  const escaladosWithComputedStatus = useMemo(() => {
+    if (!selectedProgramacao) return [];
+    return selectedProgramacao.COLABORADORES.map((colab) => {
+      const id = normalizeText(colab.COLABORADOR_ID);
+      const employee = employeesById.get(id);
+      const apt = computeAptidao({
+        docsByEmployee,
+        employeeId: id,
+        embarkDate: selectedProgramacao.EMBARQUE_DT,
+        disembarkDate: selectedProgramacao.DESEMBARQUE_DT
+      });
+      const reasons = [...apt.missing, ...apt.expired, ...apt.expiring];
+      let evidenceFlag = 'SEM_EVIDENCIA';
+      if (docsByEmployee.get(id)?.length) {
+        const evidences = REQUIRED_DOCS.map((type) => {
+          const doc = (docsByEmployee.get(id) || []).find((item) => normalizeDocType(item.TIPO_DOCUMENTO) === type);
+          return doc ? evidenceStatus(doc) : 'SEM_EVIDENCIA';
+        });
+        if (evidences.every((status) => status === 'VERIFICADO')) evidenceFlag = 'VERIFICADO';
+        else if (evidences.some((status) => status === 'PENDENTE_VERIFICACAO')) evidenceFlag = 'PENDENTE_VERIFICACAO';
+      }
+      return { colab, id, employee, apt, reasons, evidenceFlag };
+    });
+  }, [selectedProgramacao, employeesById, docsByEmployee]);
+
+  const summaryCounts = useMemo(() => {
+    const counts = { total: 0, apto: 0, atencao: 0, naoApto: 0 };
+    escaladosWithComputedStatus.forEach((item) => {
+      counts.total += 1;
+      if (item.apt.level === 'APTO') counts.apto += 1;
+      if (item.apt.level === 'ATENCAO') counts.atencao += 1;
+      if (item.apt.level === 'NAO_APTO') counts.naoApto += 1;
+    });
+    return counts;
+  }, [escaladosWithComputedStatus]);
+
+  const docCoverage = useMemo(() => {
+    if (!selectedProgramacao) return [];
+    return REQUIRED_DOCS.map((type) => {
+      const affected = [];
+      let ok = 0;
+      let expiring = 0;
+      let expired = 0;
+      escaladosWithComputedStatus.forEach((item) => {
+        const doc = (docsByEmployee.get(item.id) || []).find(
+          (d) => normalizeDocType(d.TIPO_DOCUMENTO) === type
+        );
+        if (!doc) {
+          expired += 1;
+          affected.push(item.id);
+          return;
+        }
+        const status = docWindowStatus(doc, selectedProgramacao.EMBARQUE_DT, selectedProgramacao.DESEMBARQUE_DT);
+        if (status === 'OK') ok += 1;
+        if (status === 'VENCE_DURANTE') {
+          expiring += 1;
+          affected.push(item.id);
+        }
+        if (status === 'VENCIDO') {
+          expired += 1;
+          affected.push(item.id);
+        }
+      });
+      return {
+        type,
+        ok,
+        expiring,
+        expired,
+        total: escaladosWithComputedStatus.length,
+        affected
+      };
+    });
+  }, [selectedProgramacao, escaladosWithComputedStatus, docsByEmployee]);
+
+  const evidenceCounts = useMemo(() => {
+    const counts = { SEM_EVIDENCIA: 0, PENDENTE_VERIFICACAO: 0, VERIFICADO: 0 };
+    escaladosWithComputedStatus.forEach((item) => {
+      counts[item.evidenceFlag] += 1;
+    });
+    return counts;
+  }, [escaladosWithComputedStatus]);
+
+  const filteredEscalados = useMemo(() => {
+    return escaladosWithComputedStatus.filter((item) => {
+      if (filterAptidao && item.apt.level !== filterAptidao) return false;
+      if (filterEvidence && item.evidenceFlag !== filterEvidence) return false;
+      if (filterDocType) {
+        const doc = (docsByEmployee.get(item.id) || []).find(
+          (d) => normalizeDocType(d.TIPO_DOCUMENTO) === filterDocType
+        );
+        if (!doc) return true;
+        const status = docWindowStatus(doc, selectedProgramacao?.EMBARQUE_DT, selectedProgramacao?.DESEMBARQUE_DT);
+        return status !== 'OK';
+      }
+      return true;
+    });
+  }, [escaladosWithComputedStatus, filterAptidao, filterDocType, filterEvidence, docsByEmployee, selectedProgramacao]);
+
   const suggestions = useMemo(() => {
     if (!selectedProgramacao) return [];
     const term = searchQuery.trim().toLowerCase();
-    if (term.length < 2) return [];
     const currentIds = new Set(selectedProgramacao.COLABORADORES.map((c) => normalizeText(c.COLABORADOR_ID)));
     const items = [];
     for (const [id, emp] of employeesById.entries()) {
       if (currentIds.has(id)) continue;
       const name = normalizeText(emp.name).toLowerCase();
       const cpf = normalizeDigitsOnly(emp.cpf);
-      const matches = id.toLowerCase().includes(term) || name.includes(term) || cpf.includes(normalizeDigitsOnly(term));
+      const matches =
+        term.length < 2 ||
+        id.toLowerCase().includes(term) ||
+        name.includes(term) ||
+        cpf.includes(normalizeDigitsOnly(term));
       if (!matches) continue;
       const apt = computeAptidao({
         docsByEmployee,
@@ -151,12 +258,13 @@ export default function MobilityPage() {
       });
       if (apt.level !== 'APTO') continue;
       items.push({ ...emp, apt });
-      if (items.length >= 10) break;
     }
-    return items.sort((a, b) => {
-      if (a.apt.evidencePending === b.apt.evidencePending) return 0;
-      return a.apt.evidencePending ? 1 : -1;
-    });
+    return items
+      .sort((a, b) => {
+        if (a.apt.evidencePending === b.apt.evidencePending) return 0;
+        return a.apt.evidencePending ? 1 : -1;
+      })
+      .slice(0, term.length >= 2 ? 10 : 8);
   }, [selectedProgramacao, searchQuery, employeesById, docsByEmployee]);
 
   function persistProgramacoes(nextProgramacoes) {
@@ -362,6 +470,137 @@ export default function MobilityPage() {
                   placeholder="Observações"
                 />
               </div>
+
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                {[
+                  { key: 'total', label: 'Total escalados', value: summaryCounts.total, tone: 'gray' },
+                  { key: 'APTO', label: 'Aptos', value: summaryCounts.apto, tone: 'green' },
+                  { key: 'ATENCAO', label: 'Atenção', value: summaryCounts.atencao, tone: 'amber' },
+                  { key: 'NAO_APTO', label: 'Não aptos', value: summaryCounts.naoApto, tone: 'red' }
+                ].map((card) => {
+                  const total = summaryCounts.total || 1;
+                  const percent = Math.round(((card.value || 0) / total) * 100);
+                  const active = filterAptidao === card.key;
+                  return (
+                    <button
+                      key={card.key}
+                      type="button"
+                      className={
+                        'rounded-xl border p-3 text-left transition ' +
+                        (active ? 'border-blue-200 bg-blue-50' : 'border-slate-200 hover:bg-slate-50')
+                      }
+                      onClick={() => {
+                        if (card.key === 'total') return setFilterAptidao(null);
+                        setFilterAptidao(active ? null : card.key);
+                      }}
+                    >
+                      <div className="text-xs text-slate-500">{card.label}</div>
+                      <div className="mt-1 text-lg font-semibold text-slate-900">{card.value}</div>
+                      <div className="mt-2 h-2 w-full rounded-full bg-slate-100">
+                        <div
+                          className={`h-2 rounded-full ${
+                            card.tone === 'green'
+                              ? 'bg-emerald-400'
+                              : card.tone === 'amber'
+                                ? 'bg-amber-400'
+                                : card.tone === 'red'
+                                  ? 'bg-rose-400'
+                                  : 'bg-slate-300'
+                          }`}
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {(filterAptidao || filterDocType || filterEvidence) && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setFilterAptidao(null);
+                    setFilterDocType(null);
+                    setFilterEvidence(null);
+                  }}
+                >
+                  Limpar filtros
+                </Button>
+              )}
+            </Card>
+
+            {!hasWindow && (
+              <Card className="p-4 text-sm text-slate-600">
+                Para ativar validações: defina Unidade + Embarque + Desembarque.
+              </Card>
+            )}
+
+            <Card className="p-6 space-y-4">
+              <div className="text-sm font-semibold text-slate-900">Cobertura documental na janela</div>
+              {!hasWindow && (
+                <div className="text-xs text-slate-500">Aguardando janela para calcular cobertura.</div>
+              )}
+              <div className="space-y-3">
+                {docCoverage.map((doc) => {
+                  const percent = doc.total ? Math.round((doc.ok / doc.total) * 100) : 0;
+                  const active = filterDocType === doc.type;
+                  return (
+                    <button
+                      key={doc.type}
+                      type="button"
+                      className={
+                        'w-full rounded-xl border p-3 text-left transition ' +
+                        (active ? 'border-blue-200 bg-blue-50' : 'border-slate-200 hover:bg-slate-50')
+                      }
+                      onClick={() => setFilterDocType(active ? null : doc.type)}
+                    >
+                      <div className="flex items-center justify-between text-sm font-semibold text-slate-900">
+                        <span>{doc.type}</span>
+                        <span>
+                          {doc.ok}/{doc.total || 0}
+                        </span>
+                      </div>
+                      <div className="mt-2 h-2 w-full rounded-full bg-slate-100">
+                        <div className="h-2 rounded-full bg-emerald-400" style={{ width: `${percent}%` }} />
+                      </div>
+                      <div className="mt-2 text-xs text-slate-500">
+                        Vence durante: {doc.expiring} • Vencido/ausente: {doc.expired}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </Card>
+
+            <Card className="p-6 space-y-3">
+              <div className="text-sm font-semibold text-slate-900">Pendências de evidência/verificação</div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { key: 'SEM_EVIDENCIA', label: 'Sem evidência', tone: 'red', value: evidenceCounts.SEM_EVIDENCIA },
+                  {
+                    key: 'PENDENTE_VERIFICACAO',
+                    label: 'Pendente verificação',
+                    tone: 'amber',
+                    value: evidenceCounts.PENDENTE_VERIFICACAO
+                  },
+                  { key: 'VERIFICADO', label: 'Verificados', tone: 'green', value: evidenceCounts.VERIFICADO }
+                ].map((chip) => {
+                  const active = filterEvidence === chip.key;
+                  return (
+                    <button
+                      key={chip.key}
+                      type="button"
+                      className={
+                        'rounded-full border px-3 py-1 text-xs transition ' +
+                        (active ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600')
+                      }
+                      onClick={() => setFilterEvidence(active ? null : chip.key)}
+                    >
+                      {chip.label} ({chip.value})
+                    </button>
+                  );
+                })}
+              </div>
             </Card>
 
             <Card className="p-6 space-y-4">
@@ -372,16 +611,9 @@ export default function MobilityPage() {
                 </div>
               )}
               <div className="space-y-3">
-                {selectedProgramacao.COLABORADORES.map((colab) => {
-                  const id = normalizeText(colab.COLABORADOR_ID);
-                  const employee = employeesById.get(id);
-                  const apt = computeAptidao({
-                    docsByEmployee,
-                    employeeId: id,
-                    embarkDate: selectedProgramacao.EMBARQUE_DT,
-                    disembarkDate: selectedProgramacao.DESEMBARQUE_DT
-                  });
-                  const aptLabel = apt.level === 'APTO' ? '✅ APTO' : apt.level === 'ATENCAO' ? '⚠️ ATENÇÃO' : '✖ NÃO APTO';
+                {filteredEscalados.map(({ colab, id, employee, apt, reasons }) => {
+                  const aptLabel =
+                    apt.level === 'APTO' ? '✅ APTO' : apt.level === 'ATENCAO' ? '⚠️ ATENÇÃO' : '✖ NÃO APTO';
                   const aptTone = apt.level === 'APTO' ? 'green' : apt.level === 'ATENCAO' ? 'amber' : 'red';
                   return (
                     <div key={id} className="rounded-xl border border-slate-200 p-4">
@@ -402,6 +634,15 @@ export default function MobilityPage() {
                             {apt.evidencePending && <Badge tone="gray">Pendência evidência</Badge>}
                           </div>
                         </div>
+                        {reasons.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {reasons.slice(0, 4).map((reason) => (
+                              <Badge key={reason} tone="gray">
+                                {reason}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
                       </button>
 
                       <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -483,26 +724,38 @@ export default function MobilityPage() {
 
                       {selectedMemberId === id && (
                         <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3 text-xs text-slate-600">
-                          {!!apt.missing.length && (
-                            <div>Faltando: {apt.missing.join(', ')}</div>
-                          )}
-                          {!!apt.expired.length && (
-                            <div>Vencido antes do embarque: {apt.expired.join(', ')}</div>
-                          )}
-                          {!!apt.expiring.length && (
-                            <div>Vence durante: {apt.expiring.join(', ')}</div>
-                          )}
-                          {!apt.missing.length && !apt.expired.length && !apt.expiring.length && (
-                            <div>Sem pendências para a janela.</div>
-                          )}
+                          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                            {REQUIRED_DOCS.map((type) => {
+                              const doc = (docsByEmployee.get(id) || []).find(
+                                (d) => normalizeDocType(d.TIPO_DOCUMENTO) === type
+                              );
+                              const status = doc
+                                ? docWindowStatus(doc, selectedProgramacao.EMBARQUE_DT, selectedProgramacao.DESEMBARQUE_DT)
+                                : 'AUSENTE';
+                              const label =
+                                status === 'OK'
+                                  ? '✅ OK'
+                                  : status === 'VENCE_DURANTE'
+                                    ? '⚠️ Vence durante'
+                                    : status === 'VENCIDO'
+                                      ? '✖ Vencido'
+                                      : '✖ Ausente';
+                              return (
+                                <div key={type} className="flex items-center justify-between rounded-lg border border-slate-200 px-2 py-1">
+                                  <span>{type}</span>
+                                  <span>{label}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
                     </div>
                   );
                 })}
-                {!selectedProgramacao.COLABORADORES.length && (
+                {!filteredEscalados.length && (
                   <div className="rounded-xl border border-slate-200 p-4 text-sm text-slate-500">
-                    Nenhum colaborador escalado nesta programação.
+                    Nenhum colaborador encontrado para os filtros atuais.
                   </div>
                 )}
               </div>
@@ -532,7 +785,7 @@ export default function MobilityPage() {
                 ))}
                 {!suggestions.length && (
                   <div className="rounded-xl border border-slate-200 p-3 text-sm text-slate-500">
-                    Digite ao menos 2 caracteres para ver sugestões aptas.
+                    Nenhuma sugestão apta disponível para esta janela.
                   </div>
                 )}
               </div>
