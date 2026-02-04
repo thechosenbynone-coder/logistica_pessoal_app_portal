@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Paperclip } from 'lucide-react';
 import Card from '../../ui/Card.jsx';
 import Button from '../../ui/Button.jsx';
 import Input from '../../ui/Input.jsx';
 import Badge from '../../ui/Badge.jsx';
+import Modal from '../../ui/Modal.jsx';
 import {
   OPTIONAL_DOC_TYPES,
   REQUIRED_DOC_TYPES,
@@ -89,9 +91,13 @@ export default function DocsPage() {
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [evidenceFilter, setEvidenceFilter] = useState('');
+  const [requiredOnly, setRequiredOnly] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingKey, setEditingKey] = useState('');
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const fileInputRef = useRef(null);
+  const uploadInputRef = useRef(null);
 
   useEffect(() => {
     const payload = loadPayload();
@@ -115,18 +121,54 @@ export default function DocsPage() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return documentacoes.filter((doc) => {
-      const id = normalizeText(doc.COLABORADOR_ID);
-      const name = normalizeText(colaboradoresMap.get(id));
-      if (q && !id.toLowerCase().includes(q) && !name.toLowerCase().includes(q)) return false;
-      if (typeFilter && normalizeDocType(doc.TIPO_DOCUMENTO) !== normalizeDocType(typeFilter)) return false;
-      if (statusFilter) {
-        const status = docValidityStatus(doc);
-        if (status !== statusFilter) return false;
-      }
-      return true;
+    return documentacoes
+      .filter((doc) => {
+        const id = normalizeText(doc.COLABORADOR_ID);
+        const name = normalizeText(colaboradoresMap.get(id));
+        const type = normalizeDocType(doc.TIPO_DOCUMENTO);
+        if (
+          q &&
+          !id.toLowerCase().includes(q) &&
+          !name.toLowerCase().includes(q) &&
+          !type.toLowerCase().includes(q)
+        )
+          return false;
+        if (typeFilter && type !== normalizeDocType(typeFilter)) return false;
+        if (statusFilter) {
+          const status = docValidityStatus(doc);
+          if (status !== statusFilter) return false;
+        }
+        if (evidenceFilter) {
+          const evidence = evidenceStatus(doc);
+          if (evidence !== evidenceFilter) return false;
+        }
+        if (requiredOnly && !REQUIRED_DOC_TYPES.includes(type)) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const order = { VENCIDO: 0, VENCENDO: 1, OK: 2 };
+        const statusA = docValidityStatus(a) || 'OK';
+        const statusB = docValidityStatus(b) || 'OK';
+        const diff = (order[statusA] ?? 3) - (order[statusB] ?? 3);
+        if (diff !== 0) return diff;
+        const dateA = normalizeText(a.DATA_VENCIMENTO) || '9999-12-31';
+        const dateB = normalizeText(b.DATA_VENCIMENTO) || '9999-12-31';
+        return dateA.localeCompare(dateB);
+      });
+  }, [documentacoes, query, typeFilter, statusFilter, evidenceFilter, requiredOnly, colaboradoresMap]);
+
+  const summaryCounts = useMemo(() => {
+    const counts = { vencidos: 0, vencendo: 0, semEvidencia: 0, pendente: 0 };
+    documentacoes.forEach((doc) => {
+      const status = docValidityStatus(doc);
+      if (status === 'VENCIDO') counts.vencidos += 1;
+      if (status === 'VENCENDO') counts.vencendo += 1;
+      const evidence = evidenceStatus(doc);
+      if (evidence === 'SEM_EVIDENCIA') counts.semEvidencia += 1;
+      if (evidence === 'PENDENTE_VERIFICACAO') counts.pendente += 1;
     });
-  }, [documentacoes, query, typeFilter, statusFilter, colaboradoresMap]);
+    return counts;
+  }, [documentacoes]);
 
   function updateForm(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -140,6 +182,12 @@ export default function DocsPage() {
   function handleEdit(doc) {
     setForm({ ...EMPTY_FORM, ...doc });
     setEditingKey(buildDocKey(doc));
+    setDrawerOpen(true);
+  }
+
+  function handleNew() {
+    resetForm();
+    setDrawerOpen(true);
   }
 
   function handleSave(e) {
@@ -167,6 +215,7 @@ export default function DocsPage() {
     savePayload(updated);
     setDocumentacoes(updated);
     resetForm();
+    setDrawerOpen(false);
   }
 
   function handleVerify(doc) {
@@ -217,13 +266,18 @@ export default function DocsPage() {
     }
   }
 
+  function applyFilter(type, value) {
+    if (type === 'status') setStatusFilter(value);
+    if (type === 'evidence') setEvidenceFilter(value);
+  }
+
   return (
     <div className="space-y-4">
       <Card className="p-6">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-start justify-between gap-4">
           <div>
             <div className="text-lg font-semibold text-slate-900">Documentações</div>
-            <div className="text-sm text-slate-500">Cadastro e verificação das documentações obrigatórias.</div>
+            <div className="text-sm text-slate-500">Gestão centralizada das documentações dos colaboradores.</div>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -233,7 +287,10 @@ export default function DocsPage() {
                 fileInputRef.current?.click();
               }}
             >
-              Importar Documentações
+              Importar XLSX
+            </Button>
+            <Button type="button" onClick={handleNew}>
+              Novo registro
             </Button>
             <input
               ref={fileInputRef}
@@ -249,50 +306,45 @@ export default function DocsPage() {
           </div>
         </div>
 
-        <form className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4" onSubmit={handleSave}>
-          <Input
-            value={form.COLABORADOR_ID}
-            onChange={(e) => updateForm('COLABORADOR_ID', e.target.value)}
-            placeholder="ID do colaborador"
-          />
-          <Input
-            value={form.TIPO_DOCUMENTO}
-            onChange={(e) => updateForm('TIPO_DOCUMENTO', e.target.value)}
-            placeholder="Tipo (ASO, CBSP...)"
-          />
-          <Input
-            value={form.DATA_EMISSAO}
-            onChange={(e) => updateForm('DATA_EMISSAO', e.target.value)}
-            placeholder="Data emissão (YYYY-MM-DD)"
-          />
-          <Input
-            value={form.DATA_VENCIMENTO}
-            onChange={(e) => updateForm('DATA_VENCIMENTO', e.target.value)}
-            placeholder="Data vencimento (YYYY-MM-DD)"
-          />
-          <Input
-            value={form.EVIDENCIA_TIPO}
-            onChange={(e) => updateForm('EVIDENCIA_TIPO', e.target.value)}
-            placeholder="Evidência (UPLOAD/LINK)"
-          />
-          <Input
-            value={form.EVIDENCIA_REF}
-            onChange={(e) => updateForm('EVIDENCIA_REF', e.target.value)}
-            placeholder="Ref evidência"
-          />
-          <Input value={form.OBS} onChange={(e) => updateForm('OBS', e.target.value)} placeholder="Observação" />
-          <div className="flex items-center gap-2">
-            <Button type="submit">{editingKey ? 'Atualizar' : 'Adicionar'}</Button>
-            <Button type="button" variant="secondary" onClick={resetForm}>
-              Limpar
-            </Button>
-          </div>
-        </form>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50"
+            onClick={() => applyFilter('status', 'VENCIDO')}
+          >
+            Vencidos ({summaryCounts.vencidos})
+          </button>
+          <button
+            type="button"
+            className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50"
+            onClick={() => applyFilter('status', 'VENCENDO')}
+          >
+            Vencendo ({summaryCounts.vencendo})
+          </button>
+          <button
+            type="button"
+            className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50"
+            onClick={() => applyFilter('evidence', 'SEM_EVIDENCIA')}
+          >
+            Sem evidência ({summaryCounts.semEvidencia})
+          </button>
+          <button
+            type="button"
+            className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50"
+            onClick={() => applyFilter('evidence', 'PENDENTE_VERIFICACAO')}
+          >
+            Pendente verificação ({summaryCounts.pendente})
+          </button>
+        </div>
       </Card>
 
       <Card className="p-6">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar por colaborador" />
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar por colaborador, ID ou tipo"
+          />
           <select
             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
             value={typeFilter}
@@ -315,31 +367,62 @@ export default function DocsPage() {
             <option value="VENCENDO">Vencendo</option>
             <option value="OK">OK</option>
           </select>
+          <select
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+            value={evidenceFilter}
+            onChange={(e) => setEvidenceFilter(e.target.value)}
+          >
+            <option value="">Todas evidências</option>
+            <option value="SEM_EVIDENCIA">Sem evidência</option>
+            <option value="PENDENTE_VERIFICACAO">Pendente verificação</option>
+            <option value="VERIFICADO">Verificado</option>
+          </select>
+          <label className="flex items-center gap-2 text-sm text-slate-600">
+            <input
+              type="checkbox"
+              checked={requiredOnly}
+              onChange={(e) => setRequiredOnly(e.target.checked)}
+              className="rounded border-slate-300 text-blue-600 focus:ring-blue-200"
+            />
+            Somente obrigatórios
+          </label>
         </div>
 
         <div className="mt-4 space-y-2">
           {filtered.map((doc) => {
-            const status = docValidityStatus(doc) || '—';
+            const status = docValidityStatus(doc) || 'OK';
             const evidence = evidenceStatus(doc);
             const colabName = colaboradoresMap.get(normalizeText(doc.COLABORADOR_ID)) || '—';
+            const docType = normalizeDocType(doc.TIPO_DOCUMENTO);
+            const isRequired = REQUIRED_DOC_TYPES.includes(docType);
             return (
               <div key={buildDocKey(doc)} className="rounded-xl border border-slate-200 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold text-slate-900">
-                      {doc.TIPO_DOCUMENTO} • {colabName}
-                    </div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      ID {doc.COLABORADOR_ID} • Emissão {doc.DATA_EMISSAO || '—'} • Vencimento{' '}
-                      {doc.DATA_VENCIMENTO || '—'}
-                    </div>
-                    {doc.OBS && <div className="mt-1 text-xs text-slate-500">Obs: {doc.OBS}</div>}
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
+                  <div className="md:col-span-2">
+                    <div className="text-sm font-semibold text-slate-900">{colabName}</div>
+                    <div className="text-xs text-slate-500">ID {doc.COLABORADOR_ID}</div>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
+                  <div className="md:col-span-1">
+                    <div className="text-sm font-semibold text-slate-900">{doc.TIPO_DOCUMENTO}</div>
+                    <div className="text-xs text-slate-500">{isRequired ? 'Obrigatório' : 'Opcional'}</div>
+                  </div>
+                  <div className="md:col-span-1">
+                    <div className="text-xs text-slate-500">Vencimento</div>
+                    <div className="text-sm text-slate-800">{doc.DATA_VENCIMENTO || '—'}</div>
                     <Badge tone={status === 'VENCIDO' ? 'red' : status === 'VENCENDO' ? 'amber' : 'green'}>
                       {status}
                     </Badge>
-                    <Badge tone={evidence === 'VERIFICADO' ? 'green' : 'gray'}>{evidence}</Badge>
+                  </div>
+                  <div className="md:col-span-1">
+                    <div className="text-xs text-slate-500">Evidência</div>
+                    <div className="mt-1 flex items-center gap-2 text-sm text-slate-700">
+                      <Paperclip size={14} />
+                      {evidence}
+                    </div>
+                  </div>
+                  <div className="md:col-span-1">
+                    <div className="text-xs text-slate-500">Verificação</div>
+                    <Badge tone={doc.VERIFIED ? 'green' : 'gray'}>{doc.VERIFIED ? 'Verificado' : 'Pendente'}</Badge>
                   </div>
                 </div>
                 <div className="mt-3 flex items-center gap-2">
@@ -360,6 +443,97 @@ export default function DocsPage() {
           )}
         </div>
       </Card>
+
+      <Modal
+        open={drawerOpen}
+        title={editingKey ? 'Editar documentação' : 'Novo registro'}
+        onClose={() => {
+          setDrawerOpen(false);
+        }}
+        className="max-w-3xl"
+      >
+        <form className="space-y-4" onSubmit={handleSave}>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <Input
+              value={form.COLABORADOR_ID}
+              onChange={(e) => updateForm('COLABORADOR_ID', e.target.value)}
+              placeholder="ID do colaborador"
+            />
+            <Input
+              value={form.TIPO_DOCUMENTO}
+              onChange={(e) => updateForm('TIPO_DOCUMENTO', e.target.value)}
+              placeholder="Tipo (ASO, CBSP...)"
+            />
+            <Input
+              value={form.DATA_EMISSAO}
+              onChange={(e) => updateForm('DATA_EMISSAO', e.target.value)}
+              placeholder="Data emissão (YYYY-MM-DD)"
+            />
+            <Input
+              value={form.DATA_VENCIMENTO}
+              onChange={(e) => updateForm('DATA_VENCIMENTO', e.target.value)}
+              placeholder="Data vencimento (YYYY-MM-DD)"
+            />
+          </div>
+
+          <div className="rounded-xl border border-slate-200 p-4">
+            <div className="text-sm font-semibold text-slate-900">Evidência</div>
+            <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <Input
+                value={form.EVIDENCIA_REF}
+                onChange={(e) => {
+                  updateForm('EVIDENCIA_TIPO', 'LINK');
+                  updateForm('EVIDENCIA_REF', e.target.value);
+                }}
+                placeholder="Link (cole aqui)"
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    uploadInputRef.current?.click();
+                  }}
+                >
+                  Upload PDF
+                </Button>
+                <input
+                  ref={uploadInputRef}
+                  type="file"
+                  accept=".pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (e.target) e.target.value = '';
+                    if (!file) return;
+                    updateForm('EVIDENCIA_TIPO', 'UPLOAD');
+                    updateForm('EVIDENCIA_REF', `${file.name} (${file.size} bytes)`);
+                  }}
+                />
+              </div>
+            </div>
+            {form.EVIDENCIA_REF && (
+              <div className="mt-2 text-xs text-slate-500">Ref: {form.EVIDENCIA_REF}</div>
+            )}
+          </div>
+
+          <Input value={form.OBS} onChange={(e) => updateForm('OBS', e.target.value)} placeholder="Observação" />
+
+          <div className="flex items-center gap-2">
+            <Button type="submit">{editingKey ? 'Salvar alterações' : 'Adicionar registro'}</Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setDrawerOpen(false);
+                resetForm();
+              }}
+            >
+              Cancelar
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
