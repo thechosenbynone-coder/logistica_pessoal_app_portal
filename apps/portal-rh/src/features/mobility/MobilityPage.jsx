@@ -18,6 +18,32 @@ const LOCAL_OPTIONS = ['Base', 'Embarcado', 'Hospedado'];
 const PASSAGEM_OPTIONS = ['Não comprada', 'Comprada', 'Emitida'];
 const REQUIRED_DOCS = REQUIRED_DOC_TYPES;
 
+function nextBusinessMorning() {
+  const date = new Date();
+  date.setHours(6, 0, 0, 0);
+  while (date.getDay() === 0 || date.getDay() === 6) {
+    date.setDate(date.getDate() + 1);
+  }
+  return date;
+}
+
+function addDaysWithTime(date, days, hour, minute) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  next.setHours(hour, minute, 0, 0);
+  return next;
+}
+
+function toLocalDatetime(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
+    date.getHours()
+  )}:${pad(date.getMinutes())}`;
+}
+
 function buildProgramacao(prog) {
   return {
     PROG_ID: prog?.PROG_ID || `prog_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
@@ -292,6 +318,60 @@ export default function MobilityPage() {
     persistProgramacoes(next);
   }
 
+  function seedDemo() {
+    if (!employees.length) return;
+    const embark = nextBusinessMorning();
+    const disembark = addDaysWithTime(embark, 14, 18, 0);
+    const unidade = employees.find((emp) => emp.unit)?.unit || 'P-74';
+    const statusMap = { APTO: [], ATENCAO: [], NAO_APTO: [] };
+
+    employees.forEach((emp) => {
+      const apt = computeAptidao({
+        docsByEmployee,
+        employeeId: emp.id,
+        embarkDate: embark,
+        disembarkDate: disembark
+      });
+      if (statusMap[apt.level]) statusMap[apt.level].push(emp);
+    });
+
+    const pick = (list, count) => list.slice(0, count);
+    const selected = [
+      ...pick(statusMap.APTO, 7),
+      ...pick(statusMap.ATENCAO, 3),
+      ...pick(statusMap.NAO_APTO, 2)
+    ];
+    if (selected.length < 12) {
+      const remaining = employees.filter((emp) => !selected.some((item) => item.id === emp.id));
+      selected.push(...remaining.slice(0, 12 - selected.length));
+    }
+
+    const escalados = selected.map((emp, index) => ({
+      COLABORADOR_ID: emp.id,
+      LOCAL_ATUAL: 'Base',
+      PASSAGEM_STATUS: PASSAGEM_OPTIONS[index % PASSAGEM_OPTIONS.length],
+      CARTAO_EMBARQUE_REF: '',
+      OBS: ''
+    }));
+
+    const baseProgram = selectedProgramacao || buildProgramacao({});
+    const seededProgram = buildProgramacao({
+      ...baseProgram,
+      UNIDADE: baseProgram.UNIDADE || unidade,
+      EMBARQUE_DT: toLocalDatetime(embark),
+      DESEMBARQUE_DT: toLocalDatetime(disembark),
+      COLABORADORES: escalados
+    });
+
+    if (selectedProgramacao) {
+      updateProgramacao(selectedProgramacao.PROG_ID, () => seededProgram);
+    } else {
+      const next = [...programacoes, seededProgram];
+      setSelectedProgId(seededProgram.PROG_ID);
+      persistProgramacoes(next);
+    }
+  }
+
   function handleAddColaborador(empId) {
     if (!selectedProgramacao) return;
     const exists = selectedProgramacao.COLABORADORES.some(
@@ -397,7 +477,14 @@ export default function MobilityPage() {
 
       <div className="col-span-7 space-y-4">
         {!selectedProgramacao ? (
-          <Card className="p-6 text-sm text-slate-500">Selecione uma programação para editar.</Card>
+          <Card className="p-6 space-y-3 text-sm text-slate-500">
+            <div>Selecione uma programação para editar.</div>
+            {employees.length > 0 && (
+              <Button type="button" onClick={seedDemo}>
+                Preencher exemplo
+              </Button>
+            )}
+          </Card>
         ) : (
           <>
             <Card className="p-6 space-y-4">
@@ -531,7 +618,12 @@ export default function MobilityPage() {
 
             {!hasWindow && (
               <Card className="p-4 text-sm text-slate-600">
-                Para ativar validações: defina Unidade + Embarque + Desembarque.
+                <div>Para ativar validações: defina Unidade + Embarque + Desembarque.</div>
+                {employees.length > 0 && (
+                  <Button type="button" className="mt-3" onClick={seedDemo}>
+                    Preencher exemplo
+                  </Button>
+                )}
               </Card>
             )}
 
@@ -605,6 +697,11 @@ export default function MobilityPage() {
 
             <Card className="p-6 space-y-4">
               <div className="text-sm font-semibold text-slate-900">Escalados</div>
+              {!!selectedProgramacao && selectedProgramacao.COLABORADORES.length === 0 && employees.length > 0 && (
+                <Button type="button" variant="secondary" onClick={seedDemo}>
+                  Preencher exemplo
+                </Button>
+              )}
               {!employees.length && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
                   Importe colaboradores para exibir nomes completos.
