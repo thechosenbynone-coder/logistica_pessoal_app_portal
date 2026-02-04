@@ -31,7 +31,11 @@ function normalizeEmployee(e) {
 }
 
 function toImportedEmployees(payload) {
-  const rows = payload?.dataset?.colaboradores_minimos || payload?.dataset?.colaboradores;
+  const rows =
+    payload?.colaboradores_minimos ||
+    payload?.colaboradores ||
+    payload?.dataset?.colaboradores_minimos ||
+    payload?.dataset?.colaboradores;
   if (!Array.isArray(rows)) return null;
   return rows.map((row, index) => {
     const id = row.COLABORADOR_ID || row.id || row.cpf || row.CPF || `import_${index}`;
