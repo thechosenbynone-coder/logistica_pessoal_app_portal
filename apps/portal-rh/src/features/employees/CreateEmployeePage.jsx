@@ -5,13 +5,10 @@ import Button from '../../ui/Button';
 import Input from '../../ui/Input';
 import Badge from '../../ui/Badge';
 import { buildMinimalCollaborators, computeDashboardMetrics, parseXlsxToDataset } from '../../services/portalXlsxImporter';
-
-function digitsOnly(s) {
-  return (s || '').toString().replace(/\D/g, '');
-}
+import { normalizeDigitsOnly } from '../../lib/documentationUtils';
 
 function formatCPF(digits) {
-  const d = digitsOnly(digits).slice(0, 11);
+  const d = normalizeDigitsOnly(digits).slice(0, 11);
   if (d.length !== 11) return digits;
   return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9, 11)}`;
 }
@@ -27,7 +24,7 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
   const [ok, setOk] = useState('');
   const fileInputRef = useRef(null);
 
-  const existingCpfs = useMemo(() => new Set(employees.map((e) => digitsOnly(e.cpf))), [employees]);
+  const existingCpfs = useMemo(() => new Set(employees.map((e) => normalizeDigitsOnly(e.cpf))), [employees]);
 
   const [form, setForm] = useState({
     name: '',
@@ -51,7 +48,7 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
     resetMessages();
 
     const name = form.name.trim();
-    const cpfDigits = digitsOnly(form.cpf);
+    const cpfDigits = normalizeDigitsOnly(form.cpf);
 
     if (!name) return setErr('Informe o nome do colaborador.');
     if (cpfDigits.length !== 11) return setErr('CPF inválido. Digite os 11 números.');
@@ -103,7 +100,20 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
       const dataset = await parseXlsxToDataset(file);
       const metrics = computeDashboardMetrics(dataset);
       const importedAt = new Date().toISOString();
-      const payload = { version: 1, importedAt, dataset, metrics };
+      const colaboradores_minimos = buildMinimalCollaborators(dataset.colaboradores);
+      const raw = window.localStorage.getItem('portal_rh_xlsx_v1');
+      if (raw) {
+        try {
+          const existing = JSON.parse(raw);
+          const existingDocumentacoes = existing?.dataset?.documentacoes;
+          if (Array.isArray(existingDocumentacoes) && !dataset.documentacoes) {
+            dataset.documentacoes = existingDocumentacoes;
+          }
+        } catch {
+          // ignore invalid storage
+        }
+      }
+      const payload = { version: 1, importedAt, dataset, metrics, colaboradores_minimos };
       try {
         window.localStorage.setItem('portal_rh_xlsx_v1', JSON.stringify(payload));
         setOk('Planilha importada com sucesso.');
@@ -111,7 +121,6 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
         return;
       } catch (storageErr) {
         try {
-          const colaboradores_minimos = buildMinimalCollaborators(dataset.colaboradores);
           window.localStorage.setItem(
             'portal_rh_xlsx_v1',
             JSON.stringify({ version: 1, importedAt, metrics, colaboradores_minimos })

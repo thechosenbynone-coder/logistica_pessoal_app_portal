@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { REQUIRED_DOC_TYPES, docValidityStatus, normalizeDigitsOnly, normalizeDocType } from '../lib/documentationUtils';
 
 const SHEET_ALIASES = {
   Colaboradores: ['Colaboradores'],
@@ -15,6 +16,16 @@ const REQUIRED_COLAB_HEADERS = [
   'CARGO_FUNCAO',
   'BASE_OPERACIONAL',
   'UNIDADE'
+];
+
+const REQUIRED_DOCUMENTACAO_HEADERS = [
+  'COLABORADOR_ID',
+  'TIPO_DOCUMENTO',
+  'DATA_EMISSAO',
+  'DATA_VENCIMENTO',
+  'EVIDENCIA_TIPO',
+  'EVIDENCIA_REF',
+  'OBS'
 ];
 
 function findSheetName(workbook, sheetKey) {
@@ -52,10 +63,6 @@ function toNumber(value) {
   return Number.isNaN(n) ? null : n;
 }
 
-function digitsOnly(value) {
-  return (value || '').toString().replace(/\D/g, '');
-}
-
 function normalizeText(value) {
   return (value || '').toString().trim();
 }
@@ -66,6 +73,10 @@ function normalizeHeader(value) {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, '_')
     .toUpperCase();
+}
+
+function normalizeSheetName(value) {
+  return normalizeHeader(value).replace(/_+/g, '');
 }
 
 function isValidCollaborator(row) {
@@ -148,7 +159,7 @@ function parseCollaboradoresSheet(workbook) {
         return;
       }
       if (key === 'CPF' || key === 'TELEFONE') {
-        item[key] = digitsOnly(rawValue);
+        item[key] = normalizeDigitsOnly(rawValue);
         return;
       }
       item[key] = normalizeText(rawValue);
@@ -157,6 +168,70 @@ function parseCollaboradoresSheet(workbook) {
     items.push(item);
   });
   return { rows: items, reason: 'OK', sheetName };
+}
+
+function parseExcelDate(value) {
+  if (!value) return '';
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString();
+  }
+  if (typeof value === 'number') {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (!parsed) return '';
+    const y = parsed.y;
+    const m = String(parsed.m).padStart(2, '0');
+    const d = String(parsed.d).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const asDate = new Date(value);
+  if (Number.isNaN(asDate.getTime())) return '';
+  return asDate.toISOString();
+}
+
+function parseDocumentacoesSheet(workbook) {
+  const names = workbook.SheetNames || [];
+  const target = names.find((name) => normalizeSheetName(name) === 'DOCUMENTACOES');
+  if (!target) return { rows: [], reason: 'NOT_FOUND', sheetName: null };
+  const sheet = workbook.Sheets[target];
+  if (!sheet) return { rows: [], reason: 'NOT_FOUND', sheetName: null };
+  const { header, rows } = getHeaderRows(sheet);
+  const hasRequired = REQUIRED_DOCUMENTACAO_HEADERS.every((required) => header.includes(required));
+  if (!hasRequired) {
+    return { rows: [], reason: 'MISSING_HEADERS', sheetName: target };
+  }
+  const items = [];
+  rows.forEach((row) => {
+    const isEmpty = row.every((cell) => normalizeText(cell) === '');
+    if (isEmpty) return;
+    const item = {};
+    header.forEach((key, idx) => {
+      if (!key) return;
+      const rawValue = row[idx];
+      if (key === 'DATA_EMISSAO' || key === 'DATA_VENCIMENTO') {
+        item[key] = parseExcelDate(rawValue);
+        return;
+      }
+      if (key === 'COLABORADOR_ID') {
+        item[key] = normalizeText(rawValue);
+        return;
+      }
+      item[key] = normalizeText(rawValue);
+    });
+    if (!item.COLABORADOR_ID || !item.TIPO_DOCUMENTO) return;
+    items.push({
+      COLABORADOR_ID: item.COLABORADOR_ID,
+      TIPO_DOCUMENTO: item.TIPO_DOCUMENTO,
+      DATA_EMISSAO: item.DATA_EMISSAO,
+      DATA_VENCIMENTO: item.DATA_VENCIMENTO,
+      EVIDENCIA_TIPO: item.EVIDENCIA_TIPO || '',
+      EVIDENCIA_REF: item.EVIDENCIA_REF || '',
+      OBS: item.OBS || '',
+      VERIFIED: false,
+      VERIFIED_BY: '',
+      VERIFIED_AT: ''
+    });
+  });
+  return { rows: items, reason: 'OK', sheetName: target };
 }
 
 export function parseXlsxToDataset(file) {
@@ -200,6 +275,40 @@ export function parseXlsxToDataset(file) {
   });
 }
 
+export function parseXlsxToDocumentacoes(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = (evt) => {
+      try {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const docsResult = parseDocumentacoesSheet(workbook);
+        const documentacoes = docsResult.rows;
+
+        if (docsResult.sheetName) {
+          console.debug(
+            `[portal-rh] Aba documentações: ${docsResult.sheetName} (${documentacoes.length} linhas).`
+          );
+        }
+        if (!documentacoes.length) {
+          const reason =
+            docsResult.reason === 'MISSING_HEADERS' ? 'headers obrigatórios ausentes' : 'aba não encontrada';
+          console.warn(`[portal-rh] Nenhuma documentação importada (${reason}).`);
+        }
+
+        resolve(documentacoes);
+      } catch (err) {
+        reject(err);
+      }
+    };
+
+    reader.onerror = () => reject(new Error('Falha ao ler o arquivo XLSX.'));
+
+    reader.readAsArrayBuffer(file);
+  });
+}
+
 export function computeDashboardMetrics(dataset) {
   if (!dataset) {
     return {
@@ -225,12 +334,37 @@ export function computeDashboardMetrics(dataset) {
   const total = validColabs.length;
   const base = Math.max(total - embarked, 0);
 
-  const alertDays = getAlertDays(dataset.config);
-  const docsRows = []
-    .concat(dataset.docs_pessoais || [])
-    .concat(dataset.certificacoes || [])
-    .concat(dataset.saude_exames || []);
-  const docsCounts = countStatus(docsRows, alertDays);
+  const documentacoes = Array.isArray(dataset.documentacoes) ? dataset.documentacoes : [];
+  const docsByColab = new Map();
+  documentacoes.forEach((doc) => {
+    const key = normalizeText(doc.COLABORADOR_ID);
+    if (!key) return;
+    const current = docsByColab.get(key) || [];
+    current.push(doc);
+    docsByColab.set(key, current);
+  });
+  let docsExpired = 0;
+  let docsExpiring = 0;
+  if (documentacoes.length > 0) {
+    validColabs.forEach((collab) => {
+      const key = normalizeText(collab.COLABORADOR_ID);
+      const docs = docsByColab.get(key) || [];
+      let hasExpired = false;
+      let hasExpiring = false;
+      REQUIRED_DOC_TYPES.forEach((type) => {
+        const doc = docs.find((item) => normalizeDocType(item.TIPO_DOCUMENTO) === type);
+        if (!doc) {
+          hasExpired = true;
+          return;
+        }
+        const status = docValidityStatus(doc);
+        if (status === 'VENCIDO') hasExpired = true;
+        if (status === 'VENCENDO') hasExpiring = true;
+      });
+      if (hasExpired) docsExpired += 1;
+      if (!hasExpired && hasExpiring) docsExpiring += 1;
+    });
+  }
 
   const platformTotals = new Map();
   const vesselTotals = new Map();
@@ -253,7 +387,7 @@ export function computeDashboardMetrics(dataset) {
 
   return {
     hc: { total, embarked, base, delta: '' },
-    docs: { expiring30: docsCounts.expiring, expired: docsCounts.expired, missing: 0 },
+    docs: { expiring30: docsExpiring, expired: docsExpired, missing: 0 },
     inventory: { epiLowStock: 0, critical: 0, deltaLowStock: '' },
     requests: { pendingApprovals: 0, upcomingEmbark: 0, deltaPending: '' },
     rdo: { generated: 0, pendingApproval: 0, rejected: 0, missingDays: 0 },

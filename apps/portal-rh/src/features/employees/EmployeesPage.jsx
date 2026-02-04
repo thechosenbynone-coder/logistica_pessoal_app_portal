@@ -6,15 +6,20 @@ import Input from '../../ui/Input';
 import Button from '../../ui/Button';
 import EmployeeProfile from './EmployeeProfile';
 import { buildMinimalCollaborators, computeDashboardMetrics, parseXlsxToDataset } from '../../services/portalXlsxImporter';
-
-function digitsOnly(s) {
-  return (s || '').toString().replace(/\D/g, '');
-}
+import {
+  REQUIRED_DOC_TYPES,
+  docValidityStatus,
+  evidenceStatus,
+  normalizeDigitsOnly,
+  normalizeDocType,
+  normalizeText
+} from '../../lib/documentationUtils';
 
 function docTone(d) {
-  if ((d?.expired || 0) > 0) return { label: 'Vencido', tone: 'red' };
-  if ((d?.warning || 0) > 0) return { label: 'Atenção', tone: 'amber' };
-  return { label: 'OK', tone: 'green' };
+  const suffix = d?.evidencePending ? ' •' : '';
+  if ((d?.missing || 0) > 0 || (d?.expired || 0) > 0) return { label: `Vencido${suffix}`, tone: 'red' };
+  if ((d?.warning || 0) > 0) return { label: `Atenção${suffix}`, tone: 'amber' };
+  return { label: `OK${suffix}`, tone: 'green' };
 }
 
 function equipTone(e) {
@@ -76,16 +81,58 @@ function toImportedEmployees(payload) {
   });
 }
 
-function loadImportedEmployees() {
+function loadStoredPayload() {
   if (typeof window === 'undefined') return null;
   const raw = window.localStorage.getItem('portal_rh_xlsx_v1');
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw);
-    return toImportedEmployees(parsed);
+    return JSON.parse(raw);
   } catch {
     return null;
   }
+}
+
+function loadImportedEmployees() {
+  const payload = loadStoredPayload();
+  if (!payload) return { employees: null, documentacoes: [] };
+  const employees = toImportedEmployees(payload);
+  const documentacoes = Array.isArray(payload?.dataset?.documentacoes) ? payload.dataset.documentacoes : [];
+  return { employees, documentacoes };
+}
+
+function summarizeEmployeeDocs(documentacoes, employeeId) {
+  if (!Array.isArray(documentacoes) || documentacoes.length === 0 || !employeeId) return null;
+  const id = normalizeText(employeeId);
+  const docsForEmployee = documentacoes.filter((doc) => normalizeText(doc.COLABORADOR_ID) === id);
+  if (!docsForEmployee.length) {
+    return {
+      valid: 0,
+      warning: 0,
+      expired: 0,
+      missing: REQUIRED_DOC_TYPES.length,
+      evidencePending: false
+    };
+  }
+  let valid = 0;
+  let warning = 0;
+  let expired = 0;
+  let missing = 0;
+  let evidencePending = false;
+  REQUIRED_DOC_TYPES.forEach((type) => {
+    const docsOfType = docsForEmployee.filter((doc) => normalizeDocType(doc.TIPO_DOCUMENTO) === type);
+    if (!docsOfType.length) {
+      missing += 1;
+      return;
+    }
+    const doc = docsOfType[0];
+    const status = docValidityStatus(doc);
+    if (status === 'VENCIDO') expired += 1;
+    if (status === 'VENCENDO') warning += 1;
+    if (status === 'OK') valid += 1;
+    const evidence = evidenceStatus(doc);
+    if (evidence !== 'VERIFICADO') evidencePending = true;
+  });
+  return { valid, warning, expired, missing, evidencePending };
 }
 
 export default function EmployeesPage({ employees = [], focusEmployee, focus, onFocusHandled }) {
@@ -94,14 +141,19 @@ export default function EmployeesPage({ employees = [], focusEmployee, focus, on
   const [initialTab, setInitialTab] = useState('overview');
   const fileInputRef = useRef(null);
   const [importedEmployees, setImportedEmployees] = useState(null);
+  const [storedDocumentacoes, setStoredDocumentacoes] = useState([]);
 
   const focusId = focusEmployee?.employeeId ?? focus?.employeeId;
   const focusTab = focusEmployee?.tab ?? focus?.tab;
 
   useEffect(() => {
-    setImportedEmployees(loadImportedEmployees());
+    const stored = loadImportedEmployees();
+    setImportedEmployees(stored.employees);
+    setStoredDocumentacoes(stored.documentacoes);
     const handleUpdate = () => {
-      setImportedEmployees(loadImportedEmployees());
+      const updated = loadImportedEmployees();
+      setImportedEmployees(updated.employees);
+      setStoredDocumentacoes(updated.documentacoes);
     };
     window.addEventListener('portal_rh_xlsx_updated', handleUpdate);
     return () => {
@@ -111,16 +163,25 @@ export default function EmployeesPage({ employees = [], focusEmployee, focus, on
 
   const employeesEffective = importedEmployees ?? employees;
   const normalized = useMemo(() => employeesEffective.map(normalizeEmployee), [employeesEffective]);
+  const enriched = useMemo(
+    () =>
+      normalized.map((emp) => {
+        const summary = summarizeEmployeeDocs(storedDocumentacoes, emp.id);
+        if (!summary) return emp;
+        return { ...emp, docs: { ...emp.docs, ...summary } };
+      }),
+    [normalized, storedDocumentacoes]
+  );
 
   useEffect(() => {
     // keep selection valid when employees list changes
-    if (!normalized?.length) {
+    if (!enriched?.length) {
       setSelectedId(null);
       return;
     }
-    const exists = normalized.some((e) => e.id === selectedId);
-    if (!exists) setSelectedId(normalized[0].id);
-  }, [normalized, selectedId]);
+    const exists = enriched.some((e) => e.id === selectedId);
+    if (!exists) setSelectedId(enriched[0].id);
+  }, [enriched, selectedId]);
 
   useEffect(() => {
     if (!focusId) return;
@@ -131,16 +192,16 @@ export default function EmployeesPage({ employees = [], focusEmployee, focus, on
 
   const filtered = useMemo(() => {
     const qt = q.trim().toLowerCase();
-    const qd = digitsOnly(q);
-    if (!qt && !qd) return normalized;
-    return normalized.filter((e) => {
+    const qd = normalizeDigitsOnly(q);
+    if (!qt && !qd) return enriched;
+    return enriched.filter((e) => {
       const name = (e.name || '').toLowerCase();
-      const cpf = digitsOnly(e.cpf);
+      const cpf = normalizeDigitsOnly(e.cpf);
       return (qt && name.includes(qt)) || (qd && cpf.includes(qd));
     });
-  }, [normalized, q]);
+  }, [enriched, q]);
 
-  const selected = useMemo(() => normalized.find((e) => e.id === selectedId), [normalized, selectedId]);
+  const selected = useMemo(() => enriched.find((e) => e.id === selectedId), [enriched, selectedId]);
 
   async function handleXlsxImport(file) {
     if (!file) return;
@@ -149,6 +210,11 @@ export default function EmployeesPage({ employees = [], focusEmployee, focus, on
       const metrics = computeDashboardMetrics(dataset);
       const importedAt = new Date().toISOString();
       const colaboradores_minimos = buildMinimalCollaborators(dataset.colaboradores);
+      const existingPayload = loadStoredPayload();
+      const existingDocumentacoes = existingPayload?.dataset?.documentacoes;
+      if (Array.isArray(existingDocumentacoes) && !dataset.documentacoes) {
+        dataset.documentacoes = existingDocumentacoes;
+      }
       try {
         window.localStorage.setItem(
           'portal_rh_xlsx_v1',
