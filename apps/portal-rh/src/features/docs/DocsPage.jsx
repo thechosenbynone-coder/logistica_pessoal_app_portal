@@ -46,16 +46,18 @@ function extractDocumentacoes(payload) {
 }
 
 function extractColaboradores(payload) {
-  if (Array.isArray(payload?.dataset?.colaboradores)) {
-    return payload.dataset.colaboradores.map((row) => ({
-      id: normalizeText(row.COLABORADOR_ID),
-      name: normalizeText(row.NOME_COMPLETO)
-    }));
-  }
   if (Array.isArray(payload?.colaboradores_minimos)) {
     return payload.colaboradores_minimos.map((row) => ({
       id: normalizeText(row.id),
-      name: normalizeText(row.nome)
+      name: normalizeText(row.nome),
+      nome: normalizeText(row.nome)
+    }));
+  }
+  if (Array.isArray(payload?.dataset?.colaboradores)) {
+    return payload.dataset.colaboradores.map((row) => ({
+      id: normalizeText(row.COLABORADOR_ID),
+      name: normalizeText(row.NOME_COMPLETO),
+      nome: normalizeText(row.NOME_COMPLETO)
     }));
   }
   return [];
@@ -89,6 +91,8 @@ export default function DocsPage() {
   const [documentacoes, setDocumentacoes] = useState([]);
   const [colaboradores, setColaboradores] = useState([]);
   const [query, setQuery] = useState('');
+  const [collaboratorQuery, setCollaboratorQuery] = useState('');
+  const [collaboratorFilterId, setCollaboratorFilterId] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [evidenceFilter, setEvidenceFilter] = useState('');
@@ -114,17 +118,36 @@ export default function DocsPage() {
     };
   }, []);
 
-  const colaboradoresMap = useMemo(
-    () => new Map(colaboradores.map((row) => [normalizeText(row.id), row.name])),
-    [colaboradores]
-  );
+  const employeesById = useMemo(() => {
+    const map = new Map();
+    colaboradores.forEach((row) => {
+      const id = normalizeText(row.id);
+      if (!id) return;
+      map.set(id, row);
+    });
+    return map;
+  }, [colaboradores]);
+
+  const suggestions = useMemo(() => {
+    const term = collaboratorQuery.trim().toLowerCase();
+    if (term.length < 2) return [];
+    const matches = [];
+    for (const [id, row] of employeesById.entries()) {
+      const name = normalizeText(row.name || row.nome).toLowerCase();
+      if (!id.toLowerCase().includes(term) && !name.includes(term)) continue;
+      matches.push({ id, name: row.name || row.nome || '' });
+      if (matches.length >= 10) break;
+    }
+    return matches;
+  }, [collaboratorQuery, employeesById]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return documentacoes
       .filter((doc) => {
         const id = normalizeText(doc.COLABORADOR_ID);
-        const name = normalizeText(colaboradoresMap.get(id));
+        const collaborator = employeesById.get(id);
+        const name = normalizeText(collaborator?.name || collaborator?.nome);
         const type = normalizeDocType(doc.TIPO_DOCUMENTO);
         if (
           q &&
@@ -133,6 +156,7 @@ export default function DocsPage() {
           !type.toLowerCase().includes(q)
         )
           return false;
+        if (collaboratorFilterId && id !== collaboratorFilterId) return false;
         if (typeFilter && type !== normalizeDocType(typeFilter)) return false;
         if (statusFilter) {
           const status = docValidityStatus(doc);
@@ -155,7 +179,16 @@ export default function DocsPage() {
         const dateB = normalizeText(b.DATA_VENCIMENTO) || '9999-12-31';
         return dateA.localeCompare(dateB);
       });
-  }, [documentacoes, query, typeFilter, statusFilter, evidenceFilter, requiredOnly, colaboradoresMap]);
+  }, [
+    documentacoes,
+    query,
+    typeFilter,
+    statusFilter,
+    evidenceFilter,
+    requiredOnly,
+    collaboratorFilterId,
+    employeesById
+  ]);
 
   const summaryCounts = useMemo(() => {
     const counts = { vencidos: 0, vencendo: 0, semEvidencia: 0, pendente: 0 };
@@ -345,6 +378,34 @@ export default function DocsPage() {
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar por colaborador, ID ou tipo"
           />
+          <div className="relative">
+            <Input
+              value={collaboratorQuery}
+              onChange={(e) => {
+                setCollaboratorQuery(e.target.value);
+                setCollaboratorFilterId('');
+              }}
+              placeholder="Filtrar por colaborador..."
+            />
+            {suggestions.length > 0 && (
+              <div className="absolute z-10 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-sm">
+                {suggestions.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                    onClick={() => {
+                      setCollaboratorFilterId(item.id);
+                      setCollaboratorQuery(item.name || `ID ${item.id}`);
+                    }}
+                  >
+                    <div className="text-slate-900">{item.name || `ID ${item.id}`}</div>
+                    <div className="text-xs text-slate-500">ID {item.id}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <select
             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
             value={typeFilter}
@@ -367,6 +428,18 @@ export default function DocsPage() {
             <option value="VENCENDO">Vencendo</option>
             <option value="OK">OK</option>
           </select>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setCollaboratorFilterId('');
+                setCollaboratorQuery('');
+              }}
+            >
+              Limpar
+            </Button>
+          </div>
           <select
             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
             value={evidenceFilter}
@@ -392,7 +465,9 @@ export default function DocsPage() {
           {filtered.map((doc) => {
             const status = docValidityStatus(doc) || 'OK';
             const evidence = evidenceStatus(doc);
-            const colabName = colaboradoresMap.get(normalizeText(doc.COLABORADOR_ID)) || '—';
+            const id = normalizeText(doc.COLABORADOR_ID);
+            const collaborator = employeesById.get(id);
+            const colabName = collaborator?.name || collaborator?.nome || `ID ${id}`;
             const docType = normalizeDocType(doc.TIPO_DOCUMENTO);
             const isRequired = REQUIRED_DOC_TYPES.includes(docType);
             return (
@@ -400,7 +475,7 @@ export default function DocsPage() {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
                   <div className="md:col-span-2">
                     <div className="text-sm font-semibold text-slate-900">{colabName}</div>
-                    <div className="text-xs text-slate-500">ID {doc.COLABORADOR_ID}</div>
+                    <div className="text-xs text-slate-500">ID {id}</div>
                   </div>
                   <div className="md:col-span-1">
                     <div className="text-sm font-semibold text-slate-900">{doc.TIPO_DOCUMENTO}</div>
