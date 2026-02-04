@@ -31,7 +31,7 @@ function normalizeEmployee(e) {
 }
 
 function toImportedEmployees(payload) {
-  const rows = payload?.dataset?.colaboradores || payload?.colaboradores_minimos;
+  const rows = payload?.dataset?.colaboradores_minimos || payload?.dataset?.colaboradores;
   if (!Array.isArray(rows)) return null;
   return rows.map((row, index) => {
     const id = row.COLABORADOR_ID || row.id || row.cpf || row.CPF || `import_${index}`;
@@ -41,16 +41,21 @@ function toImportedEmployees(payload) {
     const base = row.BASE_OPERACIONAL || row.base || row.hub || '—';
     const unit = row.UNIDADE || row.unidade || row.unit || row.client || '';
     const status = row.STATUS_ATUAL || row.STATUS || row.status || '';
+    const offshore = row.FUNCAO_OFFSHORE || row.offshore || '';
     return {
       id,
       name,
+      nome: name,
       cpf,
       role,
+      cargo: role,
       base,
       unit,
+      unidade: unit,
       hub: base,
       client: unit,
       status,
+      offshore,
       docs: { valid: 0, warning: 0, expired: 0 },
       equipment: { assigned: 0, pendingReturn: 0 },
       nextDeployment: null,
