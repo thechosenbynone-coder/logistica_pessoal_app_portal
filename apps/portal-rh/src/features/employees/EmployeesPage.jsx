@@ -14,6 +14,7 @@ import {
   normalizeDocType,
   normalizeText
 } from '../../lib/documentationUtils';
+import { mergePortalPayload, readPortalPayload, writePortalPayload } from '../../lib/portalStorage';
 
 function docTone(d) {
   const suffix = d?.evidencePending ? ' •' : '';
@@ -81,20 +82,8 @@ function toImportedEmployees(payload) {
   });
 }
 
-function loadStoredPayload() {
-  if (typeof window === 'undefined') return null;
-  const raw = window.localStorage.getItem('portal_rh_xlsx_v1');
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
 function loadImportedEmployees() {
-  const payload = loadStoredPayload();
-  if (!payload) return { employees: null, documentacoes: [] };
+  const payload = readPortalPayload();
   const employees = toImportedEmployees(payload);
   const documentacoes = Array.isArray(payload?.dataset?.documentacoes) ? payload.dataset.documentacoes : [];
   return { employees, documentacoes };
@@ -207,28 +196,41 @@ export default function EmployeesPage({ employees = [], focusEmployee, focus, on
     if (!file) return;
     try {
       const dataset = await parseXlsxToDataset(file);
-      const metrics = computeDashboardMetrics(dataset);
-      const importedAt = new Date().toISOString();
-      const colaboradores_minimos = buildMinimalCollaborators(dataset.colaboradores);
-      const existingPayload = loadStoredPayload();
-      const existingDocumentacoes = existingPayload?.dataset?.documentacoes;
-      if (Array.isArray(existingDocumentacoes) && !dataset.documentacoes) {
-        dataset.documentacoes = existingDocumentacoes;
+      const prevPayload = readPortalPayload();
+      const nextDataset = { ...prevPayload.dataset, ...dataset };
+      if (!Array.isArray(nextDataset.documentacoes) && Array.isArray(prevPayload.dataset?.documentacoes)) {
+        nextDataset.documentacoes = prevPayload.dataset.documentacoes;
       }
+      if (!Array.isArray(nextDataset.colaboradores) || nextDataset.colaboradores.length === 0) {
+        nextDataset.colaboradores = prevPayload.dataset?.colaboradores || [];
+      }
+      const colaboradores_minimos = buildMinimalCollaborators(nextDataset.colaboradores);
+      const metrics = computeDashboardMetrics(nextDataset);
+      const importedAt = new Date().toISOString();
+      const payload = mergePortalPayload(prevPayload, {
+        importedAt,
+        dataset: nextDataset,
+        metrics,
+        colaboradores_minimos:
+          colaboradores_minimos.length > 0
+            ? colaboradores_minimos
+            : prevPayload.colaboradores_minimos || prevPayload.dataset?.colaboradores_minimos || []
+      });
       try {
-        window.localStorage.setItem(
-          'portal_rh_xlsx_v1',
-          JSON.stringify({ version: 1, importedAt, dataset, metrics, colaboradores_minimos })
-        );
-        window.dispatchEvent(new Event('portal_rh_xlsx_updated'));
+        writePortalPayload(payload);
         return;
       } catch (storageErr) {
         try {
-          window.localStorage.setItem(
-            'portal_rh_xlsx_v1',
-            JSON.stringify({ version: 1, importedAt, metrics, colaboradores_minimos })
+          writePortalPayload(
+            mergePortalPayload(prevPayload, {
+              importedAt,
+              metrics,
+              colaboradores_minimos:
+                colaboradores_minimos.length > 0
+                  ? colaboradores_minimos
+                  : prevPayload.colaboradores_minimos || prevPayload.dataset?.colaboradores_minimos || []
+            })
           );
-          window.dispatchEvent(new Event('portal_rh_xlsx_updated'));
         } catch (fallbackErr) {
           console.error('Falha ao salvar dados XLSX no navegador.', fallbackErr);
         }

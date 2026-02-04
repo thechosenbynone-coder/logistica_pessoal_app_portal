@@ -4,7 +4,6 @@ import Card from '../../ui/Card.jsx';
 import Button from '../../ui/Button.jsx';
 import Input from '../../ui/Input.jsx';
 import Badge from '../../ui/Badge.jsx';
-import Modal from '../../ui/Modal.jsx';
 import {
   OPTIONAL_DOC_TYPES,
   REQUIRED_DOC_TYPES,
@@ -14,101 +13,48 @@ import {
   normalizeText
 } from '../../lib/documentationUtils';
 import { computeDashboardMetrics, parseXlsxToDocumentacoes } from '../../services/portalXlsxImporter';
+import { mergePortalPayload, readPortalPayload, writePortalPayload } from '../../lib/portalStorage';
 
 const ALL_DOC_TYPES = [...REQUIRED_DOC_TYPES, ...OPTIONAL_DOC_TYPES];
-
-const EMPTY_FORM = {
-  COLABORADOR_ID: '',
-  TIPO_DOCUMENTO: '',
-  DATA_EMISSAO: '',
-  DATA_VENCIMENTO: '',
-  EVIDENCIA_TIPO: '',
-  EVIDENCIA_REF: '',
-  OBS: '',
-  VERIFIED: false,
-  VERIFIED_BY: '',
-  VERIFIED_AT: ''
-};
-
-function loadPayload() {
-  if (typeof window === 'undefined') return null;
-  const raw = window.localStorage.getItem('portal_rh_xlsx_v1');
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
 
 function extractDocumentacoes(payload) {
   return Array.isArray(payload?.dataset?.documentacoes) ? payload.dataset.documentacoes : [];
 }
 
 function extractColaboradores(payload) {
-  if (Array.isArray(payload?.colaboradores_minimos)) {
-    return payload.colaboradores_minimos.map((row) => ({
-      id: normalizeText(row.id),
-      name: normalizeText(row.nome),
-      nome: normalizeText(row.nome)
-    }));
-  }
-  if (Array.isArray(payload?.dataset?.colaboradores)) {
-    return payload.dataset.colaboradores.map((row) => ({
-      id: normalizeText(row.COLABORADOR_ID),
-      name: normalizeText(row.NOME_COMPLETO),
-      nome: normalizeText(row.NOME_COMPLETO)
-    }));
-  }
-  return [];
-}
-
-function savePayload(nextDocumentacoes) {
-  const payload = loadPayload() || { version: 1 };
-  const dataset = payload.dataset || {};
-  dataset.documentacoes = nextDocumentacoes;
-  payload.dataset = dataset;
-  payload.metrics = computeDashboardMetrics(dataset);
-  if (!payload.importedAt) payload.importedAt = new Date().toISOString();
-  window.localStorage.setItem('portal_rh_xlsx_v1', JSON.stringify(payload));
-  window.dispatchEvent(new Event('portal_rh_xlsx_updated'));
+  const rows =
+    payload?.dataset?.colaboradores ||
+    payload?.colaboradores_minimos ||
+    payload?.dataset?.colaboradores_minimos ||
+    [];
+  if (!Array.isArray(rows)) return [];
+  return rows.map((row) => ({
+    id: normalizeText(row.COLABORADOR_ID || row.id),
+    name: normalizeText(row.NOME_COMPLETO || row.nome || row.name),
+    nome: normalizeText(row.NOME_COMPLETO || row.nome || row.name)
+  }));
 }
 
 function buildDocKey(doc) {
   return `${normalizeText(doc.COLABORADOR_ID)}::${normalizeDocType(doc.TIPO_DOCUMENTO)}`;
 }
 
-function resetVerificationIfChanged(prevDoc, nextDoc) {
-  const fields = ['TIPO_DOCUMENTO', 'DATA_EMISSAO', 'DATA_VENCIMENTO', 'EVIDENCIA_TIPO', 'EVIDENCIA_REF'];
-  const changed = fields.some((field) => normalizeText(prevDoc?.[field]) !== normalizeText(nextDoc?.[field]));
-  if (prevDoc?.VERIFIED && changed) {
-    return { ...nextDoc, VERIFIED: false, VERIFIED_BY: '', VERIFIED_AT: '' };
-  }
-  return nextDoc;
-}
-
-export default function DocsPage() {
+export default function DocsPage({ onOpenEmployee }) {
   const [documentacoes, setDocumentacoes] = useState([]);
   const [colaboradores, setColaboradores] = useState([]);
   const [query, setQuery] = useState('');
-  const [collaboratorQuery, setCollaboratorQuery] = useState('');
-  const [collaboratorFilterId, setCollaboratorFilterId] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [evidenceFilter, setEvidenceFilter] = useState('');
   const [requiredOnly, setRequiredOnly] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [editingKey, setEditingKey] = useState('');
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const fileInputRef = useRef(null);
-  const uploadInputRef = useRef(null);
 
   useEffect(() => {
-    const payload = loadPayload();
+    const payload = readPortalPayload();
     setDocumentacoes(extractDocumentacoes(payload));
     setColaboradores(extractColaboradores(payload));
     const handleUpdate = () => {
-      const updated = loadPayload();
+      const updated = readPortalPayload();
       setDocumentacoes(extractDocumentacoes(updated));
       setColaboradores(extractColaboradores(updated));
     };
@@ -128,19 +74,6 @@ export default function DocsPage() {
     return map;
   }, [colaboradores]);
 
-  const suggestions = useMemo(() => {
-    const term = collaboratorQuery.trim().toLowerCase();
-    if (term.length < 2) return [];
-    const matches = [];
-    for (const [id, row] of employeesById.entries()) {
-      const name = normalizeText(row.name || row.nome).toLowerCase();
-      if (!id.toLowerCase().includes(term) && !name.includes(term)) continue;
-      matches.push({ id, name: row.name || row.nome || '' });
-      if (matches.length >= 10) break;
-    }
-    return matches;
-  }, [collaboratorQuery, employeesById]);
-
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return documentacoes
@@ -156,7 +89,6 @@ export default function DocsPage() {
           !type.toLowerCase().includes(q)
         )
           return false;
-        if (collaboratorFilterId && id !== collaboratorFilterId) return false;
         if (typeFilter && type !== normalizeDocType(typeFilter)) return false;
         if (statusFilter) {
           const status = docValidityStatus(doc);
@@ -186,7 +118,6 @@ export default function DocsPage() {
     statusFilter,
     evidenceFilter,
     requiredOnly,
-    collaboratorFilterId,
     employeesById
   ]);
 
@@ -202,68 +133,6 @@ export default function DocsPage() {
     });
     return counts;
   }, [documentacoes]);
-
-  function updateForm(field, value) {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  }
-
-  function resetForm() {
-    setForm(EMPTY_FORM);
-    setEditingKey('');
-  }
-
-  function handleEdit(doc) {
-    setForm({ ...EMPTY_FORM, ...doc });
-    setEditingKey(buildDocKey(doc));
-    setDrawerOpen(true);
-  }
-
-  function handleNew() {
-    resetForm();
-    setDrawerOpen(true);
-  }
-
-  function handleSave(e) {
-    e.preventDefault();
-    const nextDoc = {
-      ...form,
-      COLABORADOR_ID: normalizeText(form.COLABORADOR_ID),
-      TIPO_DOCUMENTO: normalizeText(form.TIPO_DOCUMENTO),
-      DATA_EMISSAO: normalizeText(form.DATA_EMISSAO),
-      DATA_VENCIMENTO: normalizeText(form.DATA_VENCIMENTO),
-      EVIDENCIA_TIPO: normalizeText(form.EVIDENCIA_TIPO),
-      EVIDENCIA_REF: normalizeText(form.EVIDENCIA_REF),
-      OBS: normalizeText(form.OBS)
-    };
-    if (!nextDoc.COLABORADOR_ID || !nextDoc.TIPO_DOCUMENTO) return;
-    const nextKey = buildDocKey(nextDoc);
-    const updated = [...documentacoes];
-    const index = updated.findIndex((doc) => buildDocKey(doc) === (editingKey || nextKey));
-    if (index >= 0) {
-      const prev = updated[index];
-      updated[index] = resetVerificationIfChanged(prev, { ...prev, ...nextDoc });
-    } else {
-      updated.push({ ...nextDoc, VERIFIED: false, VERIFIED_BY: '', VERIFIED_AT: '' });
-    }
-    savePayload(updated);
-    setDocumentacoes(updated);
-    resetForm();
-    setDrawerOpen(false);
-  }
-
-  function handleVerify(doc) {
-    const updated = documentacoes.map((item) => {
-      if (buildDocKey(item) !== buildDocKey(doc)) return item;
-      return {
-        ...item,
-        VERIFIED: true,
-        VERIFIED_BY: item.VERIFIED_BY || 'Usuário Atual',
-        VERIFIED_AT: new Date().toISOString()
-      };
-    });
-    savePayload(updated);
-    setDocumentacoes(updated);
-  }
 
   async function handleImport(file) {
     if (!file) return;
@@ -292,7 +161,21 @@ export default function DocsPage() {
         }
       });
       const merged = Array.from(map.values());
-      savePayload(merged);
+      const prevPayload = readPortalPayload();
+      const nextDataset = { ...prevPayload.dataset, documentacoes: merged };
+      if (!Array.isArray(nextDataset.colaboradores) || nextDataset.colaboradores.length === 0) {
+        const fallback =
+          prevPayload.colaboradores_minimos || prevPayload.dataset?.colaboradores_minimos || [];
+        if (Array.isArray(fallback) && fallback.length) {
+          nextDataset.colaboradores_minimos = fallback;
+        }
+      }
+      const nextPayload = mergePortalPayload(prevPayload, {
+        dataset: nextDataset,
+        metrics: computeDashboardMetrics(nextDataset),
+        importedAt: prevPayload.importedAt || new Date().toISOString()
+      });
+      writePortalPayload(nextPayload);
       setDocumentacoes(merged);
     } catch (err) {
       console.error('Falha ao importar documentações.', err);
@@ -309,8 +192,10 @@ export default function DocsPage() {
       <Card className="p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="text-lg font-semibold text-slate-900">Documentações</div>
-            <div className="text-sm text-slate-500">Gestão centralizada das documentações dos colaboradores.</div>
+            <div className="text-lg font-semibold text-slate-900">Documentações (Painel de Massa)</div>
+            <div className="text-sm text-slate-500">
+              Importação e triagem de pendências. Para editar, abra o colaborador.
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -321,9 +206,6 @@ export default function DocsPage() {
               }}
             >
               Importar XLSX
-            </Button>
-            <Button type="button" onClick={handleNew}>
-              Novo registro
             </Button>
             <input
               ref={fileInputRef}
@@ -378,34 +260,6 @@ export default function DocsPage() {
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar por colaborador, ID ou tipo"
           />
-          <div className="relative">
-            <Input
-              value={collaboratorQuery}
-              onChange={(e) => {
-                setCollaboratorQuery(e.target.value);
-                setCollaboratorFilterId('');
-              }}
-              placeholder="Filtrar por colaborador..."
-            />
-            {suggestions.length > 0 && (
-              <div className="absolute z-10 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-sm">
-                {suggestions.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
-                    onClick={() => {
-                      setCollaboratorFilterId(item.id);
-                      setCollaboratorQuery(item.name || `ID ${item.id}`);
-                    }}
-                  >
-                    <div className="text-slate-900">{item.name || `ID ${item.id}`}</div>
-                    <div className="text-xs text-slate-500">ID {item.id}</div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
           <select
             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
             value={typeFilter}
@@ -428,18 +282,6 @@ export default function DocsPage() {
             <option value="VENCENDO">Vencendo</option>
             <option value="OK">OK</option>
           </select>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                setCollaboratorFilterId('');
-                setCollaboratorQuery('');
-              }}
-            >
-              Limpar
-            </Button>
-          </div>
           <select
             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
             value={evidenceFilter}
@@ -462,6 +304,11 @@ export default function DocsPage() {
         </div>
 
         <div className="mt-4 space-y-2">
+          {!colaboradores.length && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              Importe colaboradores para exibir nomes completos.
+            </div>
+          )}
           {filtered.map((doc) => {
             const status = docValidityStatus(doc) || 'OK';
             const evidence = evidenceStatus(doc);
@@ -501,11 +348,12 @@ export default function DocsPage() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-center gap-2">
-                  <Button type="button" variant="secondary" onClick={() => handleEdit(doc)}>
-                    Editar
-                  </Button>
-                  <Button type="button" onClick={() => handleVerify(doc)} disabled={doc.VERIFIED}>
-                    {doc.VERIFIED ? 'Verificado' : 'Marcar como verificado'}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => onOpenEmployee?.(id, 'docs')}
+                  >
+                    Abrir colaborador
                   </Button>
                 </div>
               </div>
@@ -518,97 +366,6 @@ export default function DocsPage() {
           )}
         </div>
       </Card>
-
-      <Modal
-        open={drawerOpen}
-        title={editingKey ? 'Editar documentação' : 'Novo registro'}
-        onClose={() => {
-          setDrawerOpen(false);
-        }}
-        className="max-w-3xl"
-      >
-        <form className="space-y-4" onSubmit={handleSave}>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <Input
-              value={form.COLABORADOR_ID}
-              onChange={(e) => updateForm('COLABORADOR_ID', e.target.value)}
-              placeholder="ID do colaborador"
-            />
-            <Input
-              value={form.TIPO_DOCUMENTO}
-              onChange={(e) => updateForm('TIPO_DOCUMENTO', e.target.value)}
-              placeholder="Tipo (ASO, CBSP...)"
-            />
-            <Input
-              value={form.DATA_EMISSAO}
-              onChange={(e) => updateForm('DATA_EMISSAO', e.target.value)}
-              placeholder="Data emissão (YYYY-MM-DD)"
-            />
-            <Input
-              value={form.DATA_VENCIMENTO}
-              onChange={(e) => updateForm('DATA_VENCIMENTO', e.target.value)}
-              placeholder="Data vencimento (YYYY-MM-DD)"
-            />
-          </div>
-
-          <div className="rounded-xl border border-slate-200 p-4">
-            <div className="text-sm font-semibold text-slate-900">Evidência</div>
-            <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2">
-              <Input
-                value={form.EVIDENCIA_REF}
-                onChange={(e) => {
-                  updateForm('EVIDENCIA_TIPO', 'LINK');
-                  updateForm('EVIDENCIA_REF', e.target.value);
-                }}
-                placeholder="Link (cole aqui)"
-              />
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    uploadInputRef.current?.click();
-                  }}
-                >
-                  Upload PDF
-                </Button>
-                <input
-                  ref={uploadInputRef}
-                  type="file"
-                  accept=".pdf"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (e.target) e.target.value = '';
-                    if (!file) return;
-                    updateForm('EVIDENCIA_TIPO', 'UPLOAD');
-                    updateForm('EVIDENCIA_REF', `${file.name} (${file.size} bytes)`);
-                  }}
-                />
-              </div>
-            </div>
-            {form.EVIDENCIA_REF && (
-              <div className="mt-2 text-xs text-slate-500">Ref: {form.EVIDENCIA_REF}</div>
-            )}
-          </div>
-
-          <Input value={form.OBS} onChange={(e) => updateForm('OBS', e.target.value)} placeholder="Observação" />
-
-          <div className="flex items-center gap-2">
-            <Button type="submit">{editingKey ? 'Salvar alterações' : 'Adicionar registro'}</Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                setDrawerOpen(false);
-                resetForm();
-              }}
-            >
-              Cancelar
-            </Button>
-          </div>
-        </form>
-      </Modal>
     </div>
   );
 }

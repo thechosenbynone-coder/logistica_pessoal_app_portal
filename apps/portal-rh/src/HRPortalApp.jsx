@@ -78,7 +78,7 @@ export default function HRPortalApp() {
       case 'equipment':
         return <EquipmentPage employees={employees} onOpenEmployee={openEmployee} />;
       case 'docs':
-        return <DocsPage />;
+        return <DocsPage onOpenEmployee={openEmployee} />;
       case 'finance':
         return <FinancePage />;
       case 'mobility':

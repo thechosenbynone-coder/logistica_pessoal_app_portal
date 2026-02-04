@@ -6,6 +6,7 @@ import Input from '../../ui/Input';
 import Badge from '../../ui/Badge';
 import { buildMinimalCollaborators, computeDashboardMetrics, parseXlsxToDataset } from '../../services/portalXlsxImporter';
 import { normalizeDigitsOnly } from '../../lib/documentationUtils';
+import { mergePortalPayload, readPortalPayload, writePortalPayload } from '../../lib/portalStorage';
 
 function formatCPF(digits) {
   const d = normalizeDigitsOnly(digits).slice(0, 11);
@@ -98,35 +99,43 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
     resetMessages();
     try {
       const dataset = await parseXlsxToDataset(file);
-      const metrics = computeDashboardMetrics(dataset);
-      const importedAt = new Date().toISOString();
-      const colaboradores_minimos = buildMinimalCollaborators(dataset.colaboradores);
-      const raw = window.localStorage.getItem('portal_rh_xlsx_v1');
-      if (raw) {
-        try {
-          const existing = JSON.parse(raw);
-          const existingDocumentacoes = existing?.dataset?.documentacoes;
-          if (Array.isArray(existingDocumentacoes) && !dataset.documentacoes) {
-            dataset.documentacoes = existingDocumentacoes;
-          }
-        } catch {
-          // ignore invalid storage
-        }
+      const prevPayload = readPortalPayload();
+      const nextDataset = { ...prevPayload.dataset, ...dataset };
+      if (!Array.isArray(nextDataset.documentacoes) && Array.isArray(prevPayload.dataset?.documentacoes)) {
+        nextDataset.documentacoes = prevPayload.dataset.documentacoes;
       }
-      const payload = { version: 1, importedAt, dataset, metrics, colaboradores_minimos };
+      if (!Array.isArray(nextDataset.colaboradores) || nextDataset.colaboradores.length === 0) {
+        nextDataset.colaboradores = prevPayload.dataset?.colaboradores || [];
+      }
+      const colaboradores_minimos = buildMinimalCollaborators(nextDataset.colaboradores);
+      const metrics = computeDashboardMetrics(nextDataset);
+      const importedAt = new Date().toISOString();
+      const payload = mergePortalPayload(prevPayload, {
+        importedAt,
+        dataset: nextDataset,
+        metrics,
+        colaboradores_minimos:
+          colaboradores_minimos.length > 0
+            ? colaboradores_minimos
+            : prevPayload.colaboradores_minimos || prevPayload.dataset?.colaboradores_minimos || []
+      });
       try {
-        window.localStorage.setItem('portal_rh_xlsx_v1', JSON.stringify(payload));
+        writePortalPayload(payload);
         setOk('Planilha importada com sucesso.');
-        window.dispatchEvent(new Event('portal_rh_xlsx_updated'));
         return;
       } catch (storageErr) {
         try {
-          window.localStorage.setItem(
-            'portal_rh_xlsx_v1',
-            JSON.stringify({ version: 1, importedAt, metrics, colaboradores_minimos })
+          writePortalPayload(
+            mergePortalPayload(prevPayload, {
+              importedAt,
+              metrics,
+              colaboradores_minimos:
+                colaboradores_minimos.length > 0
+                  ? colaboradores_minimos
+                  : prevPayload.colaboradores_minimos || prevPayload.dataset?.colaboradores_minimos || []
+            })
           );
           setOk('Planilha importada com sucesso (dados resumidos).');
-          window.dispatchEvent(new Event('portal_rh_xlsx_updated'));
           return;
         } catch (fallbackErr) {
           setErr('Planilha carregada, mas não foi possível salvar os dados no navegador.');

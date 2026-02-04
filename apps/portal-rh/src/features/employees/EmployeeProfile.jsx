@@ -12,6 +12,7 @@ import Badge from '../../ui/Badge';
 import EquipmentTab from '../equipment/EquipmentTab';
 import EmbarqueEscalaTab from '../mobility/EmbarqueEscalaTab';
 import FinanceTab from '../finance/FinanceTab';
+import EmployeeDocsTab from './EmployeeDocsTab';
 
 function formatCPF(cpf) {
   if (!cpf) return '';
@@ -146,14 +147,7 @@ export default function EmployeeProfile({ employee, initialTab = 'overview' }) {
       )}
 
       {currentTab === 'equipment' && <EquipmentTab employee={emp} />}
-      {currentTab === 'docs' && (
-        <Card className="p-6">
-          <div className="text-sm text-slate-600">
-            Módulo de documentação (captura, vencimentos e pendências) está em evolução. Por enquanto, use o resumo no
-            perfil.
-          </div>
-        </Card>
-      )}
+      {currentTab === 'docs' && <EmployeeDocsTab employee={emp} />}
       {currentTab === 'requests' && (
         <Card className="p-6">
           <div className="text-sm text-slate-600">
