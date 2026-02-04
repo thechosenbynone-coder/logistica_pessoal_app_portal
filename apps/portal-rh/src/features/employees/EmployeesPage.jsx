@@ -15,6 +15,7 @@ import {
   normalizeText
 } from '../../lib/documentationUtils';
 import { mergePortalPayload, readPortalPayload, writePortalPayload } from '../../lib/portalStorage';
+import { isDemoMode } from '../../services/demoMode';
 
 function docTone(d) {
   const suffix = d?.evidencePending ? ' •' : '';
@@ -131,6 +132,7 @@ export default function EmployeesPage({ employees = [], focusEmployee, focus, on
   const fileInputRef = useRef(null);
   const [importedEmployees, setImportedEmployees] = useState(null);
   const [storedDocumentacoes, setStoredDocumentacoes] = useState([]);
+  const demoMode = isDemoMode();
 
   const focusId = focusEmployee?.employeeId ?? focus?.employeeId;
   const focusTab = focusEmployee?.tab ?? focus?.tab;
@@ -249,26 +251,30 @@ export default function EmployeesPage({ employees = [], focusEmployee, focus, on
             <div className="text-sm text-slate-500">Selecione um colaborador para ver os detalhes</div>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              type="button"
-              onClick={() => {
-                fileInputRef.current?.click();
-              }}
-            >
-              Importar Planilha (.xlsx)
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (e.target) e.target.value = '';
-                handleXlsxImport(file);
-              }}
-            />
+            {!demoMode && (
+              <>
+                <Button
+                  variant="secondary"
+                  type="button"
+                  onClick={() => {
+                    fileInputRef.current?.click();
+                  }}
+                >
+                  Importar Planilha (.xlsx)
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (e.target) e.target.value = '';
+                    handleXlsxImport(file);
+                  }}
+                />
+              </>
+            )}
           </div>
         </div>
 

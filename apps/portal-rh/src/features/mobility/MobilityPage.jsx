@@ -13,53 +13,18 @@ import {
   normalizeText
 } from '../../lib/documentationUtils';
 import { mergePortalPayload, readPortalPayload, writePortalPayload } from '../../lib/portalStorage';
+import { getDemoScenario, isDemoMode, seedDemoDataIfNeeded } from '../../services/demoMode';
 
 const STATUS_OPTIONS = ['Planejado', 'Confirmado', 'Em andamento', 'Finalizado', 'Cancelado'];
 const LOCAL_OPTIONS = ['Base', 'Embarcado', 'Hospedado'];
 const PASSAGEM_OPTIONS = ['Não comprada', 'Comprada', 'Emitida'];
 const REQUIRED_DOCS = REQUIRED_DOC_TYPES;
-const DEMO_PREFIX = 'demo_';
-
-function nextBusinessMorning() {
-  const date = new Date();
-  date.setHours(6, 0, 0, 0);
-  while (date.getDay() === 0 || date.getDay() === 6) {
-    date.setDate(date.getDate() + 1);
-  }
-  return date;
-}
-
-function addDaysWithTime(date, days, hour, minute) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  next.setHours(hour, minute, 0, 0);
-  return next;
-}
-
-function toLocalDatetime(value) {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
-    date.getHours()
-  )}:${pad(date.getMinutes())}`;
-}
 
 function formatDateTime(value) {
   if (!value) return '';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-}
-
-function pickByRatio(list, ratio) {
-  const count = Math.max(1, Math.round(list.length * ratio));
-  return list.slice(0, count);
-}
-
-function isDemoProgram(prog) {
-  return normalizeText(prog?.PROG_ID).startsWith(DEMO_PREFIX);
 }
 
 function buildProgramacao(prog) {
@@ -90,61 +55,6 @@ function mapEmployees(payload) {
     unit: normalizeText(row.UNIDADE || row.unidade || row.unit),
     base: normalizeText(row.BASE_OPERACIONAL || row.base || row.hub)
   }));
-}
-
-function createDemoDocumentacoes(employees, now) {
-  const docs = [];
-  employees.forEach((emp, idx) => {
-    REQUIRED_DOC_TYPES.forEach((type, docIdx) => {
-      const baseDate = new Date(now);
-      const offset = (idx + docIdx) % 10;
-      let vencDate = new Date(baseDate);
-      if (offset < 6) {
-        vencDate.setDate(baseDate.getDate() + 60 + offset * 5);
-      } else if (offset < 8) {
-        vencDate.setDate(baseDate.getDate() + 10 + offset);
-      } else {
-        vencDate.setDate(baseDate.getDate() - (5 + offset));
-      }
-      const evidenceType = offset % 4 === 0 ? '' : 'UPLOAD';
-      docs.push({
-        COLABORADOR_ID: emp.id,
-        TIPO_DOCUMENTO: type,
-        DATA_EMISSAO: toLocalDatetime(baseDate),
-        DATA_VENCIMENTO: toLocalDatetime(vencDate),
-        EVIDENCIA_TIPO: evidenceType,
-        EVIDENCIA_REF: evidenceType ? `${type}_doc_${emp.id}.pdf` : '',
-        OBS: '',
-        VERIFIED: evidenceType && offset % 3 !== 0,
-        VERIFIED_BY: evidenceType && offset % 3 !== 0 ? 'Demo' : '',
-        VERIFIED_AT: evidenceType && offset % 3 !== 0 ? new Date().toISOString() : ''
-      });
-    });
-  });
-  return docs;
-}
-
-function computeLocalAtual(embarkDate, disembarkDate, now) {
-  const embark = new Date(embarkDate);
-  const disembark = new Date(disembarkDate);
-  const hospedadoStart = new Date(embark);
-  hospedadoStart.setHours(hospedadoStart.getHours() - 24);
-  if (now >= embark && now <= disembark) return 'Embarcado';
-  if (now >= hospedadoStart && now < embark) return 'Hospedado';
-  return 'Base';
-}
-
-function buildDemoCard(embarkDate, index) {
-  const code = `BR-EMB-${String(index + 1).padStart(3, '0')}`;
-  const presentation = new Date(embarkDate);
-  presentation.setHours(presentation.getHours() - 6);
-  return {
-    codigo: code,
-    apresentacao_dt: presentation.toISOString(),
-    roteiro: ['Base', 'Aeroporto', 'Heliponto', 'Unidade'],
-    contato: '(21) 99999-0000',
-    observacoes: 'Chegar com 2h de antecedência.'
-  };
 }
 
 function computeAptidao({ docsByEmployee, employeeId, embarkDate, disembarkDate }) {
@@ -186,8 +96,8 @@ export default function MobilityPage() {
   const [filterAptidao, setFilterAptidao] = useState(null);
   const [filterDocType, setFilterDocType] = useState(null);
   const [filterEvidence, setFilterEvidence] = useState(null);
-  const [showDemo, setShowDemo] = useState(true);
   const [cardModal, setCardModal] = useState(null);
+  const demoMode = isDemoMode();
 
   useEffect(() => {
     const payload = readPortalPayload();
@@ -209,13 +119,6 @@ export default function MobilityPage() {
       window.removeEventListener('portal_rh_xlsx_updated', handleUpdate);
     };
   }, []);
-
-  useEffect(() => {
-    if (!showDemo && selectedProgramacao && isDemoProgram(selectedProgramacao)) {
-      const next = programacoes.find((prog) => !isDemoProgram(prog));
-      setSelectedProgId(next?.PROG_ID || '');
-    }
-  }, [showDemo, selectedProgramacao, programacoes]);
 
   const employeesById = useMemo(() => {
     const map = new Map();
@@ -400,81 +303,8 @@ export default function MobilityPage() {
     persistProgramacoes(next);
   }
 
-  function seedDemo() {
-    if (!employees.length) return;
-    const now = new Date();
-    const prevPayload = readPortalPayload();
-    let nextDocs = Array.isArray(prevPayload.dataset?.documentacoes) ? prevPayload.dataset.documentacoes : [];
-    if (!nextDocs.length) {
-      nextDocs = createDemoDocumentacoes(employees, now);
-      const nextPayload = mergePortalPayload(prevPayload, {
-        dataset: { ...prevPayload.dataset, documentacoes: nextDocs }
-      });
-      writePortalPayload(nextPayload);
-    }
-
-    const programDefinitions = [
-      { label: 'P-74', status: 'Planejado', offset: 5 },
-      { label: 'Plataforma Beta', status: 'Confirmado', offset: 1 },
-      { label: 'Sonda Ômega', status: 'Em andamento', offset: -3 },
-      { label: 'UPGN Cabiúnas', status: 'Finalizado', offset: -25 }
-    ];
-
-    const nextPrograms = programDefinitions.map((def, index) => {
-      const embark = addDaysWithTime(nextBusinessMorning(), def.offset, 6, 0);
-      const disembark = addDaysWithTime(embark, 14, 18, 0);
-      const statusMap = { APTO: [], ATENCAO: [], NAO_APTO: [] };
-      employees.forEach((emp) => {
-        const apt = computeAptidao({
-          docsByEmployee,
-          employeeId: emp.id,
-          embarkDate: embark,
-          disembarkDate: disembark
-        });
-        if (statusMap[apt.level]) statusMap[apt.level].push(emp);
-      });
-      const aptos = pickByRatio(statusMap.APTO, 0.6);
-      const atencao = pickByRatio(statusMap.ATENCAO, 0.25);
-      const naoApto = pickByRatio(statusMap.NAO_APTO, 0.15);
-      const selected = [...aptos, ...atencao, ...naoApto].slice(0, 18);
-      if (selected.length < 12) {
-        const remaining = employees.filter((emp) => !selected.some((item) => item.id === emp.id));
-        selected.push(...remaining.slice(0, 12 - selected.length));
-      }
-      const escalados = selected.map((emp, idx) => {
-        const localAtual = computeLocalAtual(embark, disembark, now);
-        return {
-          COLABORADOR_ID: emp.id,
-          LOCAL_ATUAL: localAtual,
-          PASSAGEM_STATUS: PASSAGEM_OPTIONS[(idx + index) % PASSAGEM_OPTIONS.length],
-          CARTAO_EMBARQUE_REF: '',
-          CARTAO_EMBARQUE: buildDemoCard(embark, idx + index * 3),
-          OBS: ''
-        };
-      });
-      return buildProgramacao({
-        PROG_ID: `${DEMO_PREFIX}${Date.now()}_${index}`,
-        UNIDADE: def.label,
-        BASE: 'Coelho Neto',
-        EMBARQUE_DT: toLocalDatetime(embark),
-        DESEMBARQUE_DT: toLocalDatetime(disembark),
-        STATUS: def.status,
-        NOTES: 'Programação de demonstração',
-        COLABORADORES: escalados
-      });
-    });
-
-    const existing = programacoes.filter((prog) => !isDemoProgram(prog));
-    const merged = [...existing, ...nextPrograms];
-    persistProgramacoes(merged);
-    setSelectedProgId(nextPrograms[0]?.PROG_ID || '');
-  }
-
-  function clearDemo() {
-    const remaining = programacoes.filter((prog) => !isDemoProgram(prog));
-    persistProgramacoes(remaining);
-    if (remaining.length) setSelectedProgId(remaining[0].PROG_ID);
-    else setSelectedProgId('');
+  function reloadDemo() {
+    seedDemoDataIfNeeded(getDemoScenario(), true);
   }
 
   function handleAddColaborador(empId) {
@@ -510,8 +340,7 @@ export default function MobilityPage() {
   }
 
   const programacoesSummary = useMemo(() => {
-    const visible = showDemo ? programacoes : programacoes.filter((prog) => !isDemoProgram(prog));
-    return visible.map((prog) => {
+    return programacoes.map((prog) => {
       const counts = { apto: 0, atencao: 0, naoApto: 0 };
       prog.COLABORADORES.forEach((item) => {
         const apt = computeAptidao({
@@ -526,7 +355,7 @@ export default function MobilityPage() {
       });
       return { ...prog, counts };
     });
-  }, [programacoes, docsByEmployee, showDemo]);
+  }, [programacoes, docsByEmployee]);
 
   return (
     <div className="grid grid-cols-12 gap-6">
@@ -585,16 +414,11 @@ export default function MobilityPage() {
         {!selectedProgramacao ? (
           <Card className="p-6 space-y-3 text-sm text-slate-500">
             <div>Selecione uma programação para editar.</div>
-            {employees.length > 0 && (
+            {employees.length > 0 && demoMode && (
               <div className="flex flex-wrap gap-2">
-                <Button type="button" onClick={seedDemo}>
+                <Button type="button" onClick={reloadDemo}>
                   Carregar dados de demonstração
                 </Button>
-                {programacoes.some(isDemoProgram) && (
-                  <Button type="button" variant="secondary" onClick={clearDemo}>
-                    Limpar demos
-                  </Button>
-                )}
               </div>
             )}
           </Card>
@@ -728,9 +552,9 @@ export default function MobilityPage() {
                     Limpar filtros
                   </Button>
                 )}
-                {programacoes.some(isDemoProgram) && (
-                  <Button type="button" variant="secondary" onClick={() => setShowDemo((prev) => !prev)}>
-                    {showDemo ? 'Ocultar demos' : 'Mostrar demos'}
+                {demoMode && (
+                  <Button type="button" variant="secondary" onClick={reloadDemo}>
+                    Recarregar demo
                   </Button>
                 )}
               </div>
@@ -739,16 +563,11 @@ export default function MobilityPage() {
             {!hasWindow && (
               <Card className="p-4 text-sm text-slate-600">
                 <div>Para ativar validações: defina Unidade + Embarque + Desembarque.</div>
-                {employees.length > 0 && (
+                {employees.length > 0 && demoMode && (
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <Button type="button" onClick={seedDemo}>
+                    <Button type="button" onClick={reloadDemo}>
                       Carregar dados de demonstração
                     </Button>
-                    {programacoes.some(isDemoProgram) && (
-                      <Button type="button" variant="secondary" onClick={clearDemo}>
-                        Limpar demos
-                      </Button>
-                    )}
                   </div>
                 )}
               </Card>
@@ -824,16 +643,14 @@ export default function MobilityPage() {
 
             <Card className="p-6 space-y-4">
               <div className="text-sm font-semibold text-slate-900">Escalados</div>
-              {!!selectedProgramacao && selectedProgramacao.COLABORADORES.length === 0 && employees.length > 0 && (
+              {!!selectedProgramacao &&
+                selectedProgramacao.COLABORADORES.length === 0 &&
+                employees.length > 0 &&
+                demoMode && (
                 <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="secondary" onClick={seedDemo}>
+                  <Button type="button" variant="secondary" onClick={reloadDemo}>
                     Carregar dados de demonstração
                   </Button>
-                  {programacoes.some(isDemoProgram) && (
-                    <Button type="button" variant="secondary" onClick={clearDemo}>
-                      Limpar demos
-                    </Button>
-                  )}
                 </div>
               )}
               {!employees.length && (
@@ -846,7 +663,6 @@ export default function MobilityPage() {
                   const aptLabel =
                     apt.level === 'APTO' ? '✅ APTO' : apt.level === 'ATENCAO' ? '⚠️ ATENÇÃO' : '✖ NÃO APTO';
                   const aptTone = apt.level === 'APTO' ? 'green' : apt.level === 'ATENCAO' ? 'amber' : 'red';
-                  const card = colab.CARTAO_EMBARQUE;
                   return (
                     <div key={id} className="rounded-xl border border-slate-200 p-4">
                       <button

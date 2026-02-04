@@ -7,6 +7,7 @@ import Badge from '../../ui/Badge';
 import { buildMinimalCollaborators, computeDashboardMetrics, parseXlsxToDataset } from '../../services/portalXlsxImporter';
 import { normalizeDigitsOnly } from '../../lib/documentationUtils';
 import { mergePortalPayload, readPortalPayload, writePortalPayload } from '../../lib/portalStorage';
+import { isDemoMode } from '../../services/demoMode';
 
 function formatCPF(digits) {
   const d = normalizeDigitsOnly(digits).slice(0, 11);
@@ -24,6 +25,7 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
   const fileInputRef = useRef(null);
+  const demoMode = isDemoMode();
 
   const existingCpfs = useMemo(() => new Set(employees.map((e) => normalizeDigitsOnly(e.cpf))), [employees]);
 
@@ -192,33 +194,37 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
             </div>
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              resetMessages();
-              fileInputRef.current?.click();
-            }}
-            className="w-full rounded-xl border border-slate-200 p-4 text-left hover:bg-slate-50"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="font-medium text-slate-900">Inserir via Excel</div>
-                <div className="text-sm text-slate-500">Upload de planilha com validação (em breve).</div>
-              </div>
-              <FileSpreadsheet />
-            </div>
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (e.target) e.target.value = '';
-              handleXlsxImport(file);
-            }}
-          />
+          {!demoMode && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  resetMessages();
+                  fileInputRef.current?.click();
+                }}
+                className="w-full rounded-xl border border-slate-200 p-4 text-left hover:bg-slate-50"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-medium text-slate-900">Inserir via Excel</div>
+                    <div className="text-sm text-slate-500">Upload de planilha com validação (em breve).</div>
+                  </div>
+                  <FileSpreadsheet />
+                </div>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (e.target) e.target.value = '';
+                  handleXlsxImport(file);
+                }}
+              />
+            </>
+          )}
 
           {err && (
             <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{err}</div>

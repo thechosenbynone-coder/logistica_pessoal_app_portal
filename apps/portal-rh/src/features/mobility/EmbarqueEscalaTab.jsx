@@ -5,6 +5,7 @@ import Badge from '../../ui/Badge.jsx';
 import Button from '../../ui/Button.jsx';
 import Input from '../../ui/Input.jsx';
 import { REQUIRED_DOC_TYPES, docWindowStatus, normalizeDocType, normalizeText } from '../../lib/documentationUtils';
+import { readPortalPayload } from '../../lib/portalStorage';
 
 function fmtDate(iso) {
   if (!iso) return '';
@@ -20,15 +21,8 @@ function getNextDeployment(employee) {
 }
 
 function loadStoredDocumentacoes() {
-  if (typeof window === 'undefined') return [];
-  const raw = window.localStorage.getItem('portal_rh_xlsx_v1');
-  if (!raw) return [];
-  try {
-    const payload = JSON.parse(raw);
-    return Array.isArray(payload?.dataset?.documentacoes) ? payload.dataset.documentacoes : [];
-  } catch {
-    return [];
-  }
+  const payload = readPortalPayload();
+  return Array.isArray(payload?.dataset?.documentacoes) ? payload.dataset.documentacoes : [];
 }
 
 function summarizeWindowDocs(documentacoes, employeeId, embarkDate, disembarkDate) {

@@ -14,6 +14,7 @@ import {
 } from '../../lib/documentationUtils';
 import { computeDashboardMetrics, parseXlsxToDocumentacoes } from '../../services/portalXlsxImporter';
 import { mergePortalPayload, readPortalPayload, writePortalPayload } from '../../lib/portalStorage';
+import { isDemoMode } from '../../services/demoMode';
 
 const ALL_DOC_TYPES = [...REQUIRED_DOC_TYPES, ...OPTIONAL_DOC_TYPES];
 
@@ -48,6 +49,7 @@ export default function DocsPage({ onOpenEmployee }) {
   const [evidenceFilter, setEvidenceFilter] = useState('');
   const [requiredOnly, setRequiredOnly] = useState(false);
   const fileInputRef = useRef(null);
+  const demoMode = isDemoMode();
 
   useEffect(() => {
     const payload = readPortalPayload();
@@ -198,26 +200,30 @@ export default function DocsPage({ onOpenEmployee }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                fileInputRef.current?.click();
-              }}
-            >
-              Importar XLSX
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (e.target) e.target.value = '';
-                handleImport(file);
-              }}
-            />
+            {!demoMode && (
+              <>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    fileInputRef.current?.click();
+                  }}
+                >
+                  Importar XLSX
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (e.target) e.target.value = '';
+                    handleImport(file);
+                  }}
+                />
+              </>
+            )}
           </div>
         </div>
 

@@ -1,3 +1,5 @@
+import { getStorageKey } from '../services/demoMode';
+
 const DEFAULT_PAYLOAD = {
   version: 1,
   dataset: {},
@@ -6,7 +8,7 @@ const DEFAULT_PAYLOAD = {
 
 export function readPortalPayload() {
   if (typeof window === 'undefined') return { ...DEFAULT_PAYLOAD };
-  const raw = window.localStorage.getItem('portal_rh_xlsx_v1');
+  const raw = window.localStorage.getItem(getStorageKey());
   if (!raw) return { ...DEFAULT_PAYLOAD };
   try {
     const parsed = JSON.parse(raw);
@@ -32,6 +34,6 @@ export function mergePortalPayload(prev, patch) {
 
 export function writePortalPayload(next) {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem('portal_rh_xlsx_v1', JSON.stringify(next));
+  window.localStorage.setItem(getStorageKey(), JSON.stringify(next));
   window.dispatchEvent(new Event('portal_rh_xlsx_updated'));
 }
