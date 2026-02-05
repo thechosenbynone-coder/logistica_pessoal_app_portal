@@ -247,16 +247,21 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
           )}
         </div>
 
-        <nav className="w-full pt-0 pb-2.5 mt-1 flex-1 min-h-0 overflow-hidden flex flex-col items-stretch">
+        <nav
+          className={cn(
+            "w-full pt-0 pb-2.5 mt-1 flex-1 min-h-0 overflow-hidden flex flex-col",
+            isOpen ? "items-stretch px-2" : "items-center px-0"
+          )}
+        >
           {NAV.map((section) => (
-            <div key={section.title} className="mb-2 w-full">
+            <div key={section.title} className={cn("mb-2 w-full", !isOpen && "flex flex-col items-center")}>
               {isOpen && (
                 <div className="pb-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wide" style={{ paddingLeft: ICON_COLUMN_W }}>
                   {section.title}
                 </div>
               )}
 
-              <div className="space-y-1 flex flex-col items-stretch">
+              <div className={cn("space-y-1 flex flex-col", isOpen ? "items-stretch" : "items-center w-full")}>
                 {section.items.map((it) => {
                   const Icon = it.icon;
                   const isActive = activeKey === it.key;
@@ -272,16 +277,15 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
                         onFocus={(e) => showTooltip(e.currentTarget, it.label)}
                         onBlur={hideTooltip}
                         aria-label={it.label}
-                        className="h-11 w-full grid place-items-center rounded-2xl bg-transparent border-0 p-0 m-0 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60"
+                        className={cn(
+                          "mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-transparent border-0 p-0 m-0 transition",
+                          "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60",
+                          isActive
+                            ? "ring-2 ring-blue-400/60 shadow-[0_0_0_6px_rgba(59,130,246,0.14)]"
+                            : "hover:ring-2 hover:ring-blue-400/50"
+                        )}
                       >
-                        <span
-                          className={cn(
-                            "h-11 w-11 grid place-items-center rounded-2xl",
-                            isActive
-                              ? "ring-2 ring-blue-400/60 shadow-[0_0_0_6px_rgba(59,130,246,0.12)]"
-                              : "hover:ring-2 hover:ring-blue-400/50"
-                          )}
-                        >
+                        <span className="h-12 w-12 grid place-items-center rounded-2xl">
                           <Icon size={ICON_SIZE} className={isActive ? "text-blue-700" : "text-slate-700"} />
                         </span>
                       </button>
@@ -303,17 +307,17 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
                       aria-label={it.label}
                       containerClassName="w-full rounded-2xl"
                       className={cn(
-                        "relative z-10 rounded-[inherit] h-10 w-full grid items-center text-sm font-semibold bg-transparent",
-                        "[grid-template-columns:72px_1fr]",
+                        "relative z-10 rounded-[inherit] h-12 w-full grid items-center text-sm font-semibold bg-transparent px-2",
+                        "grid-cols-[48px_1fr]",
                         isActive ? "text-blue-700" : "text-slate-700"
                       )}
                     >
-                      <span className="w-full grid place-items-center">
+                      <span className="h-12 w-12 grid place-items-center">
                         <span
                           className={cn(
-                            "h-11 w-11 grid place-items-center rounded-2xl",
+                            "h-12 w-12 grid place-items-center rounded-2xl",
                             isActive
-                              ? "ring-2 ring-blue-400/60 shadow-[0_0_0_6px_rgba(59,130,246,0.12)]"
+                              ? "ring-2 ring-blue-400/60 shadow-[0_0_0_6px_rgba(59,130,246,0.14)]"
                               : "hover:ring-2 hover:ring-blue-400/50"
                           )}
                         >
