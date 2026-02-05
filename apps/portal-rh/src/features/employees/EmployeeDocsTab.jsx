@@ -14,7 +14,7 @@ import {
   normalizeText
 } from '../../lib/documentationUtils';
 import { computeDashboardMetrics } from '../../services/portalXlsxImporter';
-import { mergePortalPayload, readPortalPayload, writePortalPayload } from '../../lib/portalStorage';
+import { mergePayload, readPayload, writePayload } from '../../services/portalStorage';
 
 const ALL_DOC_TYPES = [...REQUIRED_DOC_TYPES, ...OPTIONAL_DOC_TYPES];
 
@@ -53,10 +53,10 @@ export default function EmployeeDocsTab({ employee }) {
   const uploadInputRef = useRef(null);
 
   useEffect(() => {
-    const payload = readPortalPayload();
+    const payload = readPayload();
     setDocumentacoes(Array.isArray(payload?.dataset?.documentacoes) ? payload.dataset.documentacoes : []);
     const handleUpdate = () => {
-      const updated = readPortalPayload();
+      const updated = readPayload();
       setDocumentacoes(Array.isArray(updated?.dataset?.documentacoes) ? updated.dataset.documentacoes : []);
     };
     window.addEventListener('portal_rh_xlsx_updated', handleUpdate);
@@ -141,14 +141,14 @@ export default function EmployeeDocsTab({ employee }) {
       updated.push(updatedDoc);
     }
 
-    const prevPayload = readPortalPayload();
+    const prevPayload = readPayload();
     const nextDataset = { ...prevPayload.dataset, documentacoes: updated };
-    const nextPayload = mergePortalPayload(prevPayload, {
+    const nextPayload = mergePayload(prevPayload, {
       dataset: nextDataset,
       metrics: computeDashboardMetrics(nextDataset),
       importedAt: prevPayload.importedAt || new Date().toISOString()
     });
-    writePortalPayload(nextPayload);
+    writePayload(nextPayload);
     setDocumentacoes(updated);
     resetForm();
     setDrawerOpen(false);

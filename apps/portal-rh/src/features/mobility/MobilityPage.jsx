@@ -12,7 +12,7 @@ import {
   normalizeDocType,
   normalizeText
 } from '../../lib/documentationUtils';
-import { mergePortalPayload, readPortalPayload, writePortalPayload } from '../../lib/portalStorage';
+import { mergePayload, readPayload, writePayload } from '../../services/portalStorage';
 import { getDemoScenario, isDemoMode, seedDemoDataIfNeeded } from '../../services/demoMode';
 
 const STATUS_OPTIONS = ['Planejado', 'Confirmado', 'Em andamento', 'Finalizado', 'Cancelado'];
@@ -100,14 +100,14 @@ export default function MobilityPage() {
   const demoMode = isDemoMode();
 
   useEffect(() => {
-    const payload = readPortalPayload();
+    const payload = readPayload();
     setProgramacoes(
       Array.isArray(payload?.dataset?.programacoes) ? payload.dataset.programacoes.map(buildProgramacao) : []
     );
     setEmployees(mapEmployees(payload));
     setDocumentacoes(Array.isArray(payload?.dataset?.documentacoes) ? payload.dataset.documentacoes : []);
     const handleUpdate = () => {
-      const updated = readPortalPayload();
+      const updated = readPayload();
       setProgramacoes(
         Array.isArray(updated?.dataset?.programacoes) ? updated.dataset.programacoes.map(buildProgramacao) : []
       );
@@ -279,13 +279,13 @@ export default function MobilityPage() {
   }, [selectedProgramacao, searchQuery, employeesById, docsByEmployee]);
 
   function persistProgramacoes(nextProgramacoes) {
-    const prevPayload = readPortalPayload();
+    const prevPayload = readPayload();
     const nextDataset = { ...prevPayload.dataset, programacoes: nextProgramacoes };
-    const nextPayload = mergePortalPayload(prevPayload, {
+    const nextPayload = mergePayload(prevPayload, {
       dataset: nextDataset,
       importedAt: prevPayload.importedAt || new Date().toISOString()
     });
-    writePortalPayload(nextPayload);
+    writePayload(nextPayload);
     setProgramacoes(nextProgramacoes);
   }
 

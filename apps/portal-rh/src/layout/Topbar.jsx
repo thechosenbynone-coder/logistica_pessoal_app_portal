@@ -4,14 +4,7 @@ import Input from '../ui/Input.jsx'
 import Button from '../ui/Button.jsx'
 import Modal from '../ui/Modal.jsx'
 import Badge from '../ui/Badge.jsx'
-import {
-  clearDemoData,
-  getDemoScenario,
-  isDemoMode,
-  seedDemoDataIfNeeded,
-  setDemoMode,
-  setDemoScenario
-} from '../services/demoMode'
+import { clearDemoData, getDemoScenario, isDemoMode, seedDemoDataIfNeeded, setDemoScenario } from '../services/demoMode'
 import { cn } from '../ui/ui.js'
 
 export default function Topbar({
@@ -24,7 +17,6 @@ export default function Topbar({
   const [quickOpen, setQuickOpen] = useState(false)
   const [demoScenario, setDemoScenarioState] = useState(getDemoScenario())
   const demoMode = isDemoMode()
-
   // Busca do modal (Ctrl/Cmd + K)
   const [q, setQ] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
@@ -189,22 +181,6 @@ export default function Topbar({
             </Button>
           </div>
         )}
-        <Button
-          type="button"
-          variant="secondary"
-          className="text-sm"
-          onClick={() => {
-            if (demoMode) {
-              setDemoMode(false)
-              window.location.assign('/')
-            } else {
-              setDemoMode(true)
-              window.location.assign('/demo')
-            }
-          }}
-        >
-          Modo: {demoMode ? 'Demo' : 'Produção'}
-        </Button>
         <Button
           variant="secondary"
           className="text-sm"

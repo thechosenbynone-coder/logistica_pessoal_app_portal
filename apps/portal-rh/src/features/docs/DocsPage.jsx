@@ -13,7 +13,7 @@ import {
   normalizeText
 } from '../../lib/documentationUtils';
 import { computeDashboardMetrics, parseXlsxToDocumentacoes } from '../../services/portalXlsxImporter';
-import { mergePortalPayload, readPortalPayload, writePortalPayload } from '../../lib/portalStorage';
+import { mergePayload, readPayload, writePayload } from '../../services/portalStorage';
 import { isDemoMode } from '../../services/demoMode';
 
 const ALL_DOC_TYPES = [...REQUIRED_DOC_TYPES, ...OPTIONAL_DOC_TYPES];
@@ -52,11 +52,11 @@ export default function DocsPage({ onOpenEmployee }) {
   const demoMode = isDemoMode();
 
   useEffect(() => {
-    const payload = readPortalPayload();
+    const payload = readPayload();
     setDocumentacoes(extractDocumentacoes(payload));
     setColaboradores(extractColaboradores(payload));
     const handleUpdate = () => {
-      const updated = readPortalPayload();
+      const updated = readPayload();
       setDocumentacoes(extractDocumentacoes(updated));
       setColaboradores(extractColaboradores(updated));
     };
@@ -163,7 +163,7 @@ export default function DocsPage({ onOpenEmployee }) {
         }
       });
       const merged = Array.from(map.values());
-      const prevPayload = readPortalPayload();
+      const prevPayload = readPayload();
       const nextDataset = { ...prevPayload.dataset, documentacoes: merged };
       if (!Array.isArray(nextDataset.colaboradores) || nextDataset.colaboradores.length === 0) {
         const fallback =
@@ -172,12 +172,12 @@ export default function DocsPage({ onOpenEmployee }) {
           nextDataset.colaboradores_minimos = fallback;
         }
       }
-      const nextPayload = mergePortalPayload(prevPayload, {
+      const nextPayload = mergePayload(prevPayload, {
         dataset: nextDataset,
         metrics: computeDashboardMetrics(nextDataset),
         importedAt: prevPayload.importedAt || new Date().toISOString()
       });
-      writePortalPayload(nextPayload);
+      writePayload(nextPayload);
       setDocumentacoes(merged);
     } catch (err) {
       console.error('Falha ao importar documentações.', err);

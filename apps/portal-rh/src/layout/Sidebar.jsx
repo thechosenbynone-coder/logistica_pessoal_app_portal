@@ -12,6 +12,7 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+import { ensureDemoSeed, getMode, setMode } from "../services/portalStorage";
 
 const NAV = [
   {
@@ -69,6 +70,7 @@ function TooltipPortal({ open, text, x, y }) {
 
 export default function Sidebar({ active, onSelect, onNavigate }) {
   const [open, setOpen] = useState(false);
+  const [mode, setModeState] = useState(getMode());
 
   // Hover com intenção (4s)
   const openTimer = useRef(null);
@@ -99,6 +101,18 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
       if (openTimer.current) clearTimeout(openTimer.current);
     };
   }, []);
+
+  useEffect(() => {
+    const handleModeSync = () => setModeState(getMode());
+    window.addEventListener("portal_rh_xlsx_updated", handleModeSync);
+    return () => window.removeEventListener("portal_rh_xlsx_updated", handleModeSync);
+  }, []);
+
+  const handleModeChange = (nextMode) => {
+    setMode(nextMode);
+    if (nextMode === "demo") ensureDemoSeed();
+    setModeState(nextMode);
+  };
 
   const scheduleOpen = () => {
     if (open) return;
@@ -398,6 +412,51 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
               </div>
             )}
           </button>
+
+          {isOpen ? (
+            <div className="mt-2 rounded-2xl border border-slate-100 bg-white p-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium text-slate-500">Modo</span>
+                {mode === "demo" && (
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">DEMO</span>
+                )}
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => handleModeChange("demo")}
+                  className={cn(
+                    "rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors",
+                    mode === "demo" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  DEMO
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleModeChange("prod")}
+                  className={cn(
+                    "rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors",
+                    mode === "prod" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  PROD
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => handleModeChange(mode === "demo" ? "prod" : "demo")}
+              className={cn(
+                "mt-2 w-full rounded-2xl border border-slate-100 bg-white px-2 py-2 text-[10px] font-semibold text-slate-600",
+                mode === "demo" ? "text-amber-700" : "text-slate-600"
+              )}
+              aria-label={`Alternar modo atual: ${mode}`}
+            >
+              {mode === "demo" ? "DEMO" : "PROD"}
+            </button>
+          )}
         </div>
       </aside>
     </>

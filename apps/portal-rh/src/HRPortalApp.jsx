@@ -17,6 +17,7 @@ export default function HRPortalApp() {
   const [activePage, setActivePage] = useState('dashboard');
   const [employees, setEmployees] = useState([]);
   const [focus, setFocus] = useState(null);
+  const [storageTick, setStorageTick] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -34,6 +35,13 @@ export default function HRPortalApp() {
     return () => {
       isMounted = false;
     };
+  }, []);
+
+
+  useEffect(() => {
+    const onUpdate = () => setStorageTick((t) => t + 1);
+    window.addEventListener('portal_rh_xlsx_updated', onUpdate);
+    return () => window.removeEventListener('portal_rh_xlsx_updated', onUpdate);
   }, []);
 
   const openEmployee = useCallback((employeeId, tab = 'overview') => {
@@ -93,7 +101,7 @@ export default function HRPortalApp() {
         // Safety fallback so you never get an empty white screen
         return <DashboardPage employees={employees} onOpenEmployee={openEmployee} />;
     }
-  }, [activePage, employees, focus, openEmployee, createEmployee]);
+  }, [activePage, employees, focus, openEmployee, createEmployee, storageTick]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">

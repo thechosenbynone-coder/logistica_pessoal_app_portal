@@ -14,7 +14,7 @@ import {
   normalizeDocType,
   normalizeText
 } from '../../lib/documentationUtils';
-import { mergePortalPayload, readPortalPayload, writePortalPayload } from '../../lib/portalStorage';
+import { mergePayload, readPayload, writePayload } from '../../services/portalStorage';
 import { isDemoMode } from '../../services/demoMode';
 
 function docTone(d) {
@@ -84,7 +84,7 @@ function toImportedEmployees(payload) {
 }
 
 function loadImportedEmployees() {
-  const payload = readPortalPayload();
+  const payload = readPayload();
   const employees = toImportedEmployees(payload);
   const documentacoes = Array.isArray(payload?.dataset?.documentacoes) ? payload.dataset.documentacoes : [];
   return { employees, documentacoes };
@@ -198,7 +198,7 @@ export default function EmployeesPage({ employees = [], focusEmployee, focus, on
     if (!file) return;
     try {
       const dataset = await parseXlsxToDataset(file);
-      const prevPayload = readPortalPayload();
+      const prevPayload = readPayload();
       const nextDataset = { ...prevPayload.dataset, ...dataset };
       if (!Array.isArray(nextDataset.documentacoes) && Array.isArray(prevPayload.dataset?.documentacoes)) {
         nextDataset.documentacoes = prevPayload.dataset.documentacoes;
@@ -209,7 +209,7 @@ export default function EmployeesPage({ employees = [], focusEmployee, focus, on
       const colaboradores_minimos = buildMinimalCollaborators(nextDataset.colaboradores);
       const metrics = computeDashboardMetrics(nextDataset);
       const importedAt = new Date().toISOString();
-      const payload = mergePortalPayload(prevPayload, {
+      const payload = mergePayload(prevPayload, {
         importedAt,
         dataset: nextDataset,
         metrics,
@@ -219,12 +219,12 @@ export default function EmployeesPage({ employees = [], focusEmployee, focus, on
             : prevPayload.colaboradores_minimos || prevPayload.dataset?.colaboradores_minimos || []
       });
       try {
-        writePortalPayload(payload);
+        writePayload(payload);
         return;
       } catch (storageErr) {
         try {
-          writePortalPayload(
-            mergePortalPayload(prevPayload, {
+          writePayload(
+            mergePayload(prevPayload, {
               importedAt,
               metrics,
               colaboradores_minimos:

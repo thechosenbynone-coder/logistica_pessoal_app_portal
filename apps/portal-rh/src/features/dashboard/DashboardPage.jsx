@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { cn } from "../../ui/ui.js";
 import { api } from "../../services/api";
 import { computeDashboardMetrics } from "../../services/portalXlsxImporter";
-import { readPortalPayload } from "../../lib/portalStorage";
+import { readPayload } from "../../services/portalStorage";
 import {
   AlertTriangle,
   ArrowDown,
@@ -185,7 +185,7 @@ export default function DashboardPage({ onNavigate }) {
   }, []);
 
   const readStoredMetrics = useCallback(() => {
-    const payload = readPortalPayload();
+    const payload = readPayload();
     if (payload?.metrics) return payload.metrics;
     if (payload?.dataset) return computeDashboardMetrics(payload.dataset);
     return null;

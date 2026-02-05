@@ -5,7 +5,7 @@ import Badge from '../../ui/Badge.jsx';
 import Button from '../../ui/Button.jsx';
 import Input from '../../ui/Input.jsx';
 import { REQUIRED_DOC_TYPES, docWindowStatus, normalizeDocType, normalizeText } from '../../lib/documentationUtils';
-import { readPortalPayload } from '../../lib/portalStorage';
+import { readPayload } from '../../services/portalStorage';
 
 function fmtDate(iso) {
   if (!iso) return '';
@@ -21,7 +21,7 @@ function getNextDeployment(employee) {
 }
 
 function loadStoredDocumentacoes() {
-  const payload = readPortalPayload();
+  const payload = readPayload();
   return Array.isArray(payload?.dataset?.documentacoes) ? payload.dataset.documentacoes : [];
 }
 
