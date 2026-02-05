@@ -5,6 +5,7 @@ import Button from '../ui/Button.jsx'
 import Modal from '../ui/Modal.jsx'
 import Badge from '../ui/Badge.jsx'
 import { clearDemoData, getDemoScenario, isDemoMode, seedDemoDataIfNeeded, setDemoScenario } from '../services/demoMode'
+import { currentUser } from '../services/currentUser'
 import { cn } from '../ui/ui.js'
 
 export default function Topbar({
@@ -200,8 +201,9 @@ export default function Topbar({
             <UserRound size={18} className="text-gray-600" />
           </div>
           <div className="leading-tight">
-            <div className="text-xs font-semibold text-gray-800">RH Operação</div>
-            <div className="text-[11px] text-gray-500">admin@empresa.com</div>
+            <div className="text-xs font-semibold text-gray-800">{currentUser.name}</div>
+            <div className="text-[11px] text-gray-500">{currentUser.role}</div>
+            <div className="text-[11px] text-gray-500">{currentUser.email}</div>
           </div>
         </div>
       </div>

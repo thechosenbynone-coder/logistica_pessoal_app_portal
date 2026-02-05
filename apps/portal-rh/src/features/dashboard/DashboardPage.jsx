@@ -4,6 +4,7 @@ import { cn } from "../../ui/ui.js";
 import { api } from "../../services/api";
 import { computeDashboardMetrics } from "../../services/portalXlsxImporter";
 import { readPayload } from "../../services/portalStorage";
+import { firstName } from '../../services/currentUser';
 import {
   AlertTriangle,
   ArrowDown,
@@ -205,10 +206,6 @@ export default function DashboardPage({ onNavigate }) {
 
   const fallbackMetrics = useMemo(() => computeDashboardMetrics(null), []);
 
-  // MOCK USER (depois puxamos do login)
-  const user = useMemo(() => ({ name: "Ana Silva" }), []);
-  const firstName = (user?.name || "").trim().split(" ")[0] || "Usuário";
-
   // MOCK DATA (depois plugamos API)
   const mock = useMemo(
     () => ({
@@ -340,7 +337,7 @@ export default function DashboardPage({ onNavigate }) {
       {/* Cabeçalho do Dashboard (novo) */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="text-2xl font-extrabold text-slate-900">Olá, {firstName}</div>
+          <div className="text-2xl font-extrabold text-slate-900">Olá, {firstName || "Usuário"}</div>
           <div className="text-sm text-slate-500">Qual o plano de hoje?</div>
         </div>
 

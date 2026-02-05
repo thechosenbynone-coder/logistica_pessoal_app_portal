@@ -13,6 +13,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { ensureDemoSeed, getMode, setMode } from "../services/portalStorage";
+import { currentUser } from "../services/currentUser";
 
 const NAV = [
   {
@@ -147,10 +148,9 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
 
   const user = useMemo(
     () => ({
-      name: "Ana Silva",
-      role: "Analista RH",
-      avatar:
-        "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=96&q=60",
+      name: currentUser.name,
+      role: currentUser.role,
+      avatar: currentUser.avatar,
     }),
     []
   );
@@ -457,6 +457,10 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
               {mode === "demo" ? "DEMO" : "PROD"}
             </button>
           )}
+
+          <div className={cn("mt-2 text-center font-medium text-slate-400", isOpen ? "text-[10px]" : "text-[10px]")}>
+            {isOpen ? 'Desenvolvido por Hubye' : 'Hubye'}
+          </div>
         </div>
       </aside>
     </>
