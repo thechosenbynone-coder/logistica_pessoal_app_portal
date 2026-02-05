@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Sidebar from './layout/Sidebar';
-import Topbar from './layout/Topbar';
 import DashboardPage from './features/dashboard/DashboardPage';
 import EmployeesPage from './features/employees/EmployeesPage';
 import EquipmentPage from './features/equipment/EquipmentPage';
@@ -17,6 +16,7 @@ export default function HRPortalApp() {
   const [activePage, setActivePage] = useState('dashboard');
   const [employees, setEmployees] = useState([]);
   const [focus, setFocus] = useState(null);
+  const [storageTick, setStorageTick] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -36,6 +36,13 @@ export default function HRPortalApp() {
     };
   }, []);
 
+
+  useEffect(() => {
+    const onUpdate = () => setStorageTick((t) => t + 1);
+    window.addEventListener('portal_rh_xlsx_updated', onUpdate);
+    return () => window.removeEventListener('portal_rh_xlsx_updated', onUpdate);
+  }, []);
+
   const openEmployee = useCallback((employeeId, tab = 'overview') => {
     setActivePage('employees');
     setFocus({ employeeId, tab });
@@ -45,10 +52,6 @@ export default function HRPortalApp() {
     setActivePage(pageKey || 'dashboard');
     if (pageKey !== 'employees') setFocus(null);
   }, []);
-
-  const onSearchSelect = useCallback((employeeId) => {
-    openEmployee(employeeId, 'overview');
-  }, [openEmployee]);
 
   const normalizeCPF = (cpf) => (cpf || '').toString().replace(/\D/g, '');
 
@@ -93,7 +96,7 @@ export default function HRPortalApp() {
         // Safety fallback so you never get an empty white screen
         return <DashboardPage employees={employees} onOpenEmployee={openEmployee} />;
     }
-  }, [activePage, employees, focus, openEmployee, createEmployee]);
+  }, [activePage, employees, focus, openEmployee, createEmployee, storageTick]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -103,7 +106,6 @@ export default function HRPortalApp() {
 
         {/* Main content must always render */}
         <div className="flex-1 min-w-0">
-          <Topbar employees={employees} onSearchSelect={onSearchSelect} />
           <main className="p-4 sm:p-6 lg:p-8">{page}</main>
         </div>
       </div>

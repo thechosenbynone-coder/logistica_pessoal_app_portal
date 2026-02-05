@@ -6,7 +6,7 @@ import Input from '../../ui/Input';
 import Badge from '../../ui/Badge';
 import { buildMinimalCollaborators, computeDashboardMetrics, parseXlsxToDataset } from '../../services/portalXlsxImporter';
 import { normalizeDigitsOnly } from '../../lib/documentationUtils';
-import { mergePortalPayload, readPortalPayload, writePortalPayload } from '../../lib/portalStorage';
+import { mergePayload, readPayload, writePayload } from '../../services/portalStorage';
 import { isDemoMode } from '../../services/demoMode';
 
 function formatCPF(digits) {
@@ -101,7 +101,7 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
     resetMessages();
     try {
       const dataset = await parseXlsxToDataset(file);
-      const prevPayload = readPortalPayload();
+      const prevPayload = readPayload();
       const nextDataset = { ...prevPayload.dataset, ...dataset };
       if (!Array.isArray(nextDataset.documentacoes) && Array.isArray(prevPayload.dataset?.documentacoes)) {
         nextDataset.documentacoes = prevPayload.dataset.documentacoes;
@@ -112,7 +112,7 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
       const colaboradores_minimos = buildMinimalCollaborators(nextDataset.colaboradores);
       const metrics = computeDashboardMetrics(nextDataset);
       const importedAt = new Date().toISOString();
-      const payload = mergePortalPayload(prevPayload, {
+      const payload = mergePayload(prevPayload, {
         importedAt,
         dataset: nextDataset,
         metrics,
@@ -122,13 +122,13 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
             : prevPayload.colaboradores_minimos || prevPayload.dataset?.colaboradores_minimos || []
       });
       try {
-        writePortalPayload(payload);
+        writePayload(payload);
         setOk('Planilha importada com sucesso.');
         return;
       } catch (storageErr) {
         try {
-          writePortalPayload(
-            mergePortalPayload(prevPayload, {
+          writePayload(
+            mergePayload(prevPayload, {
               importedAt,
               metrics,
               colaboradores_minimos:

@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../ui/ui.js";
 import {
@@ -12,6 +12,9 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+import { ensureDemoSeed, getMode, setMode } from "../services/portalStorage";
+import { HoverBorderGradient } from "../ui/HoverBorderGradient.jsx";
+import { currentUser } from "../services/currentUser";
 
 const NAV = [
   {
@@ -69,25 +72,15 @@ function TooltipPortal({ open, text, x, y }) {
 
 export default function Sidebar({ active, onSelect, onNavigate }) {
   const [open, setOpen] = useState(false);
+  const [mode, setModeState] = useState(getMode());
 
-  // Hover com intenção (4s)
   const openTimer = useRef(null);
   const OPEN_DELAY = 4000;
-
   const ICON_SIZE = 18;
 
-  // Barra glow deslizante
-  const barWrapRef = useRef(null);
-  const itemRefs = useRef({});
-  const BAR_H = 34;
-  const [barY, setBarY] = useState(0);
-  const [barVisible, setBarVisible] = useState(false);
-
-  // Tooltip (portal): não é cortado por overflow do sidebar e não cria scroll
   const ttAnchorRef = useRef(null);
   const [tt, setTt] = useState({ open: false, text: "", x: 0, y: 0 });
 
-  // ✅ Se cair numa rota antiga que agora “mora” dentro de um módulo, marca o módulo pai
   const activeKey = useMemo(() => {
     if (active === "hotel") return "mobility";
     if (active === "employeeCreate") return "employees";
@@ -99,6 +92,18 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
       if (openTimer.current) clearTimeout(openTimer.current);
     };
   }, []);
+
+  useEffect(() => {
+    const handleModeSync = () => setModeState(getMode());
+    window.addEventListener("portal_rh_xlsx_updated", handleModeSync);
+    return () => window.removeEventListener("portal_rh_xlsx_updated", handleModeSync);
+  }, []);
+
+  const handleModeChange = (nextMode) => {
+    setMode(nextMode);
+    if (nextMode === "demo") ensureDemoSeed();
+    setModeState(nextMode);
+  };
 
   const scheduleOpen = () => {
     if (open) return;
@@ -131,20 +136,9 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
     if (typeof fn === "function") fn(key);
   };
 
-  const user = useMemo(
-    () => ({
-      name: "Ana Silva",
-      role: "Analista RH",
-      avatar:
-        "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=96&q=60",
-    }),
-    []
-  );
-
   const isOpen = open;
 
   const showTooltip = (el, text) => {
-    // Tooltip só quando fechado
     if (!el || isOpen) return;
     ttAnchorRef.current = el;
     const r = el.getBoundingClientRect();
@@ -156,7 +150,6 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
     });
   };
 
-  // Mantém a posição correta do tooltip se a página rolar / redimensionar
   useEffect(() => {
     if (!tt.open) return;
 
@@ -174,7 +167,6 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
     const onScroll = () => update();
     const onResize = () => update();
 
-    // capture=true pra pegar scroll em containers também
     window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", onResize);
 
@@ -184,38 +176,18 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
     };
   }, [tt.open]);
 
-  // Quando abrir, some com tooltips imediatamente
   useEffect(() => {
     if (isOpen) hideTooltip();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  const computeBar = () => {
-    const wrap = barWrapRef.current;
-    const el = itemRefs.current?.[activeKey];
-    if (!wrap || !el) {
-      setBarVisible(false);
-      return;
-    }
-    const wrapRect = wrap.getBoundingClientRect();
-    const elRect = el.getBoundingClientRect();
-    const centerY = elRect.top - wrapRect.top + elRect.height / 2;
-    const topY = centerY - BAR_H / 2;
-    setBarY(Math.max(0, topY));
-    setBarVisible(true);
-  };
-
-  useLayoutEffect(() => {
-    computeBar();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeKey, isOpen]);
-
-  useEffect(() => {
-    const onResize = () => computeBar();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeKey, isOpen]);
+  const user = useMemo(
+    () => ({
+      name: "Jéssica",
+      role: currentUser.role || "RH Operação",
+      avatar: currentUser.avatar,
+    }),
+    []
+  );
 
   return (
     <>
@@ -223,7 +195,6 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
 
       <aside
         className={cn(
-          // ✅ Sidebar fixo visualmente, sem scroll interno e sem “vazar” tooltip
           "h-screen sticky top-0 bg-white border-r border-slate-100 flex flex-col overflow-hidden",
           "transition-[width] duration-200 ease-in-out",
           isOpen ? "w-72" : "w-[76px]"
@@ -232,147 +203,105 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
         onMouseLeave={closeNow}
         aria-label="Menu lateral"
       >
-        {/* Header */}
-        <div className="p-4 shrink-0">
+        <div className="flex items-center justify-center pt-3 pb-1 shrink-0">
           <button
             type="button"
             onClick={toggleOpen}
-            className={cn(
-              "w-full rounded-2xl border border-slate-100 bg-white shadow-sm",
-              "flex items-center p-3",
-              isOpen ? "gap-3 justify-start" : "gap-0 justify-center"
-            )}
+            className="h-7 w-7 rounded-lg bg-blue-50 border border-blue-100 grid place-items-center"
             aria-label="Portal RH"
-            onMouseEnter={(e) => showTooltip(e.currentTarget, "Portal RH")}
-            onMouseLeave={hideTooltip}
-            onFocus={(e) => showTooltip(e.currentTarget, "Portal RH")}
-            onBlur={hideTooltip}
           >
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-b from-blue-600 to-blue-700 grid place-items-center shrink-0 overflow-hidden">
-              <div className="h-5 w-5 rounded-md bg-white/95" />
-            </div>
-
-            {isOpen && (
-              <div className="min-w-0 text-left">
-                <div className="text-sm font-semibold text-slate-900">Portal RH</div>
-                <div className="text-xs text-slate-500">Logística de Pessoal</div>
-              </div>
-            )}
+            <span className="text-[10px] font-semibold text-blue-700 leading-none">RH</span>
           </button>
         </div>
 
-        {/* Nav (SEM rolagem) */}
-        <nav className="px-3 pb-3 flex-1 min-h-0 overflow-hidden">
-          <div ref={barWrapRef} className="relative">
-            <span
-              aria-hidden="true"
-              className={cn(
-                "absolute left-0 w-1 rounded-r-full",
-                "bg-gradient-to-b from-blue-500 to-blue-700",
-                "shadow-[0_0_18px_rgba(37,99,235,0.45)]",
-                "transition-[transform,opacity] duration-300 ease-out"
+        <nav className="px-2.5 pb-2.5 flex-1 min-h-0 overflow-hidden">
+          {NAV.map((section) => (
+            <div key={section.title} className="mb-2">
+              {isOpen && (
+                <div className="px-2 pb-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
+                  {section.title}
+                </div>
               )}
-              style={{
-                height: BAR_H,
-                transform: `translateY(${barY}px)`,
-                opacity: barVisible ? 1 : 0,
-              }}
-            />
 
-            {NAV.map((section) => (
-              <div key={section.title} className="mb-3">
-                {isOpen && (
-                  <div className="px-2 pt-2 pb-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                    {section.title}
-                  </div>
-                )}
+              <div className="space-y-1">
+                {section.items.map((it) => {
+                  const Icon = it.icon;
+                  const isActive = activeKey === it.key;
 
-                <div className="space-y-1">
-                  {section.items.map((it) => {
-                    const Icon = it.icon;
-                    const isActive = activeKey === it.key;
-
+                  if (!isOpen) {
                     return (
                       <button
                         key={it.key}
-                        ref={(el) => {
-                          if (el) itemRefs.current[it.key] = el;
-                        }}
                         type="button"
                         onClick={() => handleSelect(it.key)}
-                        aria-label={it.label}
-                        className={cn(
-                          "relative w-full",
-                          "flex items-center px-2 py-2 transition-colors",
-                          isOpen ? "gap-3 justify-start rounded-2xl" : "gap-0 justify-center rounded-2xl",
-                          isActive ? (isOpen ? "bg-blue-50/70" : "bg-transparent") : "hover:bg-slate-50",
-                          "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-200/70 focus-visible:ring-offset-0"
-                        )}
                         onMouseEnter={(e) => showTooltip(e.currentTarget, it.label)}
                         onMouseLeave={hideTooltip}
                         onFocus={(e) => showTooltip(e.currentTarget, it.label)}
                         onBlur={hideTooltip}
-                      >
-                        <div
-                          className={cn(
-                            "h-11 w-11 min-w-[44px] rounded-2xl shrink-0",
-                            "grid place-items-center overflow-hidden relative leading-none",
-                            isActive
-                              ? "bg-blue-50 ring-1 ring-blue-200 shadow-[0_0_16px_rgba(37,99,235,0.18)]"
-                              : "bg-slate-100"
-                          )}
-                        >
-                          <Icon
-                            size={ICON_SIZE}
-                            className={cn(
-                              "block !max-w-none !max-h-none",
-                              isActive ? "text-blue-700" : "text-slate-700"
-                            )}
-                          />
-                        </div>
-
-                        {isOpen && (
-                          <span
-                            className={cn(
-                              "text-sm font-semibold whitespace-nowrap",
-                              isActive ? "text-blue-700" : "text-slate-700"
-                            )}
-                          >
-                            {it.label}
-                          </span>
+                        aria-label={it.label}
+                        className={cn(
+                          "h-11 w-11 grid place-items-center rounded-2xl bg-transparent border-0 shadow-none p-0 m-0",
+                          "hover:bg-transparent focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60",
+                          "transition",
+                          isActive ? "ring-2 ring-blue-500/60" : "hover:ring-2 hover:ring-blue-400/50"
                         )}
+                      >
+                        <Icon size={ICON_SIZE} className={isActive ? "text-blue-700" : "text-slate-700"} />
                       </button>
                     );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
+                  }
 
-          {/* Dica só aparece em telas grandes para não “apertar” o footer e gerar overflow */}
+                  return (
+                    <HoverBorderGradient
+                      key={it.key}
+                      as="button"
+                      type="button"
+                      active={isActive}
+                      duration={1.1}
+                      onClick={() => handleSelect(it.key)}
+                      onMouseEnter={(e) => showTooltip(e.currentTarget, it.label)}
+                      onMouseLeave={hideTooltip}
+                      onFocus={(e) => showTooltip(e.currentTarget, it.label)}
+                      onBlur={hideTooltip}
+                      aria-label={it.label}
+                      containerClassName={cn("w-full rounded-2xl", isActive ? "border-blue-200/80" : "")}
+                      className={cn(
+                        "relative z-10 rounded-[inherit] flex items-center text-sm font-semibold justify-start gap-3 px-3 py-2",
+                        isActive ? "text-blue-700 bg-blue-50/30" : "text-slate-700"
+                      )}
+                    >
+                      <span className="h-10 w-10 min-w-[40px] rounded-xl grid place-items-center bg-slate-100/70">
+                        <Icon size={ICON_SIZE} className={isActive ? "text-blue-700" : "text-slate-700"} />
+                      </span>
+                      <span className="whitespace-nowrap block">{it.label}</span>
+                    </HoverBorderGradient>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+
           {isOpen && (
-            <div className="mt-4 mx-1 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hidden lg:block">
+            <div className="mt-3 mx-1 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm hidden lg:block">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
                 <Lightbulb className="h-4 w-4 text-amber-500" />
                 Dica
               </div>
-              <div className="mt-2 text-xs text-slate-600">
+              <div className="mt-1.5 text-xs text-slate-600">
                 Este portal é a fonte da verdade. As alterações refletem no app do colaborador.
               </div>
             </div>
           )}
         </nav>
 
-        {/* Footer profile (sempre visível) */}
         <div className="p-3 shrink-0 overflow-hidden">
           <button
             type="button"
             aria-label={`${user.name} • ${user.role}`}
             className={cn(
               "relative w-full rounded-2xl border border-slate-100 bg-white shadow-sm",
-              "flex items-center p-3",
-              isOpen ? "gap-3 justify-start" : "gap-0 justify-center",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-200/70 focus-visible:ring-offset-0"
+              "flex items-center p-2.5",
+              isOpen ? "gap-3 justify-start" : "gap-0 justify-center"
             )}
             onMouseEnter={(e) => showTooltip(e.currentTarget, `${user.name} • ${user.role}`)}
             onMouseLeave={hideTooltip}
@@ -383,11 +312,11 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
               <img
                 src={user.avatar}
                 alt={user.name}
-                className="h-11 w-11 rounded-2xl object-cover border border-slate-100"
+                className="h-11 w-11 rounded-full object-cover border border-slate-100"
               />
             ) : (
-              <div className="h-11 w-11 rounded-2xl bg-slate-100 grid place-items-center">
-                <UserRound size={ICON_SIZE} className="text-slate-600" />
+              <div className="h-11 w-11 rounded-full bg-gradient-to-br from-blue-100 via-indigo-100 to-sky-100 border border-blue-200/70 grid place-items-center text-sm font-bold text-blue-700">
+                JM
               </div>
             )}
 
@@ -398,6 +327,53 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
               </div>
             )}
           </button>
+
+          {isOpen ? (
+            <div className="mt-2 rounded-2xl border border-slate-100 bg-white p-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium text-slate-500">Modo</span>
+                {mode === "demo" && (
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">DEMO</span>
+                )}
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => handleModeChange("demo")}
+                  className={cn(
+                    "rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors",
+                    mode === "demo" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  DEMO
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleModeChange("prod")}
+                  className={cn(
+                    "rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors",
+                    mode === "prod" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  PROD
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => handleModeChange(mode === "demo" ? "prod" : "demo")}
+              className={cn(
+                "mt-2 w-full rounded-2xl border border-slate-100 bg-white px-2 py-2 text-[10px] font-semibold",
+                mode === "demo" ? "text-amber-700" : "text-slate-600"
+              )}
+              aria-label={`Alternar modo atual: ${mode}`}
+            >
+              {mode === "demo" ? "DEMO" : "PROD"}
+            </button>
+          )}
+
+          <div className="mt-2 text-center text-[10px] font-medium text-slate-400">desenvolvido por Hubye</div>
         </div>
       </aside>
     </>
