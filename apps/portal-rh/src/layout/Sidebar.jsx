@@ -1,189 +1,348 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { cn } from '../ui/ui.js';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { cn } from "../ui/ui.js";
 import {
   ClipboardList,
   FileText,
   HardHat,
   LayoutDashboard,
+  Lightbulb,
   Plane,
+  UserRound,
   Users,
   Wallet,
-  ChevronsRight,
-  ChevronsLeft
-} from 'lucide-react';
-import { ensureDemoSeed, getMode, setMode } from '../services/portalStorage';
-import HoverBorderGradient from '../ui/HoverBorderGradient';
-import { currentUser } from '../services/currentUser';
+} from "lucide-react";
+import { ensureDemoSeed, getMode, setMode } from "../services/portalStorage";
+import { HoverBorderGradient } from "../ui/HoverBorderGradient.jsx";
+import { currentUser } from "../services/currentUser";
 
 const NAV = [
   {
-    title: 'Principal',
-    items: [{ key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }]
+    title: "Principal",
+    items: [{ key: "dashboard", label: "Dashboard", icon: LayoutDashboard }],
   },
   {
-    title: 'Operação',
+    title: "Operação",
     items: [
-      { key: 'mobility', label: 'Escala e Embarque', icon: Plane },
-      { key: 'equipment', label: 'EPIs', icon: HardHat },
-      { key: 'work', label: 'OS / RDO', icon: ClipboardList }
-    ]
+      { key: "mobility", label: "Escala e Embarque", icon: Plane },
+      { key: "equipment", label: "EPIs", icon: HardHat },
+      { key: "work", label: "OS / RDO", icon: ClipboardList },
+    ],
   },
   {
-    title: 'RH',
+    title: "RH",
     items: [
-      { key: 'employees', label: 'Colaboradores', icon: Users },
-      { key: 'docs', label: 'Documentações', icon: FileText }
-    ]
+      { key: "employees", label: "Colaboradores", icon: Users },
+      { key: "docs", label: "Documentações", icon: FileText },
+    ],
   },
   {
-    title: 'Financeiro',
-    items: [{ key: 'finance', label: 'Gestão Financeira', icon: Wallet }]
-  }
+    title: "Financeiro",
+    items: [{ key: "finance", label: "Gestão Financeira", icon: Wallet }],
+  },
 ];
+
+function TooltipPortal({ open, text, x, y }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+  if (!mounted || !open) return null;
+
+  return createPortal(
+    <div
+      style={{
+        position: "fixed",
+        left: x,
+        top: y,
+        transform: "translateY(-50%)",
+        zIndex: 99999,
+        pointerEvents: "none",
+      }}
+      className="opacity-100 transition-opacity duration-100"
+      aria-hidden="true"
+    >
+      <div className="relative rounded-xl bg-slate-900/95 text-white text-xs font-semibold px-3 py-2 shadow-xl whitespace-nowrap border border-white/10 backdrop-blur-sm">
+        {text}
+        <div className="absolute left-[-6px] top-1/2 -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-r-[6px] border-r-slate-900/95" />
+      </div>
+    </div>,
+    document.body
+  );
+}
 
 export default function Sidebar({ active, onSelect, onNavigate }) {
   const [open, setOpen] = useState(false);
   const [mode, setModeState] = useState(getMode());
 
+  const openTimer = useRef(null);
+  const OPEN_DELAY = 4000;
+  const ICON_SIZE = 18;
+
+  const ttAnchorRef = useRef(null);
+  const [tt, setTt] = useState({ open: false, text: "", x: 0, y: 0 });
+
   const activeKey = useMemo(() => {
-    if (active === 'hotel') return 'mobility';
-    if (active === 'employeeCreate') return 'employees';
+    if (active === "hotel") return "mobility";
+    if (active === "employeeCreate") return "employees";
     return active;
   }, [active]);
 
   useEffect(() => {
+    return () => {
+      if (openTimer.current) clearTimeout(openTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
     const handleModeSync = () => setModeState(getMode());
-    window.addEventListener('portal_rh_xlsx_updated', handleModeSync);
-    return () => window.removeEventListener('portal_rh_xlsx_updated', handleModeSync);
+    window.addEventListener("portal_rh_xlsx_updated", handleModeSync);
+    return () => window.removeEventListener("portal_rh_xlsx_updated", handleModeSync);
   }, []);
 
   const handleModeChange = (nextMode) => {
     setMode(nextMode);
-    if (nextMode === 'demo') ensureDemoSeed();
+    if (nextMode === "demo") ensureDemoSeed();
     setModeState(nextMode);
+  };
+
+  const scheduleOpen = () => {
+    if (open) return;
+    if (openTimer.current) clearTimeout(openTimer.current);
+    openTimer.current = setTimeout(() => setOpen(true), OPEN_DELAY);
+  };
+
+  const hideTooltip = () => {
+    ttAnchorRef.current = null;
+    setTt((v) => (v.open ? { ...v, open: false } : v));
+  };
+
+  const closeNow = () => {
+    if (openTimer.current) clearTimeout(openTimer.current);
+    openTimer.current = null;
+    setOpen(false);
+    hideTooltip();
+  };
+
+  const toggleOpen = () => {
+    if (openTimer.current) {
+      clearTimeout(openTimer.current);
+      openTimer.current = null;
+    }
+    setOpen((v) => !v);
   };
 
   const handleSelect = (key) => {
     const fn = onNavigate || onSelect;
-    if (typeof fn === 'function') fn(key);
+    if (typeof fn === "function") fn(key);
   };
 
-  const userInitial = (currentUser.name || 'J').trim().charAt(0).toUpperCase();
+  const isOpen = open;
+
+  const showTooltip = (el, text) => {
+    if (!el || isOpen) return;
+    ttAnchorRef.current = el;
+    const r = el.getBoundingClientRect();
+    setTt({
+      open: true,
+      text,
+      x: Math.round(r.right + 12),
+      y: Math.round(r.top + r.height / 2),
+    });
+  };
+
+  useEffect(() => {
+    if (!tt.open) return;
+
+    const update = () => {
+      const el = ttAnchorRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setTt((v) => ({
+        ...v,
+        x: Math.round(r.right + 12),
+        y: Math.round(r.top + r.height / 2),
+      }));
+    };
+
+    const onScroll = () => update();
+    const onResize = () => update();
+
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
+
+    return () => {
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [tt.open]);
+
+  useEffect(() => {
+    if (isOpen) hideTooltip();
+  }, [isOpen]);
+
+  const user = useMemo(
+    () => ({
+      name: "Jéssica",
+      role: currentUser.role || "RH Operação",
+      avatar: currentUser.avatar,
+    }),
+    []
+  );
 
   return (
-    <aside
-      className={cn(
-        'sticky top-0 h-screen shrink-0 border-r border-slate-200 bg-white',
-        'flex flex-col overflow-hidden transition-[width] duration-200 ease-out',
-        open ? 'w-64' : 'w-20'
-      )}
-      aria-label="Menu lateral"
-    >
-      <div className="px-3 pt-3 pb-2">
-        <div className={cn('flex items-center', open ? 'justify-between' : 'justify-center')}>
-          <div className="h-10 w-10 shrink-0 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 grid place-items-center">
-            <span className="text-sm font-bold text-white">RH</span>
-          </div>
-          {open && <div className="text-sm font-semibold text-slate-800">Portal RH</div>}
+    <>
+      <TooltipPortal open={tt.open && !isOpen} text={tt.text} x={tt.x} y={tt.y} />
+
+      <aside
+        className={cn(
+          "h-screen sticky top-0 bg-white border-r border-slate-100 flex flex-col overflow-hidden",
+          "transition-[width] duration-200 ease-in-out",
+          isOpen ? "w-72" : "w-[76px]"
+        )}
+        onMouseEnter={scheduleOpen}
+        onMouseLeave={closeNow}
+        aria-label="Menu lateral"
+      >
+        <div className="p-3 shrink-0">
           <button
             type="button"
+            onClick={toggleOpen}
             className={cn(
-              'h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50',
-              open ? 'grid place-items-center' : 'hidden'
+              "w-full rounded-2xl border border-slate-100 bg-white shadow-sm flex items-center",
+              isOpen ? "justify-start gap-2.5 p-2.5" : "justify-center p-2"
             )}
-            onClick={() => setOpen(false)}
-            aria-label="Fechar menu"
+            aria-label="Portal RH"
           >
-            <ChevronsLeft size={16} />
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-b from-blue-600 to-blue-700 grid place-items-center shrink-0">
+              <div className="h-4 w-4 rounded-md bg-white/95" />
+            </div>
+
+            {isOpen && (
+              <div className="min-w-0 text-left">
+                <div className="text-sm font-semibold text-slate-900">Portal RH</div>
+                <div className="text-xs text-slate-500">Logística de Pessoal</div>
+              </div>
+            )}
           </button>
         </div>
-        {!open && (
-          <button
-            type="button"
-            className="mt-2 h-8 w-full rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 grid place-items-center"
-            onClick={() => setOpen(true)}
-            aria-label="Abrir menu"
-          >
-            <ChevronsRight size={16} />
-          </button>
-        )}
-      </div>
 
-      <nav className="flex-1 px-2 pb-2 overflow-hidden">
-        {NAV.map((section) => (
-          <div key={section.title} className="mb-2">
-            {open && <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{section.title}</p>}
-            <div className="space-y-1">
-              {section.items.map((it) => {
-                const Icon = it.icon;
-                const isActive = activeKey === it.key;
-                return (
-                  <button
-                    key={it.key}
-                    type="button"
-                    onClick={() => handleSelect(it.key)}
-                    className={cn(
-                      'w-full rounded-xl transition-colors',
-                      'flex items-center',
-                      open ? 'h-10 px-2 gap-2 justify-start' : 'h-10 px-0 justify-center',
-                      isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'
-                    )}
-                    aria-label={it.label}
-                  >
-                    <span
+        <nav className="px-2.5 pb-2.5 flex-1 min-h-0 overflow-hidden">
+          {NAV.map((section) => (
+            <div key={section.title} className="mb-2">
+              {isOpen && (
+                <div className="px-2 pb-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
+                  {section.title}
+                </div>
+              )}
+
+              <div className="space-y-1">
+                {section.items.map((it) => {
+                  const Icon = it.icon;
+                  const isActive = activeKey === it.key;
+
+                  return (
+                    <HoverBorderGradient
+                      key={it.key}
+                      as="button"
+                      type="button"
+                      active={isActive}
+                      duration={1.1}
+                      onClick={() => handleSelect(it.key)}
+                      onMouseEnter={(e) => showTooltip(e.currentTarget, it.label)}
+                      onMouseLeave={hideTooltip}
+                      onFocus={(e) => showTooltip(e.currentTarget, it.label)}
+                      onBlur={hideTooltip}
+                      aria-label={it.label}
+                      containerClassName={cn("w-full rounded-2xl", isActive ? "border-blue-200/80" : "")}
                       className={cn(
-                        'h-10 w-10 rounded-xl grid place-items-center',
-                        isActive ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'
+                        "relative z-10 rounded-[inherit] flex items-center text-sm font-semibold",
+                        isOpen ? "justify-start gap-3 px-3 py-2" : "justify-center px-0 py-2",
+                        isActive ? "text-blue-700 bg-blue-50/40" : "text-slate-700"
                       )}
                     >
-                      <Icon size={18} />
-                    </span>
-                    {open && <span className="truncate text-sm font-medium">{it.label}</span>}
-                  </button>
-                );
-              })}
+                      <span className="h-10 w-10 min-w-[40px] rounded-xl grid place-items-center bg-slate-100">
+                        <Icon size={ICON_SIZE} className={isActive ? "text-blue-700" : "text-slate-700"} />
+                      </span>
+                      <span className={cn("whitespace-nowrap", isOpen ? "block" : "hidden")}>{it.label}</span>
+                    </HoverBorderGradient>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
-      </nav>
+          ))}
 
-      <div className="px-3 pb-3 pt-1 shrink-0">
-        <div className={cn('rounded-2xl border border-slate-200 bg-white p-2', open ? '' : 'px-1')}>
-          <div className={cn('flex items-center', open ? 'gap-2' : 'justify-center')}>
-            {currentUser.avatar ? (
-              <img src={currentUser.avatar} alt={currentUser.name} className="h-10 w-10 rounded-full object-cover border border-slate-200" />
+          {isOpen && (
+            <div className="mt-3 mx-1 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm hidden lg:block">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                <Lightbulb className="h-4 w-4 text-amber-500" />
+                Dica
+              </div>
+              <div className="mt-1.5 text-xs text-slate-600">
+                Este portal é a fonte da verdade. As alterações refletem no app do colaborador.
+              </div>
+            </div>
+          )}
+        </nav>
+
+        <div className="p-3 shrink-0 overflow-hidden">
+          <button
+            type="button"
+            aria-label={`${user.name} • ${user.role}`}
+            className={cn(
+              "relative w-full rounded-2xl border border-slate-100 bg-white shadow-sm",
+              "flex items-center p-2.5",
+              isOpen ? "gap-3 justify-start" : "gap-0 justify-center"
+            )}
+            onMouseEnter={(e) => showTooltip(e.currentTarget, `${user.name} • ${user.role}`)}
+            onMouseLeave={hideTooltip}
+            onFocus={(e) => showTooltip(e.currentTarget, `${user.name} • ${user.role}`)}
+            onBlur={hideTooltip}
+          >
+            {user.avatar ? (
+              <img
+                src={user.avatar}
+                alt={user.name}
+                className="h-11 w-11 rounded-full object-cover border border-slate-100"
+              />
             ) : (
-              <div className="h-10 w-10 rounded-full bg-blue-100 text-blue-700 border border-blue-200 grid place-items-center text-sm font-bold">
-                {userInitial}
+              <div className="h-11 w-11 rounded-full bg-gradient-to-br from-blue-100 via-indigo-100 to-sky-100 border border-blue-200/70 grid place-items-center text-sm font-bold text-blue-700">
+                JM
               </div>
             )}
-            {open && (
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-800">Jéssica</p>
-                <p className="truncate text-xs text-slate-500">{currentUser.role}</p>
-              </div>
-            )}
-          </div>
 
-          {open ? (
-            <div className="mt-2 rounded-xl bg-slate-100 p-1">
-              <div className="grid grid-cols-2 gap-1">
+            {isOpen && (
+              <div className="min-w-0 text-left">
+                <div className="text-sm font-semibold text-slate-900 truncate">{user.name}</div>
+                <div className="text-xs text-slate-500 truncate">{user.role}</div>
+              </div>
+            )}
+          </button>
+
+          {isOpen ? (
+            <div className="mt-2 rounded-2xl border border-slate-100 bg-white p-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium text-slate-500">Modo</span>
+                {mode === "demo" && (
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">DEMO</span>
+                )}
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
                 <button
                   type="button"
-                  onClick={() => handleModeChange('demo')}
+                  onClick={() => handleModeChange("demo")}
                   className={cn(
-                    'rounded-lg px-2 py-1.5 text-[11px] font-semibold',
-                    mode === 'demo' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+                    "rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors",
+                    mode === "demo" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
                   )}
                 >
                   DEMO
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleModeChange('prod')}
+                  onClick={() => handleModeChange("prod")}
                   className={cn(
-                    'rounded-lg px-2 py-1.5 text-[11px] font-semibold',
-                    mode === 'prod' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+                    "rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors",
+                    mode === "prod" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
                   )}
                 >
                   PROD
@@ -191,22 +350,22 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
               </div>
             </div>
           ) : (
-            <HoverBorderGradient
-              as="button"
+            <button
               type="button"
-              duration={1.2}
-              containerClassName="mt-2 w-full rounded-xl"
-              className={cn('w-full rounded-xl px-1 py-1.5 text-[10px] font-semibold text-center', mode === 'demo' ? 'text-amber-700' : 'text-slate-600')}
-              onClick={() => handleModeChange(mode === 'demo' ? 'prod' : 'demo')}
+              onClick={() => handleModeChange(mode === "demo" ? "prod" : "demo")}
+              className={cn(
+                "mt-2 w-full rounded-2xl border border-slate-100 bg-white px-2 py-2 text-[10px] font-semibold",
+                mode === "demo" ? "text-amber-700" : "text-slate-600"
+              )}
               aria-label={`Alternar modo atual: ${mode}`}
             >
-              {mode === 'demo' ? 'DEMO' : 'PROD'}
-            </HoverBorderGradient>
+              {mode === "demo" ? "DEMO" : "PROD"}
+            </button>
           )}
-        </div>
 
-        <p className="mt-2 text-center text-[10px] text-slate-400">{open ? 'Desenvolvido por Hubye' : 'Hubye'}</p>
-      </div>
-    </aside>
+          <div className="mt-2 text-center text-[10px] font-medium text-slate-400">desenvolvido por Hubye</div>
+        </div>
+      </aside>
+    </>
   );
 }
