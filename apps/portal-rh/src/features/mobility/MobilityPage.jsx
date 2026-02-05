@@ -14,6 +14,7 @@ import {
 } from '../../lib/documentationUtils';
 import { mergePayload, readPayload, writePayload } from '../../services/portalStorage';
 import { getDemoScenario, isDemoMode, seedDemoDataIfNeeded } from '../../services/demoMode';
+import { buildDocsByEmployee, computeProgramacaoKPIs, computeReadiness } from './mobilitySelectors';
 
 const STATUS_OPTIONS = ['Planejado', 'Confirmado', 'Em andamento', 'Finalizado', 'Cancelado'];
 const LOCAL_OPTIONS = ['Base', 'Embarcado', 'Hospedado'];
@@ -55,35 +56,6 @@ function mapEmployees(payload) {
     unit: normalizeText(row.UNIDADE || row.unidade || row.unit),
     base: normalizeText(row.BASE_OPERACIONAL || row.base || row.hub)
   }));
-}
-
-function computeAptidao({ docsByEmployee, employeeId, embarkDate, disembarkDate }) {
-  const docs = docsByEmployee.get(employeeId) || [];
-  const missing = [];
-  const expired = [];
-  const expiring = [];
-  let evidencePending = false;
-
-  REQUIRED_DOC_TYPES.forEach((type) => {
-    const doc = docs.find((item) => normalizeDocType(item.TIPO_DOCUMENTO) === type);
-    if (!doc) {
-      missing.push(type);
-      return;
-    }
-    const status = docWindowStatus(doc, embarkDate, disembarkDate);
-    if (status === 'VENCIDO') expired.push(type);
-    if (status === 'VENCE_DURANTE') expiring.push(type);
-    const evidence = evidenceStatus(doc);
-    if (evidence !== 'VERIFICADO') evidencePending = true;
-  });
-
-  if (missing.length || expired.length) {
-    return { level: 'NAO_APTO', missing, expired, expiring, evidencePending };
-  }
-  if (expiring.length) {
-    return { level: 'ATENCAO', missing, expired, expiring, evidencePending };
-  }
-  return { level: 'APTO', missing, expired, expiring, evidencePending };
 }
 
 export default function MobilityPage() {
@@ -129,17 +101,7 @@ export default function MobilityPage() {
     return map;
   }, [employees]);
 
-  const docsByEmployee = useMemo(() => {
-    const map = new Map();
-    documentacoes.forEach((doc) => {
-      const id = normalizeText(doc.COLABORADOR_ID);
-      if (!id) return;
-      const current = map.get(id) || [];
-      current.push(doc);
-      map.set(id, current);
-    });
-    return map;
-  }, [documentacoes]);
+  const docsByEmployee = useMemo(() => buildDocsByEmployee(documentacoes), [documentacoes]);
 
   const selectedProgramacao = useMemo(
     () => programacoes.find((prog) => prog.PROG_ID === selectedProgId),
@@ -153,13 +115,13 @@ export default function MobilityPage() {
     return selectedProgramacao.COLABORADORES.map((colab) => {
       const id = normalizeText(colab.COLABORADOR_ID);
       const employee = employeesById.get(id);
-      const apt = computeAptidao({
+      const apt = computeReadiness({
         docsByEmployee,
         employeeId: id,
         embarkDate: selectedProgramacao.EMBARQUE_DT,
         disembarkDate: selectedProgramacao.DESEMBARQUE_DT
       });
-      const reasons = [...apt.missing, ...apt.expired, ...apt.expiring];
+      const reasons = [...apt.missing, ...apt.expired, ...apt.during];
       let evidenceFlag = 'SEM_EVIDENCIA';
       if (docsByEmployee.get(id)?.length) {
         const evidences = REQUIRED_DOCS.map((type) => {
@@ -173,16 +135,22 @@ export default function MobilityPage() {
     });
   }, [selectedProgramacao, employeesById, docsByEmployee]);
 
-  const summaryCounts = useMemo(() => {
-    const counts = { total: 0, apto: 0, atencao: 0, naoApto: 0 };
-    escaladosWithComputedStatus.forEach((item) => {
-      counts.total += 1;
-      if (item.apt.level === 'APTO') counts.apto += 1;
-      if (item.apt.level === 'ATENCAO') counts.atencao += 1;
-      if (item.apt.level === 'NAO_APTO') counts.naoApto += 1;
-    });
-    return counts;
-  }, [escaladosWithComputedStatus]);
+  const selectedProgramacaoKPIs = useMemo(() => {
+    if (!selectedProgramacao) {
+      return {
+        total: 0,
+        apto: 0,
+        atencao: 0,
+        naoApto: 0,
+        evidencePending: 0,
+        venceDurante: 0,
+        hospedado: 0,
+        embarcado: 0,
+        base: 0
+      };
+    }
+    return computeProgramacaoKPIs(selectedProgramacao, employeesById, docsByEmployee);
+  }, [selectedProgramacao, employeesById, docsByEmployee]);
 
   const docCoverage = useMemo(() => {
     if (!selectedProgramacao) return [];
@@ -261,7 +229,7 @@ export default function MobilityPage() {
         name.includes(term) ||
         cpf.includes(normalizeDigitsOnly(term));
       if (!matches) continue;
-      const apt = computeAptidao({
+      const apt = computeReadiness({
         docsByEmployee,
         employeeId: id,
         embarkDate: selectedProgramacao.EMBARQUE_DT,
@@ -341,21 +309,10 @@ export default function MobilityPage() {
 
   const programacoesSummary = useMemo(() => {
     return programacoes.map((prog) => {
-      const counts = { apto: 0, atencao: 0, naoApto: 0 };
-      prog.COLABORADORES.forEach((item) => {
-        const apt = computeAptidao({
-          docsByEmployee,
-          employeeId: normalizeText(item.COLABORADOR_ID),
-          embarkDate: prog.EMBARQUE_DT,
-          disembarkDate: prog.DESEMBARQUE_DT
-        });
-        if (apt.level === 'APTO') counts.apto += 1;
-        if (apt.level === 'ATENCAO') counts.atencao += 1;
-        if (apt.level === 'NAO_APTO') counts.naoApto += 1;
-      });
+      const counts = computeProgramacaoKPIs(prog, employeesById, docsByEmployee);
       return { ...prog, counts };
     });
-  }, [programacoes, docsByEmployee]);
+  }, [programacoes, employeesById, docsByEmployee]);
 
   return (
     <div className="grid grid-cols-12 gap-6">
@@ -497,14 +454,42 @@ export default function MobilityPage() {
 
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 {[
-                  { key: 'total', label: 'Total escalados', value: summaryCounts.total, tone: 'gray' },
-                  { key: 'APTO', label: 'Aptos', value: summaryCounts.apto, tone: 'green' },
-                  { key: 'ATENCAO', label: 'Atenção', value: summaryCounts.atencao, tone: 'amber' },
-                  { key: 'NAO_APTO', label: 'Não aptos', value: summaryCounts.naoApto, tone: 'red' }
+                  { key: 'total', filterKey: null, label: 'Total escalados', value: selectedProgramacaoKPIs.total, tone: 'gray' },
+                  { key: 'APTO', filterKey: 'APTO', label: 'Aptos', value: selectedProgramacaoKPIs.apto, tone: 'green' },
+                  {
+                    key: 'ATENCAO',
+                    filterKey: 'ATENCAO',
+                    label: 'Atenção',
+                    value: selectedProgramacaoKPIs.atencao,
+                    tone: 'amber'
+                  },
+                  {
+                    key: 'NAO_APTO',
+                    filterKey: 'NAO_APTO',
+                    label: 'Não aptos',
+                    value: selectedProgramacaoKPIs.naoApto,
+                    tone: 'red'
+                  },
+                  {
+                    key: 'vence_durante',
+                    filterKey: null,
+                    label: 'Vence Durante',
+                    value: selectedProgramacaoKPIs.venceDurante,
+                    tone: 'amber'
+                  },
+                  {
+                    key: 'evidence_pending',
+                    filterKey: null,
+                    label: 'Evidência Pendente',
+                    value: selectedProgramacaoKPIs.evidencePending,
+                    tone: 'amber'
+                  },
+                  { key: 'hospedado', filterKey: null, label: 'Hospedados', value: selectedProgramacaoKPIs.hospedado, tone: 'gray' },
+                  { key: 'embarcado', filterKey: null, label: 'Embarcados', value: selectedProgramacaoKPIs.embarcado, tone: 'gray' }
                 ].map((card) => {
-                  const total = summaryCounts.total || 1;
+                  const total = selectedProgramacaoKPIs.total || 1;
                   const percent = Math.round(((card.value || 0) / total) * 100);
-                  const active = filterAptidao === card.key;
+                  const active = Boolean(card.filterKey) && filterAptidao === card.filterKey;
                   return (
                     <button
                       key={card.key}
@@ -514,8 +499,8 @@ export default function MobilityPage() {
                         (active ? 'border-blue-200 bg-blue-50' : 'border-slate-200 hover:bg-slate-50')
                       }
                       onClick={() => {
-                        if (card.key === 'total') return setFilterAptidao(null);
-                        setFilterAptidao(active ? null : card.key);
+                        if (!card.filterKey) return;
+                        setFilterAptidao(active ? null : card.filterKey);
                       }}
                     >
                       <div className="text-xs text-slate-500">{card.label}</div>
@@ -661,7 +646,7 @@ export default function MobilityPage() {
               <div className="space-y-3">
                 {filteredEscalados.map(({ colab, id, employee, apt, reasons }) => {
                   const aptLabel =
-                    apt.level === 'APTO' ? '✅ APTO' : apt.level === 'ATENCAO' ? '⚠️ ATENÇÃO' : '✖ NÃO APTO';
+                    apt.level === 'APTO' ? 'APTO' : apt.level === 'ATENCAO' ? 'ATENÇÃO' : 'NÃO APTO';
                   const aptTone = apt.level === 'APTO' ? 'green' : apt.level === 'ATENCAO' ? 'amber' : 'red';
                   return (
                     <div key={id} className="rounded-xl border border-slate-200 p-4">
@@ -679,7 +664,8 @@ export default function MobilityPage() {
                           </div>
                           <div className="flex items-center gap-2">
                             <Badge tone={aptTone}>{aptLabel}</Badge>
-                            {apt.evidencePending && <Badge tone="gray">Pendência evidência</Badge>}
+                            {apt.evidencePending && <Badge tone="amber">EVIDÊNCIA</Badge>}
+                            {apt.during.length > 0 && <Badge tone="amber">VENCE NA TROCA</Badge>}
                           </div>
                         </div>
                         {reasons.length > 0 && (
