@@ -240,6 +240,29 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
                   const Icon = it.icon;
                   const isActive = activeKey === it.key;
 
+                  if (!isOpen) {
+                    return (
+                      <button
+                        key={it.key}
+                        type="button"
+                        onClick={() => handleSelect(it.key)}
+                        onMouseEnter={(e) => showTooltip(e.currentTarget, it.label)}
+                        onMouseLeave={hideTooltip}
+                        onFocus={(e) => showTooltip(e.currentTarget, it.label)}
+                        onBlur={hideTooltip}
+                        aria-label={it.label}
+                        className={cn(
+                          "h-11 w-11 grid place-items-center rounded-2xl bg-transparent border-0 shadow-none p-0 m-0",
+                          "hover:bg-transparent focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60",
+                          "transition",
+                          isActive ? "ring-2 ring-blue-500/60" : "hover:ring-2 hover:ring-blue-400/50"
+                        )}
+                      >
+                        <Icon size={ICON_SIZE} className={isActive ? "text-blue-700" : "text-slate-700"} />
+                      </button>
+                    );
+                  }
+
                   return (
                     <HoverBorderGradient
                       key={it.key}
@@ -255,15 +278,14 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
                       aria-label={it.label}
                       containerClassName={cn("w-full rounded-2xl", isActive ? "border-blue-200/80" : "")}
                       className={cn(
-                        "relative z-10 rounded-[inherit] flex items-center text-sm font-semibold",
-                        isOpen ? "justify-start gap-3 px-3 py-2" : "justify-center px-0 py-2",
-                        isActive ? "text-blue-700 bg-blue-50/40" : "text-slate-700"
+                        "relative z-10 rounded-[inherit] flex items-center text-sm font-semibold justify-start gap-3 px-3 py-2",
+                        isActive ? "text-blue-700 bg-blue-50/30" : "text-slate-700"
                       )}
                     >
-                      <span className="h-10 w-10 min-w-[40px] rounded-xl grid place-items-center bg-slate-100">
+                      <span className="h-10 w-10 min-w-[40px] rounded-xl grid place-items-center bg-slate-100/70">
                         <Icon size={ICON_SIZE} className={isActive ? "text-blue-700" : "text-slate-700"} />
                       </span>
-                      <span className={cn("whitespace-nowrap", isOpen ? "block" : "hidden")}>{it.label}</span>
+                      <span className="whitespace-nowrap block">{it.label}</span>
                     </HoverBorderGradient>
                   );
                 })}
