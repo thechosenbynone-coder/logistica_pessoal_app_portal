@@ -76,6 +76,9 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
 
   const openTimer = useRef(null);
   const OPEN_DELAY = 4000;
+  const CLOSED_W = "w-[76px]";
+  const OPEN_W = "w-72";
+  const ICON_COLUMN_W = "72px";
   const ICON_SIZE = 18;
 
   const ttAnchorRef = useRef(null);
@@ -197,28 +200,29 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
         className={cn(
           "h-screen sticky top-0 bg-white border-r border-slate-100 flex flex-col overflow-hidden",
           "transition-[width] duration-200 ease-in-out",
-          isOpen ? "w-72" : "w-[76px]"
+          isOpen ? OPEN_W : CLOSED_W
         )}
         onMouseEnter={scheduleOpen}
         onMouseLeave={closeNow}
         aria-label="Menu lateral"
       >
-        <div className="px-3 pt-3 pb-2">
-          <div className={cn("flex items-center gap-2", isOpen ? "justify-between" : "justify-center")}>
-            <button
-              type="button"
-              onClick={toggleOpen}
-              className="h-9 w-9 rounded-xl bg-blue-600 text-white grid place-items-center text-[11px] font-extrabold tracking-wide shrink-0"
-              aria-label="Portal RH"
-            >
-              RH
-            </button>
-
-            {isOpen && (
-              <>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold text-slate-900 truncate">Portal RH</div>
-                </div>
+        <div className="w-full pt-3 pb-2">
+          {isOpen ? (
+            <div className="grid items-center" style={{ gridTemplateColumns: `${ICON_COLUMN_W} 1fr ${ICON_COLUMN_W}` }}>
+              <div className="w-full grid place-items-center">
+                <button
+                  type="button"
+                  onClick={toggleOpen}
+                  className="h-9 w-9 rounded-xl bg-blue-600 text-white grid place-items-center text-[11px] font-extrabold tracking-wide shrink-0"
+                  aria-label="Portal RH"
+                >
+                  RH
+                </button>
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-slate-900 truncate">Portal RH</div>
+              </div>
+              <div className="w-full grid place-items-center">
                 <button
                   type="button"
                   onClick={toggleOpen}
@@ -227,21 +231,32 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
                 >
                   <span aria-hidden="true" className="text-base leading-none">‹</span>
                 </button>
-              </>
-            )}
-          </div>
+              </div>
+            </div>
+          ) : (
+            <div className="w-full grid place-items-center">
+              <button
+                type="button"
+                onClick={toggleOpen}
+                className="h-9 w-9 rounded-xl bg-blue-600 text-white grid place-items-center text-[11px] font-extrabold tracking-wide shrink-0"
+                aria-label="Portal RH"
+              >
+                RH
+              </button>
+            </div>
+          )}
         </div>
 
-        <nav className="px-2.5 pt-0 pb-2.5 mt-1 flex-1 min-h-0 overflow-hidden flex flex-col items-center">
+        <nav className="w-full pt-0 pb-2.5 mt-1 flex-1 min-h-0 overflow-hidden flex flex-col items-stretch">
           {NAV.map((section) => (
-            <div key={section.title} className={cn("mb-2 w-full", !isOpen && "flex flex-col items-center")}>
+            <div key={section.title} className="mb-2 w-full">
               {isOpen && (
-                <div className="px-2 pb-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
+                <div className="pb-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wide" style={{ paddingLeft: ICON_COLUMN_W }}>
                   {section.title}
                 </div>
               )}
 
-              <div className={cn("space-y-1 flex flex-col", isOpen ? "items-stretch" : "items-center")}>
+              <div className="space-y-1 flex flex-col items-stretch">
                 {section.items.map((it) => {
                   const Icon = it.icon;
                   const isActive = activeKey === it.key;
@@ -257,16 +272,18 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
                         onFocus={(e) => showTooltip(e.currentTarget, it.label)}
                         onBlur={hideTooltip}
                         aria-label={it.label}
-                        className={cn(
-                          "h-11 w-11 flex items-center justify-center rounded-2xl bg-transparent border-0 p-0 m-0",
-                          "hover:bg-transparent focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60",
-                          "transition",
-                          isActive
-                            ? "ring-2 ring-blue-400/60 shadow-[0_0_0_3px_rgba(59,130,246,0.15)]"
-                            : "hover:ring-2 hover:ring-blue-400/50"
-                        )}
+                        className="h-11 w-full grid place-items-center rounded-2xl bg-transparent border-0 p-0 m-0 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60"
                       >
-                        <Icon size={ICON_SIZE} className={isActive ? "text-blue-700" : "text-slate-700"} />
+                        <span
+                          className={cn(
+                            "h-11 w-11 grid place-items-center rounded-2xl",
+                            isActive
+                              ? "ring-2 ring-blue-400/60 shadow-[0_0_0_6px_rgba(59,130,246,0.12)]"
+                              : "hover:ring-2 hover:ring-blue-400/50"
+                          )}
+                        >
+                          <Icon size={ICON_SIZE} className={isActive ? "text-blue-700" : "text-slate-700"} />
+                        </span>
                       </button>
                     );
                   }
@@ -286,16 +303,24 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
                       aria-label={it.label}
                       containerClassName="w-full rounded-2xl"
                       className={cn(
-                        "relative z-10 rounded-[inherit] h-10 w-full flex items-center justify-start gap-2 px-3 text-sm font-semibold",
-                        isActive
-                          ? "text-blue-700 ring-2 ring-blue-400/60 shadow-[0_0_0_3px_rgba(59,130,246,0.15)]"
-                          : "text-slate-700"
+                        "relative z-10 rounded-[inherit] h-10 w-full grid items-center text-sm font-semibold bg-transparent",
+                        "[grid-template-columns:72px_1fr]",
+                        isActive ? "text-blue-700" : "text-slate-700"
                       )}
                     >
-                      <span className="h-10 w-10 min-w-[40px] flex items-center justify-center">
-                        <Icon size={ICON_SIZE} className={isActive ? "text-blue-700" : "text-slate-700"} />
+                      <span className="w-full grid place-items-center">
+                        <span
+                          className={cn(
+                            "h-11 w-11 grid place-items-center rounded-2xl",
+                            isActive
+                              ? "ring-2 ring-blue-400/60 shadow-[0_0_0_6px_rgba(59,130,246,0.12)]"
+                              : "hover:ring-2 hover:ring-blue-400/50"
+                          )}
+                        >
+                          <Icon size={ICON_SIZE} className={isActive ? "text-blue-700" : "text-slate-700"} />
+                        </span>
                       </span>
-                      <span className="whitespace-nowrap block">{it.label}</span>
+                      <span className="whitespace-nowrap block text-left">{it.label}</span>
                     </HoverBorderGradient>
                   );
                 })}
