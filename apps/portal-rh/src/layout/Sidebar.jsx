@@ -232,16 +232,16 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
           </div>
         </div>
 
-        <nav className="px-2.5 pt-0 pb-2.5 mt-1 flex-1 min-h-0 overflow-hidden">
+        <nav className="px-2.5 pt-0 pb-2.5 mt-1 flex-1 min-h-0 overflow-hidden flex flex-col items-center">
           {NAV.map((section) => (
-            <div key={section.title} className="mb-2">
+            <div key={section.title} className={cn("mb-2 w-full", !isOpen && "flex flex-col items-center")}>
               {isOpen && (
                 <div className="px-2 pb-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
                   {section.title}
                 </div>
               )}
 
-              <div className="space-y-1">
+              <div className={cn("space-y-1 flex flex-col", isOpen ? "items-stretch" : "items-center")}>
                 {section.items.map((it) => {
                   const Icon = it.icon;
                   const isActive = activeKey === it.key;
@@ -258,10 +258,12 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
                         onBlur={hideTooltip}
                         aria-label={it.label}
                         className={cn(
-                          "h-11 w-11 grid place-items-center rounded-2xl bg-transparent border-0 shadow-none p-0 m-0",
+                          "h-11 w-11 flex items-center justify-center rounded-2xl bg-transparent border-0 p-0 m-0",
                           "hover:bg-transparent focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60",
                           "transition",
-                          isActive ? "ring-2 ring-blue-500/60" : "hover:ring-2 hover:ring-blue-400/50"
+                          isActive
+                            ? "ring-2 ring-blue-400/60 shadow-[0_0_0_3px_rgba(59,130,246,0.15)]"
+                            : "hover:ring-2 hover:ring-blue-400/50"
                         )}
                       >
                         <Icon size={ICON_SIZE} className={isActive ? "text-blue-700" : "text-slate-700"} />
@@ -282,13 +284,15 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
                       onFocus={(e) => showTooltip(e.currentTarget, it.label)}
                       onBlur={hideTooltip}
                       aria-label={it.label}
-                      containerClassName={cn("w-full rounded-2xl", isActive ? "border-blue-200/80" : "")}
+                      containerClassName="w-full rounded-2xl"
                       className={cn(
-                        "relative z-10 rounded-[inherit] flex items-center text-sm font-semibold justify-start gap-3 px-3 py-2",
-                        isActive ? "text-blue-700 bg-blue-50/30" : "text-slate-700"
+                        "relative z-10 rounded-[inherit] h-10 w-full flex items-center justify-start gap-2 px-3 text-sm font-semibold",
+                        isActive
+                          ? "text-blue-700 ring-2 ring-blue-400/60 shadow-[0_0_0_3px_rgba(59,130,246,0.15)]"
+                          : "text-slate-700"
                       )}
                     >
-                      <span className="h-10 w-10 min-w-[40px] rounded-xl grid place-items-center bg-slate-100/70">
+                      <span className="h-10 w-10 min-w-[40px] flex items-center justify-center">
                         <Icon size={ICON_SIZE} className={isActive ? "text-blue-700" : "text-slate-700"} />
                       </span>
                       <span className="whitespace-nowrap block">{it.label}</span>
