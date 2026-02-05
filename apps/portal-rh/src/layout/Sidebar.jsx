@@ -203,26 +203,14 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
         onMouseLeave={closeNow}
         aria-label="Menu lateral"
       >
-        <div className="p-2 shrink-0">
+        <div className="flex items-center justify-center pt-3 pb-1 shrink-0">
           <button
             type="button"
             onClick={toggleOpen}
-            className={cn(
-              "w-full rounded-xl border border-slate-100 bg-white/90 shadow-sm flex items-center",
-              isOpen ? "justify-start gap-2 p-2" : "justify-center p-1.5"
-            )}
+            className="h-7 w-7 rounded-lg bg-blue-50 border border-blue-100 grid place-items-center"
             aria-label="Portal RH"
           >
-            <div className="h-7 w-7 rounded-lg bg-blue-50 border border-blue-100 grid place-items-center shrink-0">
-              <span className="text-[10px] font-semibold text-blue-700 leading-none">RH</span>
-            </div>
-
-            {isOpen && (
-              <div className="min-w-0 text-left">
-                <div className="text-sm font-semibold text-slate-900">Portal RH</div>
-                <div className="text-xs text-slate-500">Logística de Pessoal</div>
-              </div>
-            )}
+            <span className="text-[10px] font-semibold text-blue-700 leading-none">RH</span>
           </button>
         </div>
 
