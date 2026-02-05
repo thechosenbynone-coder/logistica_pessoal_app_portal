@@ -1,5 +1,5 @@
 export const currentUser = {
-  name: 'Jéssica Martins',
+  name: 'Jéssica',
   role: 'RH Operação',
   email: 'admin@empresa.com',
   avatar: '/jessica-avatar.svg'
