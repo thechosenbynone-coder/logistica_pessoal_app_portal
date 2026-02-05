@@ -261,7 +261,7 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
                 </div>
               )}
 
-              <div className={cn("space-y-1 flex flex-col", isOpen ? "items-stretch" : "items-center w-full")}>
+              <div className={cn("flex flex-col", isOpen ? "space-y-1 items-stretch" : "space-y-0.5 items-center w-full")}>
                 {section.items.map((it) => {
                   const Icon = it.icon;
                   const isActive = activeKey === it.key;
