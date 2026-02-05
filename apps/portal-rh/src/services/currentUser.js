@@ -1,8 +1,8 @@
 export const currentUser = {
-  name: 'Jéssica',
+  name: 'Jéssica Martins',
   role: 'RH Operação',
   email: 'admin@empresa.com',
-  avatar: ''
+  avatar: '/jessica-avatar.svg'
 };
 
 export const firstName = 'Jéssica';

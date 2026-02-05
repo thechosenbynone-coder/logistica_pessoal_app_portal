@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Sidebar from './layout/Sidebar';
-import Topbar from './layout/Topbar';
 import DashboardPage from './features/dashboard/DashboardPage';
 import EmployeesPage from './features/employees/EmployeesPage';
 import EquipmentPage from './features/equipment/EquipmentPage';
@@ -53,10 +52,6 @@ export default function HRPortalApp() {
     setActivePage(pageKey || 'dashboard');
     if (pageKey !== 'employees') setFocus(null);
   }, []);
-
-  const onSearchSelect = useCallback((employeeId) => {
-    openEmployee(employeeId, 'overview');
-  }, [openEmployee]);
 
   const normalizeCPF = (cpf) => (cpf || '').toString().replace(/\D/g, '');
 
@@ -111,7 +106,6 @@ export default function HRPortalApp() {
 
         {/* Main content must always render */}
         <div className="flex-1 min-w-0">
-          <Topbar employees={employees} onSearchSelect={onSearchSelect} />
           <main className="p-4 sm:p-6 lg:p-8">{page}</main>
         </div>
       </div>

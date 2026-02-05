@@ -13,6 +13,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { ensureDemoSeed, getMode, setMode } from "../services/portalStorage";
+import HoverBorderGradient from "../ui/HoverBorderGradient";
 import { currentUser } from "../services/currentUser";
 
 const NAV = [
@@ -445,17 +446,20 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
               </div>
             </div>
           ) : (
-            <button
+            <HoverBorderGradient
+              as="button"
               type="button"
-              onClick={() => handleModeChange(mode === "demo" ? "prod" : "demo")}
+              duration={1.2}
+              containerClassName="mt-2 w-full rounded-2xl"
               className={cn(
-                "mt-2 w-full rounded-2xl border border-slate-100 bg-white px-2 py-2 text-[10px] font-semibold text-slate-600",
+                "w-full rounded-2xl px-2 py-2 text-[10px] font-semibold text-center",
                 mode === "demo" ? "text-amber-700" : "text-slate-600"
               )}
+              onClick={() => handleModeChange(mode === "demo" ? "prod" : "demo")}
               aria-label={`Alternar modo atual: ${mode}`}
             >
               {mode === "demo" ? "DEMO" : "PROD"}
-            </button>
+            </HoverBorderGradient>
           )}
 
           <div className={cn("mt-2 text-center font-medium text-slate-400", isOpen ? "text-[10px]" : "text-[10px]")}>
