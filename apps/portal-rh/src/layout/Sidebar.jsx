@@ -206,7 +206,7 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
         onMouseLeave={closeNow}
         aria-label="Menu lateral"
       >
-        <div className="w-full pt-3 pb-2">
+        <div className="w-full pt-3 pb-2 shrink-0">
           {isOpen ? (
             <div className="grid items-center" style={{ gridTemplateColumns: `${ICON_COLUMN_W} 1fr ${ICON_COLUMN_W}` }}>
               <div className="w-full grid place-items-center">
@@ -249,12 +249,12 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
 
         <nav
           className={cn(
-            "w-full pt-0 pb-2.5 mt-1 flex-1 min-h-0 overflow-hidden flex flex-col",
+            "w-full flex-1 min-h-0 overflow-hidden flex flex-col justify-center",
             isOpen ? "items-stretch px-2" : "items-center px-0"
           )}
         >
           {NAV.map((section) => (
-            <div key={section.title} className={cn("mb-2 w-full", !isOpen && "flex flex-col items-center")}>
+            <div key={section.title} className={cn("w-full", isOpen ? "mb-2" : "mb-1 flex flex-col items-center")}>
               {isOpen && (
                 <div className="pb-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wide" style={{ paddingLeft: ICON_COLUMN_W }}>
                   {section.title}
