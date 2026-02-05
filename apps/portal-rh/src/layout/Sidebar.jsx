@@ -203,18 +203,36 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
         onMouseLeave={closeNow}
         aria-label="Menu lateral"
       >
-        <div className="flex items-center justify-center pt-3 pb-1 shrink-0">
-          <button
-            type="button"
-            onClick={toggleOpen}
-            className="h-7 w-7 rounded-lg bg-blue-50 border border-blue-100 grid place-items-center"
-            aria-label="Portal RH"
-          >
-            <span className="text-[10px] font-semibold text-blue-700 leading-none">RH</span>
-          </button>
+        <div className="px-3 pt-3 pb-2">
+          <div className={cn("flex items-center gap-2", isOpen ? "justify-between" : "justify-center")}>
+            <button
+              type="button"
+              onClick={toggleOpen}
+              className="h-9 w-9 rounded-xl bg-blue-600 text-white grid place-items-center text-[11px] font-extrabold tracking-wide shrink-0"
+              aria-label="Portal RH"
+            >
+              RH
+            </button>
+
+            {isOpen && (
+              <>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold text-slate-900 truncate">Portal RH</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleOpen}
+                  className="h-9 w-9 rounded-xl grid place-items-center text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition"
+                  aria-label="Recolher menu lateral"
+                >
+                  <span aria-hidden="true" className="text-base leading-none">‹</span>
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
-        <nav className="px-2.5 pb-2.5 flex-1 min-h-0 overflow-hidden">
+        <nav className="px-2.5 pt-0 pb-2.5 mt-1 flex-1 min-h-0 overflow-hidden">
           {NAV.map((section) => (
             <div key={section.title} className="mb-2">
               {isOpen && (
