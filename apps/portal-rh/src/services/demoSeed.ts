@@ -1,31 +1,21 @@
+import { REQUIRED_DOC_TYPES } from '../lib/documentationUtils';
 import { buildMinimalCollaborators } from './portalXlsxImporter';
 
 type Scenario = 'saudavel' | 'risco' | 'critico';
 
-const SCENARIO_RISK: Record<Scenario, number> = {
-  saudavel: 0.2,
-  risco: 0.35,
-  critico: 0.5
-};
-
-const UNIDADES = [
-  'MODEC - MV26',
-  'MODEC - MV27',
-  'MODEC - MV28',
-  'MODEC - MV30',
-  'SBM - Tamandaré',
-  'Transocean - Unidade Atlântica (demo)',
-  'Transocean - Unidade Boreal (demo)'
-];
-
+const UNIDADES = ['MODEC - MV26', 'MODEC - MV27', 'MODEC - MV28', 'SBM - Tamandaré'];
 const BASES = ['Macaé', 'Rio das Ostras', 'Niterói'];
 const FUNCOES = ['Técnico de Segurança', 'Supervisor Offshore', 'Operador de Guindaste', 'Mecânico', 'Enfermeiro'];
-const DOC_TYPES = ['ASO', 'CBSP', 'T-HUET', 'NR-10', 'NR-33'];
-const PROG_STATUS = ['Planejado', 'Confirmado', 'Em andamento', 'Finalizado'];
 
 function shiftDays(base: Date, days: number): string {
   const next = new Date(base);
   next.setDate(next.getDate() + days);
+  return next.toISOString();
+}
+
+function shiftHours(base: Date, hours: number): string {
+  const next = new Date(base);
+  next.setHours(next.getHours() + hours);
   return next.toISOString();
 }
 
@@ -42,88 +32,241 @@ function employee(index: number) {
   };
 }
 
-function buildDocs(colaboradores: any[], scenario: Scenario) {
-  const now = new Date();
-  const riskRatio = SCENARIO_RISK[scenario];
-  return colaboradores.flatMap((colab, idx) => {
-    const isRisk = idx % 10 < Math.round(riskRatio * 10);
-    return DOC_TYPES.map((tipo, docIdx) => {
-      const riskDoc = isRisk && docIdx % 2 === 0;
-      const vencimentoOffset = riskDoc ? -((idx + docIdx) % 12) : 20 + ((idx + docIdx) % 90);
-      const emissaoOffset = vencimentoOffset - 180;
-      return {
-        COLABORADOR_ID: colab.COLABORADOR_ID,
-        TIPO_DOCUMENTO: tipo,
-        DATA_EMISSAO: shiftDays(now, emissaoOffset),
-        DATA_VENCIMENTO: shiftDays(now, vencimentoOffset),
-        EVIDENCIA_TIPO: 'UPLOAD',
-        EVIDENCIA_REF: `doc_${colab.COLABORADOR_ID}_${tipo}.pdf`,
-        OBS: riskDoc ? 'Renovação necessária' : '',
-        VERIFIED: !riskDoc,
-        VERIFIED_BY: !riskDoc ? 'Auditoria Demo' : '',
-        VERIFIED_AT: !riskDoc ? shiftDays(now, -5) : ''
-      };
+function buildProgramDates(now: Date) {
+  return {
+    p4: { embarque: shiftDays(now, -24), desembarque: shiftDays(now, -18) },
+    p1: { embarque: shiftDays(now, -2), desembarque: shiftDays(now, 2) },
+    p2: { embarque: shiftDays(now, 2), desembarque: shiftDays(now, 6) },
+    p3: { embarque: shiftDays(now, 10), desembarque: shiftDays(now, 14) }
+  };
+}
+
+function buildMember(employeeId: string, stage: string, now: Date, noShow = false) {
+  const stageNormalized = stage.toLowerCase();
+  const localAtual = stageNormalized === 'hotel' ? 'Hospedado' : stageNormalized === 'embarcado' ? 'Embarcado' : 'Base';
+  return {
+    COLABORADOR_ID: employeeId,
+    LOCAL_ATUAL: localAtual,
+    PASSAGEM_STATUS: ['voo', 'embarcado', 'check-in heliporto'].includes(stageNormalized) ? 'Emitida' : 'Comprada',
+    CARTAO_EMBARQUE_REF: '',
+    OBS: noShow ? 'No-show no deslocamento' : '',
+    JORNADA: {
+      STAGE: stage,
+      HOTEL_NOME: stageNormalized === 'hotel' ? 'Hotel Atlântico' : '',
+      HOTEL_CIDADE: stageNormalized === 'hotel' ? 'Macaé' : '',
+      CHECKIN_HOTEL_AT: stageNormalized === 'hotel' ? shiftHours(now, -6) : '',
+      CHECKIN_HELIPORTO_AT:
+        stageNormalized === 'check-in heliporto' || stageNormalized === 'embarcado' ? shiftHours(now, -2) : '',
+      NO_SHOW: noShow
+    }
+  };
+}
+
+function buildProgramacoes(colaboradores: any[], now: Date) {
+  const dates = buildProgramDates(now);
+  const existingIds = new Set(colaboradores.map((c) => c.COLABORADOR_ID));
+  const id = (n: number) => `D${String(n).padStart(4, '0')}`;
+
+  const p1Ids = Array.from({ length: 12 }, (_, i) => id(i + 1)).filter((v) => existingIds.has(v));
+  const p2Ids = Array.from({ length: 12 }, (_, i) => id(i + 7)).filter((v) => existingIds.has(v));
+  const p3Ids = Array.from({ length: 12 }, (_, i) => id(i + 13)).filter((v) => existingIds.has(v));
+  const p4Ids = Array.from({ length: 10 }, (_, i) => id(i + 1)).filter((v) => existingIds.has(v));
+
+  const p1Stages = ['Embarcado', 'Hotel', 'Hotel', 'Check-in Heliporto', 'Hotel', 'Voo', 'Casa', 'Hotel'];
+  const p2Stages = ['Casa', 'Voo', 'Check-in Heliporto', 'Hotel', 'Casa'];
+  const p3Stages = ['Casa', 'Voo', 'Casa', 'Hotel'];
+
+  const p1Members = p1Ids.map((employeeId, index) => {
+    const noShow = index === 9 || index === 10;
+    return buildMember(employeeId, p1Stages[index % p1Stages.length], now, noShow);
+  });
+  const p2Members = p2Ids.map((employeeId, index) => buildMember(employeeId, p2Stages[index % p2Stages.length], now));
+  const p3Members = p3Ids.map((employeeId, index) => buildMember(employeeId, p3Stages[index % p3Stages.length], now));
+  const p4Members = p4Ids.map((employeeId, index) => buildMember(employeeId, index % 2 === 0 ? 'Embarcado' : 'Casa', now));
+
+  return {
+    programacoes: [
+      {
+        PROG_ID: 'DEMO-PROG-1',
+        UNIDADE: UNIDADES[0],
+        BASE: BASES[0],
+        EMBARQUE_DT: dates.p1.embarque,
+        DESEMBARQUE_DT: dates.p1.desembarque,
+        STATUS: 'Em andamento',
+        NOTES: 'Operação em andamento com casos de risco e troca.',
+        COLABORADORES: p1Members
+      },
+      {
+        PROG_ID: 'DEMO-PROG-2',
+        UNIDADE: UNIDADES[1],
+        BASE: BASES[1],
+        EMBARQUE_DT: dates.p2.embarque,
+        DESEMBARQUE_DT: dates.p2.desembarque,
+        STATUS: 'Confirmado',
+        NOTES: 'Embarque confirmado para curto prazo.',
+        COLABORADORES: p2Members
+      },
+      {
+        PROG_ID: 'DEMO-PROG-3',
+        UNIDADE: UNIDADES[2],
+        BASE: BASES[2],
+        EMBARQUE_DT: dates.p3.embarque,
+        DESEMBARQUE_DT: dates.p3.desembarque,
+        STATUS: 'Planejado',
+        NOTES: 'Planejamento da próxima janela.',
+        COLABORADORES: p3Members
+      },
+      {
+        PROG_ID: 'DEMO-PROG-4',
+        UNIDADE: UNIDADES[3],
+        BASE: BASES[0],
+        EMBARQUE_DT: dates.p4.embarque,
+        DESEMBARQUE_DT: dates.p4.desembarque,
+        STATUS: 'Finalizado',
+        NOTES: 'Programação encerrada.',
+        COLABORADORES: p4Members
+      }
+    ],
+    windows: dates
+  };
+}
+
+function createBaseDocs(colaboradores: any[], now: Date) {
+  return colaboradores.flatMap((colab) =>
+    REQUIRED_DOC_TYPES.map((tipo) => ({
+      COLABORADOR_ID: colab.COLABORADOR_ID,
+      TIPO_DOCUMENTO: tipo,
+      DATA_EMISSAO: shiftDays(now, -180),
+      DATA_VENCIMENTO: shiftDays(now, 160),
+      EVIDENCIA_TIPO: 'UPLOAD',
+      EVIDENCIA_REF: `doc_${colab.COLABORADOR_ID}_${tipo}.pdf`,
+      OBS: '',
+      VERIFIED: true,
+      VERIFIED_BY: 'Auditoria Demo',
+      VERIFIED_AT: shiftDays(now, -7)
+    }))
+  );
+}
+
+function applyDocPatch(
+  docsByKey: Map<string, any>,
+  employeeId: string,
+  docType: string,
+  patch: Partial<any>
+) {
+  const key = `${employeeId}::${docType}`;
+  const current = docsByKey.get(key);
+  if (!current) return;
+  docsByKey.set(key, { ...current, ...patch });
+}
+
+function applyScenarioPatches(
+  scenario: Scenario,
+  docsByKey: Map<string, any>,
+  windows: any,
+  programacoes: any[],
+  now: Date
+) {
+  const overlapP1P2 = ['D0007', 'D0008', 'D0009', 'D0010'];
+  const overlapP2P3 = ['D0013', 'D0014', 'D0015', 'D0016'];
+  const atencaoBase = ['D0003', 'D0004', 'D0005', 'D0011'];
+  const naoAptoBase = ['D0002'];
+  const evidenceBase = ['D0003', 'D0011'];
+
+  const scenarioConfig = {
+    saudavel: {
+      atencao: atencaoBase,
+      naoApto: naoAptoBase,
+      pendencias: evidenceBase,
+      trocaP1P2: overlapP1P2.slice(0, 2),
+      trocaP2P3: overlapP2P3.slice(0, 1)
+    },
+    risco: {
+      atencao: [...atencaoBase, 'D0012', 'D0017', 'D0018'],
+      naoApto: [...naoAptoBase, 'D0009', 'D0014'],
+      pendencias: [...evidenceBase, 'D0012', 'D0015', 'D0018'],
+      trocaP1P2: overlapP1P2.slice(0, 3),
+      trocaP2P3: overlapP2P3.slice(0, 2)
+    },
+    critico: {
+      atencao: [...atencaoBase, 'D0012', 'D0017', 'D0018', 'D0019', 'D0020'],
+      naoApto: [...naoAptoBase, 'D0009', 'D0014', 'D0015', 'D0016'],
+      pendencias: [...evidenceBase, 'D0012', 'D0015', 'D0018', 'D0019', 'D0020'],
+      trocaP1P2: overlapP1P2,
+      trocaP2P3: overlapP2P3.slice(0, 3)
+    }
+  }[scenario];
+
+  function findFirstProgWindow(employeeId: string) {
+    for (const prog of programacoes) {
+      if ((prog.COLABORADORES || []).some((member: any) => member.COLABORADOR_ID === employeeId)) {
+        return {
+          embark: new Date(prog.EMBARQUE_DT),
+          disembark: new Date(prog.DESEMBARQUE_DT)
+        };
+      }
+    }
+    return null;
+  }
+
+  scenarioConfig.naoApto.forEach((employeeId) => {
+    const window = findFirstProgWindow(employeeId);
+    const baseDate = window?.embark || now;
+    applyDocPatch(docsByKey, employeeId, REQUIRED_DOC_TYPES[0], {
+      DATA_VENCIMENTO: shiftHours(baseDate, -2),
+      OBS: 'Documento vencido antes do embarque.'
+    });
+  });
+
+  scenarioConfig.atencao.forEach((employeeId, idx) => {
+    const window = findFirstProgWindow(employeeId);
+    const baseEmbark = window?.embark || now;
+    const baseDisembark = window?.disembark || now;
+    const target = shiftHours(baseEmbark, 24 + idx * 2);
+    const finalTarget = new Date(target) > baseDisembark ? shiftHours(baseDisembark, -2) : target;
+    applyDocPatch(docsByKey, employeeId, REQUIRED_DOC_TYPES[1], {
+      DATA_VENCIMENTO: finalTarget,
+      OBS: 'Documento vence durante a janela operacional.'
+    });
+  });
+
+  scenarioConfig.trocaP1P2.forEach((employeeId, idx) => {
+    applyDocPatch(docsByKey, employeeId, REQUIRED_DOC_TYPES[2], {
+      DATA_VENCIMENTO: shiftHours(new Date(windows.p1.desembarque), 4 + idx),
+      OBS: 'Documento vence entre P1 e P2 (troca).'
+    });
+  });
+
+  scenarioConfig.trocaP2P3.forEach((employeeId, idx) => {
+    applyDocPatch(docsByKey, employeeId, REQUIRED_DOC_TYPES[3], {
+      DATA_VENCIMENTO: shiftHours(new Date(windows.p2.desembarque), 5 + idx),
+      OBS: 'Documento vence entre P2 e P3 (troca).'
+    });
+  });
+
+  scenarioConfig.pendencias.forEach((employeeId, idx) => {
+    applyDocPatch(docsByKey, employeeId, REQUIRED_DOC_TYPES[(idx + 1) % REQUIRED_DOC_TYPES.length], {
+      VERIFIED: false,
+      VERIFIED_BY: '',
+      VERIFIED_AT: '',
+      OBS: 'Evidência pendente de validação.'
     });
   });
 }
 
-function getLocalAtual(embarqueISO: string, desembarqueISO: string, now = new Date()) {
-  const embarque = new Date(embarqueISO);
-  const desembarque = new Date(desembarqueISO);
-  const janelaHospedagem = new Date(embarque);
-  janelaHospedagem.setDate(janelaHospedagem.getDate() - 1);
-  if (now >= embarque && now <= desembarque) return 'Embarcado';
-  if (now >= janelaHospedagem && now < embarque) return 'Hospedado';
-  return 'Base';
-}
-
-function buildCartao(embarqueISO: string, idx: number) {
-  const apresentacao = new Date(embarqueISO);
-  apresentacao.setHours(apresentacao.getHours() - 4);
-  return {
-    codigo: `DEMO-CART-${String(idx + 1).padStart(4, '0')}`,
-    apresentacao_dt: apresentacao.toISOString(),
-    roteiro: ['Base', 'Aeroporto', 'Heliponto', 'Unidade'],
-    contato: '(22) 98888-0000',
-    observacoes: 'Documento com foto obrigatório.'
-  };
-}
-
-function buildProgramacoes(colaboradores: any[]) {
-  const now = new Date();
-  return UNIDADES.slice(0, 4).map((unidade, idx) => {
-    const embarque = shiftDays(now, idx * 3 - 6);
-    const desembarque = shiftDays(new Date(embarque), 14);
-    const escalados = colaboradores.slice(idx * 8, idx * 8 + 12).map((colab, escIdx) => ({
-      COLABORADOR_ID: colab.COLABORADOR_ID,
-      LOCAL_ATUAL: getLocalAtual(embarque, desembarque),
-      PASSAGEM_STATUS: ['Planejada', 'Confirmada', 'Emitida'][escIdx % 3],
-      CARTAO_EMBARQUE_REF: '',
-      CARTAO_EMBARQUE: buildCartao(embarque, idx * 12 + escIdx),
-      OBS: escIdx % 5 === 0 ? 'Checar integração' : ''
-    }));
-
-    return {
-      PROG_ID: `DEMO-PROG-${idx + 1}`,
-      UNIDADE: unidade,
-      BASE: BASES[idx % BASES.length],
-      EMBARQUE_DT: embarque,
-      DESEMBARQUE_DT: desembarque,
-      STATUS: PROG_STATUS[idx % PROG_STATUS.length],
-      NOTES: 'Janela planejada para operação demo',
-      COLABORADORES: escalados
-    };
-  });
-}
-
 export function buildDemoPayload(scenario: Scenario = 'saudavel') {
+  const now = new Date();
   const colaboradores = Array.from({ length: 96 }, (_, idx) => employee(idx));
-  const documentacoes = buildDocs(colaboradores, scenario);
-  const programacoes = buildProgramacoes(colaboradores);
+  const { programacoes, windows } = buildProgramacoes(colaboradores, now);
+
+  const baseDocs = createBaseDocs(colaboradores, now);
+  const docsByKey = new Map(baseDocs.map((doc) => [`${doc.COLABORADOR_ID}::${doc.TIPO_DOCUMENTO}`, doc]));
+  applyScenarioPatches(scenario, docsByKey, windows, programacoes, now);
+  const documentacoes = Array.from(docsByKey.values());
 
   return {
     version: 1,
-    importedAt: new Date().toISOString(),
+    importedAt: now.toISOString(),
     dataset: { colaboradores, documentacoes, programacoes },
     metrics: {},
     colaboradores_minimos: buildMinimalCollaborators(colaboradores)
