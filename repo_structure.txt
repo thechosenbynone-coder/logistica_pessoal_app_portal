@@ -1,0 +1,250 @@
+Repository: logistica_pessoal_app_portal
+Generated: 2026-02-06T18:44:48.463185
+Branch: work
+Total files listed: 125
+Total directories listed: 43
+
+Project tree:
+.
+├── apps
+│   ├── colaborador
+│   │   ├── src
+│   │   │   ├── components
+│   │   │   │   ├── BottomNav.jsx
+│   │   │   │   ├── EmptyState.jsx
+│   │   │   │   ├── ErrorBoundary.jsx
+│   │   │   │   ├── LoadingSpinner.jsx
+│   │   │   │   ├── SignaturePad.jsx
+│   │   │   │   └── index.js
+│   │   │   ├── data
+│   │   │   │   └── mockData.js
+│   │   │   ├── features
+│   │   │   │   ├── equipment
+│   │   │   │   │   ├── EquipmentView.jsx
+│   │   │   │   │   └── index.js
+│   │   │   │   ├── finance
+│   │   │   │   │   ├── FinanceTab.jsx
+│   │   │   │   │   └── index.js
+│   │   │   │   ├── history
+│   │   │   │   │   ├── HistoryView.jsx
+│   │   │   │   │   └── index.js
+│   │   │   │   ├── home
+│   │   │   │   │   ├── HomeTab.jsx
+│   │   │   │   │   └── index.js
+│   │   │   │   ├── profile
+│   │   │   │   │   ├── ProfileTab.jsx
+│   │   │   │   │   └── index.js
+│   │   │   │   ├── trip
+│   │   │   │   │   ├── TripTab.jsx
+│   │   │   │   │   └── index.js
+│   │   │   │   └── work
+│   │   │   │       ├── TimesheetView.jsx
+│   │   │   │       ├── WorkOrderDetail.jsx
+│   │   │   │       ├── WorkOrdersList.jsx
+│   │   │   │       ├── WorkTab.jsx
+│   │   │   │       └── index.js
+│   │   │   ├── hooks
+│   │   │   │   ├── index.js
+│   │   │   │   ├── useGeolocation.js
+│   │   │   │   └── useLocalStorageState.js
+│   │   │   ├── services
+│   │   │   │   └── api.js
+│   │   │   ├── utils
+│   │   │   │   ├── __tests__
+│   │   │   │   │   ├── date.test.js
+│   │   │   │   │   └── format.test.js
+│   │   │   │   ├── date.js
+│   │   │   │   ├── file.js
+│   │   │   │   ├── format.js
+│   │   │   │   ├── id.js
+│   │   │   │   └── index.js
+│   │   │   ├── App.jsx
+│   │   │   ├── EmployeeLogisticsApp.jsx
+│   │   │   ├── index.css
+│   │   │   └── main.jsx
+│   │   ├── .env.example
+│   │   ├── index.html
+│   │   ├── package.json
+│   │   ├── postcss.config.cjs
+│   │   ├── tailwind.config.cjs
+│   │   └── vite.config.js
+│   └── portal-rh
+│       ├── public
+│       │   └── jessica-avatar.svg
+│       ├── src
+│       │   ├── components
+│       │   │   ├── ui
+│       │   │   │   └── sidebar.tsx
+│       │   │   ├── EmployeePickerModal.jsx
+│       │   │   ├── ErrorBoundary.jsx
+│       │   │   └── index.js
+│       │   ├── data
+│       │   │   └── mock.js
+│       │   ├── features
+│       │   │   ├── dashboard
+│       │   │   │   └── DashboardPage.jsx
+│       │   │   ├── docs
+│       │   │   │   └── DocsPage.jsx
+│       │   │   ├── employees
+│       │   │   │   ├── CreateEmployeePage.jsx
+│       │   │   │   ├── EmployeeDocsTab.jsx
+│       │   │   │   ├── EmployeeProfile.jsx
+│       │   │   │   └── EmployeesPage.jsx
+│       │   │   ├── equipment
+│       │   │   │   ├── EquipmentPage.jsx
+│       │   │   │   └── EquipmentTab.jsx
+│       │   │   ├── finance
+│       │   │   │   ├── FinancePage.jsx
+│       │   │   │   └── FinanceTab.jsx
+│       │   │   ├── hotel
+│       │   │   │   └── HotelPage.jsx
+│       │   │   ├── mobility
+│       │   │   │   ├── EmbarqueEscalaTab.jsx
+│       │   │   │   ├── MobilityPage.jsx
+│       │   │   │   └── mobilitySelectors.js
+│       │   │   └── work
+│       │   │       └── WorkPage.jsx
+│       │   ├── layout
+│       │   │   ├── PremiumSidebar.tsx
+│       │   │   ├── Sidebar.jsx
+│       │   │   └── Topbar.jsx
+│       │   ├── lib
+│       │   │   ├── documentationUtils.js
+│       │   │   ├── portalStorage.js
+│       │   │   └── utils.ts
+│       │   ├── services
+│       │   │   ├── api.js
+│       │   │   ├── currentUser.js
+│       │   │   ├── demoMode.js
+│       │   │   ├── demoSeed.ts
+│       │   │   ├── portalStorage.ts
+│       │   │   └── portalXlsxImporter.js
+│       │   ├── state
+│       │   │   └── useLocalStorageState.js
+│       │   ├── ui
+│       │   │   ├── Badge.jsx
+│       │   │   ├── Button.jsx
+│       │   │   ├── Card.jsx
+│       │   │   ├── HoverBorderGradient.jsx
+│       │   │   ├── Input.jsx
+│       │   │   ├── Modal.jsx
+│       │   │   └── ui.js
+│       │   ├── App.jsx
+│       │   ├── HRPortalApp.jsx
+│       │   ├── index.css
+│       │   └── main.jsx
+│       ├── index.html
+│       ├── package.json
+│       ├── postcss.config.cjs
+│       ├── tailwind.config.cjs
+│       ├── tsconfig.json
+│       ├── tsconfig.node.json
+│       └── vite.config.js
+├── logistica_pessoal_app_portal
+│   └── .gitattributes
+├── prisma
+│   └── schema.prisma
+├── server
+│   ├── prisma
+│   │   ├── schema.prisma
+│   │   └── seed.js
+│   ├── src
+│   │   ├── index.js
+│   │   ├── prisma.js
+│   │   └── serializers.js
+│   ├── .env.example
+│   ├── README.md
+│   └── package.json
+├── src
+│   ├── App.jsx
+│   ├── EmployeeLogisticsApp.jsx
+│   ├── index.css
+│   └── main.jsx
+├── .env.example
+├── .eslintrc.cjs
+├── .gitattributes
+├── .gitignore
+├── .prettierrc
+├── README.md
+├── index.html
+├── package-lock.json
+├── package.json
+├── postcss.config.cjs
+├── tailwind.config.cjs
+├── vite.config.js
+├── vitest.config.js
+└── vitest.setup.js
+
+# Ignored directories (not expanded)
+- node_modules (ignored)
+- .git (ignored)
+
+Summary:
+File counts by extension:
+- .jsx: 48
+- .js: 40
+- .cjs: 7
+- .json: 7
+- (no_ext): 4
+- .css: 3
+- .example: 3
+- .html: 3
+- .ts: 3
+- .md: 2
+- .prisma: 2
+- .tsx: 2
+- .svg: 1
+
+Top 30 largest files (KB):
+- package-lock.json — 295.9 KB
+- src/EmployeeLogisticsApp.jsx — 123.4 KB
+- apps/portal-rh/src/features/mobility/MobilityPage.jsx — 28.9 KB
+- apps/colaborador/src/features/work/WorkTab.jsx — 24.7 KB
+- apps/portal-rh/src/features/dashboard/DashboardPage.jsx — 18.1 KB
+- apps/colaborador/src/features/finance/FinanceTab.jsx — 18.0 KB
+- apps/portal-rh/src/features/docs/DocsPage.jsx — 14.5 KB
+- apps/portal-rh/src/services/portalXlsxImporter.js — 13.8 KB
+- apps/portal-rh/src/features/employees/EmployeeDocsTab.jsx — 12.3 KB
+- apps/colaborador/src/EmployeeLogisticsApp.jsx — 11.9 KB
+- apps/portal-rh/src/features/employees/EmployeesPage.jsx — 11.8 KB
+- apps/colaborador/src/features/work/WorkOrderDetail.jsx — 11.4 KB
+- apps/portal-rh/src/features/equipment/EquipmentTab.jsx — 10.5 KB
+- apps/portal-rh/src/features/employees/CreateEmployeePage.jsx — 10.4 KB
+- apps/portal-rh/src/services/demoSeed.ts — 9.8 KB
+- server/src/index.js — 9.6 KB
+- apps/portal-rh/src/components/ui/sidebar.tsx — 9.3 KB
+- apps/portal-rh/src/data/mock.js — 9.2 KB
+- apps/colaborador/src/data/mockData.js — 9.2 KB
+- apps/portal-rh/src/features/mobility/EmbarqueEscalaTab.jsx — 8.7 KB
+- apps/colaborador/src/features/home/HomeTab.jsx — 8.0 KB
+- server/prisma/seed.js — 7.9 KB
+- apps/portal-rh/src/layout/PremiumSidebar.tsx — 7.6 KB
+- apps/portal-rh/src/features/finance/FinanceTab.jsx — 6.9 KB
+- apps/portal-rh/src/layout/Sidebar.jsx — 6.9 KB
+- apps/colaborador/src/features/profile/ProfileTab.jsx — 6.8 KB
+- apps/portal-rh/src/features/employees/EmployeeProfile.jsx — 6.2 KB
+- apps/portal-rh/src/features/mobility/mobilitySelectors.js — 5.7 KB
+- server/prisma/schema.prisma — 5.2 KB
+- prisma/schema.prisma — 5.2 KB
+
+Top 20 directories by file count:
+- . — 14 files
+- apps/portal-rh — 7 files
+- apps/portal-rh/src/ui — 7 files
+- apps/colaborador — 6 files
+- apps/colaborador/src/components — 6 files
+- apps/portal-rh/src/services — 6 files
+- apps/colaborador/src/features/work — 5 files
+- apps/colaborador/src/utils — 5 files
+- apps/colaborador/src — 4 files
+- apps/portal-rh/src — 4 files
+- apps/portal-rh/src/features/employees — 4 files
+- src — 4 files
+- apps/colaborador/src/hooks — 3 files
+- apps/portal-rh/src/components — 3 files
+- apps/portal-rh/src/features/mobility — 3 files
+- apps/portal-rh/src/layout — 3 files
+- apps/portal-rh/src/lib — 3 files
+- server — 3 files
+- server/src — 3 files
+- apps/colaborador/src/features/equipment — 2 files
