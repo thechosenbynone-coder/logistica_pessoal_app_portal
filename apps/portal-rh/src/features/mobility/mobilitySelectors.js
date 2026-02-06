@@ -11,6 +11,7 @@ function normalizeDocType(value) {
 
 function toDate(value) {
   if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 }
@@ -31,7 +32,8 @@ function buildDocsByEmployee(documentacoes) {
 }
 
 function computeReadiness({ docsByEmployee, employeeId, embarkDate, disembarkDate }) {
-  const docs = docsByEmployee?.get(employeeId) || [];
+  const normalizedId = normalizeText(employeeId);
+  const docs = docsByEmployee?.get(normalizedId) || [];
   const missing = [];
   const expired = [];
   const during = [];
@@ -51,77 +53,75 @@ function computeReadiness({ docsByEmployee, employeeId, embarkDate, disembarkDat
     if (evidenceStatus(doc) !== 'VERIFICADO') evidencePending = true;
   });
 
-  if (missing.length || expired.length) {
+  if (missing.length > 0 || expired.length > 0) {
     return { level: 'NAO_APTO', missing, expired, during, evidencePending };
   }
-  if (during.length) {
+  if (during.length > 0) {
     return { level: 'ATENCAO', missing, expired, during, evidencePending };
   }
   return { level: 'APTO', missing, expired, during, evidencePending };
 }
 
-function normalizeLocal(localAtual) {
-  const normalized = normalizeText(localAtual).toLowerCase();
-  if (normalized === 'hospedado') return 'hospedado';
-  if (normalized === 'embarcado') return 'embarcado';
-  return 'base';
-}
-
 function buildTurnaroundRiskIndex(programacoes, docsByEmployee) {
   const byEmployee = new Map();
-  const risk = new Map();
+  const riskIndex = new Map();
 
   (Array.isArray(programacoes) ? programacoes : []).forEach((prog) => {
+    const progId = normalizeText(prog?.PROG_ID);
     const embarkDate = toDate(prog?.EMBARQUE_DT);
     const disembarkDate = toDate(prog?.DESEMBARQUE_DT);
-    if (!embarkDate || !disembarkDate) return;
+    if (!progId || !embarkDate || !disembarkDate) return;
 
     (Array.isArray(prog?.COLABORADORES) ? prog.COLABORADORES : []).forEach((member) => {
-      const employeeId = normalizeText(member?.COLABORADOR_ID);
+      const employeeId = normalizeText(member?.COLABORADOR_ID || member?.id);
       if (!employeeId) return;
-      const list = byEmployee.get(employeeId) || [];
-      list.push({
-        employeeId,
-        progId: normalizeText(prog?.PROG_ID),
-        embarkDate,
-        disembarkDate
-      });
-      byEmployee.set(employeeId, list);
+      const current = byEmployee.get(employeeId) || [];
+      current.push({ employeeId, progId, embarkDate, disembarkDate });
+      byEmployee.set(employeeId, current);
     });
   });
 
-  for (const [employeeId, itens] of byEmployee.entries()) {
-    itens.sort((a, b) => a.embarkDate.getTime() - b.embarkDate.getTime());
+  for (const [employeeId, employeeProgramacoes] of byEmployee.entries()) {
+    employeeProgramacoes.sort((a, b) => a.embarkDate.getTime() - b.embarkDate.getTime());
 
-    for (let idx = 0; idx < itens.length - 1; idx += 1) {
-      const current = itens[idx];
-      const next = itens[idx + 1];
+    for (let idx = 0; idx < employeeProgramacoes.length - 1; idx += 1) {
+      const current = employeeProgramacoes[idx];
+      const next = employeeProgramacoes[idx + 1];
       const docs = docsByEmployee?.get(employeeId) || [];
 
-      const expiringBetween = REQUIRED_DOC_TYPES.filter((type) => {
+      const docsAtRisk = REQUIRED_DOC_TYPES.filter((type) => {
         const doc = docs.find((item) => normalizeDocType(item?.TIPO_DOCUMENTO) === type);
-        if (!doc?.DATA_VENCIMENTO) return false;
-        const venc = toDate(doc.DATA_VENCIMENTO);
-        if (!venc) return false;
-        return venc >= current.disembarkDate && venc <= next.embarkDate;
+        const expiry = toDate(doc?.DATA_VENCIMENTO);
+        if (!expiry) return false;
+        return expiry > current.disembarkDate && expiry < next.embarkDate;
       });
 
-      if (!expiringBetween.length) continue;
+      if (!docsAtRisk.length) continue;
 
-      risk.set(`${employeeId}::${current.progId}`, {
-        employeeId,
-        progId: current.progId,
-        nextProgId: next.progId,
-        docs: expiringBetween
+      const key = `${normalizeText(employeeId)}::${normalizeText(current.progId)}`;
+      riskIndex.set(key, {
+        employeeId: normalizeText(employeeId),
+        progId: normalizeText(current.progId),
+        nextProgId: normalizeText(next.progId),
+        docs: docsAtRisk
       });
     }
   }
 
-  return risk;
+  return riskIndex;
+}
+
+function normalizeLocal(localAtual) {
+  const local = normalizeText(localAtual).toLowerCase();
+  if (local === 'hospedado') return 'hospedado';
+  if (local === 'embarcado') return 'embarcado';
+  return 'base';
 }
 
 function computeProgramacaoKPIs(programacao, employeesById, docsByEmployee, turnaroundRiskIndex) {
+  void employeesById;
   const members = Array.isArray(programacao?.COLABORADORES) ? programacao.COLABORADORES : [];
+  const progId = normalizeText(programacao?.PROG_ID);
   const kpis = {
     total: members.length,
     apto: 0,
@@ -136,27 +136,24 @@ function computeProgramacaoKPIs(programacao, employeesById, docsByEmployee, turn
   };
 
   members.forEach((member) => {
-    const employeeId = normalizeText(member?.COLABORADOR_ID) || normalizeText(member?.id);
-    const employee = employeeId ? employeesById?.get(employeeId) : null;
-    const resolvedEmployeeId = employeeId || normalizeText(employee?.id);
+    const employeeId = normalizeText(member?.COLABORADOR_ID || member?.id);
+    if (!employeeId) return;
 
-    if (resolvedEmployeeId) {
-      const readiness = computeReadiness({
-        docsByEmployee,
-        employeeId: resolvedEmployeeId,
-        embarkDate: programacao?.EMBARQUE_DT,
-        disembarkDate: programacao?.DESEMBARQUE_DT
-      });
+    const readiness = computeReadiness({
+      docsByEmployee,
+      employeeId,
+      embarkDate: programacao?.EMBARQUE_DT,
+      disembarkDate: programacao?.DESEMBARQUE_DT
+    });
 
-      if (readiness.level === 'APTO') kpis.apto += 1;
-      if (readiness.level === 'ATENCAO') kpis.atencao += 1;
-      if (readiness.level === 'NAO_APTO') kpis.naoApto += 1;
-      if (readiness.evidencePending) kpis.evidencePending += 1;
-      if (readiness.during.length > 0) kpis.venceDurante += 1;
+    if (readiness.level === 'APTO') kpis.apto += 1;
+    if (readiness.level === 'ATENCAO') kpis.atencao += 1;
+    if (readiness.level === 'NAO_APTO') kpis.naoApto += 1;
+    if (readiness.evidencePending) kpis.evidencePending += 1;
+    if (readiness.during.length > 0) kpis.venceDurante += 1;
 
-      const riskKey = `${resolvedEmployeeId}::${normalizeText(programacao?.PROG_ID)}`;
-      if (turnaroundRiskIndex?.has(riskKey)) kpis.venceNaTroca += 1;
-    }
+    const riskKey = `${employeeId}::${progId}`;
+    if (turnaroundRiskIndex?.has(riskKey)) kpis.venceNaTroca += 1;
 
     const local = normalizeLocal(member?.LOCAL_ATUAL || 'Base');
     if (local === 'hospedado') kpis.hospedado += 1;
