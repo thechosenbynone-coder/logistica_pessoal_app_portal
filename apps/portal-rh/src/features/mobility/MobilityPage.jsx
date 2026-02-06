@@ -1,38 +1,27 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Card from '../../ui/Card.jsx';
-import Button from '../../ui/Button.jsx';
-import Input from '../../ui/Input.jsx';
 import Badge from '../../ui/Badge.jsx';
-import Modal from '../../ui/Modal.jsx';
+import { normalizeText } from '../../lib/documentationUtils';
+import { readPayload } from '../../services/portalStorage';
 import {
-  REQUIRED_DOC_TYPES,
-  docWindowStatus,
-  evidenceStatus,
-  normalizeDigitsOnly,
-  normalizeDocType,
-  normalizeText
-} from '../../lib/documentationUtils';
-import { mergePayload, readPayload, writePayload } from '../../services/portalStorage';
-import { getDemoScenario, isDemoMode, seedDemoDataIfNeeded } from '../../services/demoMode';
-import { buildDocsByEmployee, computeProgramacaoKPIs, computeReadiness } from './mobilitySelectors';
-
-const STATUS_OPTIONS = ['Planejado', 'Confirmado', 'Em andamento', 'Finalizado', 'Cancelado'];
-const LOCAL_OPTIONS = ['Base', 'Embarcado', 'Hospedado'];
-const PASSAGEM_OPTIONS = ['Não comprada', 'Comprada', 'Emitida'];
-const REQUIRED_DOCS = REQUIRED_DOC_TYPES;
+  buildDocsByEmployee,
+  buildTurnaroundRiskIndex,
+  computeProgramacaoKPIs,
+  computeReadiness
+} from './mobilitySelectors';
 
 function formatDateTime(value) {
-  if (!value) return '';
+  if (!value) return '—';
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
+  if (Number.isNaN(date.getTime())) return '—';
   return date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
 function buildProgramacao(prog) {
   return {
-    PROG_ID: prog?.PROG_ID || `prog_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+    PROG_ID: prog?.PROG_ID || '',
     UNIDADE: prog?.UNIDADE || '',
-    BASE: prog?.BASE || 'Coelho Neto',
+    BASE: prog?.BASE || 'Base',
     EMBARQUE_DT: prog?.EMBARQUE_DT || '',
     DESEMBARQUE_DT: prog?.DESEMBARQUE_DT || '',
     STATUS: prog?.STATUS || 'Planejado',
@@ -47,95 +36,122 @@ function mapEmployees(payload) {
     payload?.colaboradores_minimos ||
     payload?.dataset?.colaboradores_minimos ||
     [];
+
   if (!Array.isArray(rows)) return [];
+
   return rows.map((row) => ({
     id: normalizeText(row.COLABORADOR_ID || row.id),
     name: normalizeText(row.NOME_COMPLETO || row.nome || row.name),
     cpf: normalizeText(row.CPF || row.cpf),
-    role: normalizeText(row.CARGO_FUNCAO || row.cargo || row.role),
-    unit: normalizeText(row.UNIDADE || row.unidade || row.unit),
-    base: normalizeText(row.BASE_OPERACIONAL || row.base || row.hub)
+    role: normalizeText(row.CARGO_FUNCAO || row.cargo || row.role)
   }));
+}
+
+function getBadgeFromReadiness(readiness, hasTurnaroundRisk) {
+  if (readiness.level === 'NAO_APTO') return { tone: 'red', label: 'NÃO APTO' };
+  if (readiness.level === 'ATENCAO' || hasTurnaroundRisk) return { tone: 'amber', label: 'ATENÇÃO' };
+  return { tone: 'green', label: 'APTO' };
+}
+
+function renderKpi(label, value, tone = 'gray') {
+  const palette =
+    tone === 'green'
+      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+      : tone === 'amber'
+        ? 'border-amber-200 bg-amber-50 text-amber-700'
+        : tone === 'red'
+          ? 'border-rose-200 bg-rose-50 text-rose-700'
+          : 'border-slate-200 bg-white text-slate-700';
+
+  return (
+    <div key={label} className={`rounded-xl border px-3 py-2 ${palette}`}>
+      <div className="text-[11px] uppercase tracking-wide">{label}</div>
+      <div className="text-lg font-semibold mt-1">{value}</div>
+    </div>
+  );
 }
 
 export default function MobilityPage() {
   const [programacoes, setProgramacoes] = useState([]);
   const [selectedProgId, setSelectedProgId] = useState('');
-  const [selectedMemberId, setSelectedMemberId] = useState('');
   const [employees, setEmployees] = useState([]);
   const [documentacoes, setDocumentacoes] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterAptidao, setFilterAptidao] = useState(null);
-  const [filterDocType, setFilterDocType] = useState(null);
-  const [filterEvidence, setFilterEvidence] = useState(null);
-  const [cardModal, setCardModal] = useState(null);
-  const demoMode = isDemoMode();
 
   useEffect(() => {
-    const payload = readPayload();
-    setProgramacoes(
-      Array.isArray(payload?.dataset?.programacoes) ? payload.dataset.programacoes.map(buildProgramacao) : []
-    );
-    setEmployees(mapEmployees(payload));
-    setDocumentacoes(Array.isArray(payload?.dataset?.documentacoes) ? payload.dataset.documentacoes : []);
-    const handleUpdate = () => {
-      const updated = readPayload();
-      setProgramacoes(
-        Array.isArray(updated?.dataset?.programacoes) ? updated.dataset.programacoes.map(buildProgramacao) : []
-      );
-      setEmployees(mapEmployees(updated));
-      setDocumentacoes(Array.isArray(updated?.dataset?.documentacoes) ? updated.dataset.documentacoes : []);
+    const load = () => {
+      const payload = readPayload();
+      const nextProgramacoes = Array.isArray(payload?.dataset?.programacoes)
+        ? payload.dataset.programacoes.map(buildProgramacao)
+        : [];
+      setProgramacoes(nextProgramacoes);
+      setEmployees(mapEmployees(payload));
+      setDocumentacoes(Array.isArray(payload?.dataset?.documentacoes) ? payload.dataset.documentacoes : []);
+      if (!selectedProgId && nextProgramacoes[0]?.PROG_ID) setSelectedProgId(nextProgramacoes[0].PROG_ID);
     };
-    window.addEventListener('portal_rh_xlsx_updated', handleUpdate);
-    return () => {
-      window.removeEventListener('portal_rh_xlsx_updated', handleUpdate);
-    };
-  }, []);
+
+    load();
+    window.addEventListener('portal_rh_xlsx_updated', load);
+    return () => window.removeEventListener('portal_rh_xlsx_updated', load);
+  }, [selectedProgId]);
 
   const employeesById = useMemo(() => {
     const map = new Map();
     employees.forEach((emp) => {
-      if (!emp.id) return;
-      map.set(emp.id, emp);
+      if (emp.id) map.set(emp.id, emp);
     });
     return map;
   }, [employees]);
 
   const docsByEmployee = useMemo(() => buildDocsByEmployee(documentacoes), [documentacoes]);
 
-  const selectedProgramacao = useMemo(
-    () => programacoes.find((prog) => prog.PROG_ID === selectedProgId),
-    [programacoes, selectedProgId]
+  const turnaroundRiskIndex = useMemo(
+    () => buildTurnaroundRiskIndex(programacoes, docsByEmployee),
+    [programacoes, docsByEmployee]
   );
 
-  const hasWindow = Boolean(selectedProgramacao?.EMBARQUE_DT && selectedProgramacao?.DESEMBARQUE_DT);
+  const programacoesOrdenadas = useMemo(() => {
+    return [...programacoes].sort((a, b) => new Date(a.EMBARQUE_DT).getTime() - new Date(b.EMBARQUE_DT).getTime());
+  }, [programacoes]);
 
-  const escaladosWithComputedStatus = useMemo(() => {
+  const selectedProgramacao = useMemo(
+    () => programacoesOrdenadas.find((prog) => prog.PROG_ID === selectedProgId) || programacoesOrdenadas[0] || null,
+    [programacoesOrdenadas, selectedProgId]
+  );
+
+  const programacoesComResumo = useMemo(() => {
+    return programacoesOrdenadas.map((prog) => {
+      const counts = computeProgramacaoKPIs(prog, employeesById, docsByEmployee, turnaroundRiskIndex);
+      return { ...prog, counts };
+    });
+  }, [programacoesOrdenadas, employeesById, docsByEmployee, turnaroundRiskIndex]);
+
+  const membrosSelecionados = useMemo(() => {
     if (!selectedProgramacao) return [];
-    return selectedProgramacao.COLABORADORES.map((colab) => {
-      const id = normalizeText(colab.COLABORADOR_ID);
-      const employee = employeesById.get(id);
-      const apt = computeReadiness({
+
+    return selectedProgramacao.COLABORADORES.map((member) => {
+      const employeeId = normalizeText(member.COLABORADOR_ID);
+      const employee = employeesById.get(employeeId);
+      const readiness = computeReadiness({
         docsByEmployee,
-        employeeId: id,
+        employeeId,
         embarkDate: selectedProgramacao.EMBARQUE_DT,
         disembarkDate: selectedProgramacao.DESEMBARQUE_DT
       });
-      const reasons = [...apt.missing, ...apt.expired, ...apt.during];
-      let evidenceFlag = 'SEM_EVIDENCIA';
-      if (docsByEmployee.get(id)?.length) {
-        const evidences = REQUIRED_DOCS.map((type) => {
-          const doc = (docsByEmployee.get(id) || []).find((item) => normalizeDocType(item.TIPO_DOCUMENTO) === type);
-          return doc ? evidenceStatus(doc) : 'SEM_EVIDENCIA';
-        });
-        if (evidences.every((status) => status === 'VERIFICADO')) evidenceFlag = 'VERIFICADO';
-        else if (evidences.some((status) => status === 'PENDENTE_VERIFICACAO')) evidenceFlag = 'PENDENTE_VERIFICACAO';
-      }
-      return { colab, id, employee, apt, reasons, evidenceFlag };
-    });
-  }, [selectedProgramacao, employeesById, docsByEmployee]);
+      const turnaroundRisk = turnaroundRiskIndex.get(`${employeeId}::${selectedProgramacao.PROG_ID}`) || null;
+      const badge = getBadgeFromReadiness(readiness, Boolean(turnaroundRisk));
 
-  const selectedProgramacaoKPIs = useMemo(() => {
+      return {
+        member,
+        employeeId,
+        employee,
+        readiness,
+        badge,
+        turnaroundRisk
+      };
+    });
+  }, [selectedProgramacao, employeesById, docsByEmployee, turnaroundRiskIndex]);
+
+  const selectedKPIs = useMemo(() => {
     if (!selectedProgramacao) {
       return {
         total: 0,
@@ -146,746 +162,193 @@ export default function MobilityPage() {
         venceDurante: 0,
         hospedado: 0,
         embarcado: 0,
-        base: 0
+        base: 0,
+        venceNaTroca: 0
       };
     }
-    return computeProgramacaoKPIs(selectedProgramacao, employeesById, docsByEmployee);
-  }, [selectedProgramacao, employeesById, docsByEmployee]);
+    return computeProgramacaoKPIs(selectedProgramacao, employeesById, docsByEmployee, turnaroundRiskIndex);
+  }, [selectedProgramacao, employeesById, docsByEmployee, turnaroundRiskIndex]);
 
-  const docCoverage = useMemo(() => {
-    if (!selectedProgramacao) return [];
-    return REQUIRED_DOCS.map((type) => {
-      const affected = [];
-      let ok = 0;
-      let expiring = 0;
-      let expired = 0;
-      escaladosWithComputedStatus.forEach((item) => {
-        const doc = (docsByEmployee.get(item.id) || []).find(
-          (d) => normalizeDocType(d.TIPO_DOCUMENTO) === type
-        );
-        if (!doc) {
-          expired += 1;
-          affected.push(item.id);
-          return;
-        }
-        const status = docWindowStatus(doc, selectedProgramacao.EMBARQUE_DT, selectedProgramacao.DESEMBARQUE_DT);
-        if (status === 'OK') ok += 1;
-        if (status === 'VENCE_DURANTE') {
-          expiring += 1;
-          affected.push(item.id);
-        }
-        if (status === 'VENCIDO') {
-          expired += 1;
-          affected.push(item.id);
-        }
+  const nowKPIs = useMemo(() => {
+    const now = new Date();
+    const plus14 = new Date(now);
+    plus14.setDate(plus14.getDate() + 14);
+
+    const proximas14d = programacoesOrdenadas.filter((prog) => {
+      const embark = new Date(prog.EMBARQUE_DT);
+      if (Number.isNaN(embark.getTime())) return false;
+      return embark >= now && embark <= plus14;
+    }).length;
+
+    let hospedadosAgora = 0;
+    let noShowAgora = 0;
+
+    programacoes.forEach((prog) => {
+      (prog.COLABORADORES || []).forEach((member) => {
+        if (member?.JORNADA?.STAGE === 'Hotel') hospedadosAgora += 1;
+        if (member?.JORNADA?.NO_SHOW) noShowAgora += 1;
       });
-      return {
-        type,
-        ok,
-        expiring,
-        expired,
-        total: escaladosWithComputedStatus.length,
-        affected
-      };
     });
-  }, [selectedProgramacao, escaladosWithComputedStatus, docsByEmployee]);
 
-  const evidenceCounts = useMemo(() => {
-    const counts = { SEM_EVIDENCIA: 0, PENDENTE_VERIFICACAO: 0, VERIFICADO: 0 };
-    escaladosWithComputedStatus.forEach((item) => {
-      counts[item.evidenceFlag] += 1;
+    return { proximas14d, hospedadosAgora, noShowAgora };
+  }, [programacoesOrdenadas, programacoes]);
+
+  const secoes = useMemo(() => {
+    const aptos = [];
+    const emRisco = [];
+    const barrados = [];
+    const hospedados = [];
+    const noShow = [];
+
+    membrosSelecionados.forEach((item) => {
+      if (item.readiness.level === 'NAO_APTO') barrados.push(item);
+      else if (item.readiness.level === 'ATENCAO' || item.turnaroundRisk) emRisco.push(item);
+      else aptos.push(item);
+
+      if (item.member?.JORNADA?.STAGE === 'Hotel') hospedados.push(item);
+      if (item.member?.JORNADA?.NO_SHOW) noShow.push(item);
     });
-    return counts;
-  }, [escaladosWithComputedStatus]);
 
-  const filteredEscalados = useMemo(() => {
-    return escaladosWithComputedStatus.filter((item) => {
-      if (filterAptidao && item.apt.level !== filterAptidao) return false;
-      if (filterEvidence && item.evidenceFlag !== filterEvidence) return false;
-      if (filterDocType) {
-        const doc = (docsByEmployee.get(item.id) || []).find(
-          (d) => normalizeDocType(d.TIPO_DOCUMENTO) === filterDocType
-        );
-        if (!doc) return true;
-        const status = docWindowStatus(doc, selectedProgramacao?.EMBARQUE_DT, selectedProgramacao?.DESEMBARQUE_DT);
-        return status !== 'OK';
-      }
-      return true;
-    });
-  }, [escaladosWithComputedStatus, filterAptidao, filterDocType, filterEvidence, docsByEmployee, selectedProgramacao]);
+    return { aptos, emRisco, barrados, hospedados, noShow };
+  }, [membrosSelecionados]);
 
-  const suggestions = useMemo(() => {
-    if (!selectedProgramacao) return [];
-    const term = searchQuery.trim().toLowerCase();
-    const currentIds = new Set(selectedProgramacao.COLABORADORES.map((c) => normalizeText(c.COLABORADOR_ID)));
-    const items = [];
-    for (const [id, emp] of employeesById.entries()) {
-      if (currentIds.has(id)) continue;
-      const name = normalizeText(emp.name).toLowerCase();
-      const cpf = normalizeDigitsOnly(emp.cpf);
-      const matches =
-        term.length < 2 ||
-        id.toLowerCase().includes(term) ||
-        name.includes(term) ||
-        cpf.includes(normalizeDigitsOnly(term));
-      if (!matches) continue;
-      const apt = computeReadiness({
-        docsByEmployee,
-        employeeId: id,
-        embarkDate: selectedProgramacao.EMBARQUE_DT,
-        disembarkDate: selectedProgramacao.DESEMBARQUE_DT
-      });
-      if (apt.level !== 'APTO') continue;
-      items.push({ ...emp, apt });
+  const renderList = (items, kind) => {
+    if (!items.length) {
+      return <div className="text-xs text-slate-500">Sem colaboradores nesta seção.</div>;
     }
-    return items
-      .sort((a, b) => {
-        if (a.apt.evidencePending === b.apt.evidencePending) return 0;
-        return a.apt.evidencePending ? 1 : -1;
-      })
-      .slice(0, term.length >= 2 ? 10 : 8);
-  }, [selectedProgramacao, searchQuery, employeesById, docsByEmployee]);
 
-  function persistProgramacoes(nextProgramacoes) {
-    const prevPayload = readPayload();
-    const nextDataset = { ...prevPayload.dataset, programacoes: nextProgramacoes };
-    const nextPayload = mergePayload(prevPayload, {
-      dataset: nextDataset,
-      importedAt: prevPayload.importedAt || new Date().toISOString()
-    });
-    writePayload(nextPayload);
-    setProgramacoes(nextProgramacoes);
-  }
+    return (
+      <div className="space-y-2">
+        {items.map((item) => {
+          const name = item.employee?.name || `ID ${item.employeeId}`;
+          const cpf = item.employee?.cpf ? `CPF ${item.employee.cpf}` : 'CPF não informado';
+          const details = [];
 
-  function updateProgramacao(progId, updater) {
-    const next = programacoes.map((prog) => {
-      if (prog.PROG_ID !== progId) return prog;
-      return buildProgramacao(updater(prog));
-    });
-    persistProgramacoes(next);
-  }
+          if (kind === 'risco' && item.readiness.during.length) details.push(`Vence durante: ${item.readiness.during.join(', ')}`);
+          if (kind === 'risco' && item.turnaroundRisk?.docs?.length) {
+            details.push(`Vence na troca: ${item.turnaroundRisk.docs.join(', ')}`);
+          }
+          if (kind === 'barrado') {
+            if (item.readiness.missing.length) details.push(`Ausente: ${item.readiness.missing.join(', ')}`);
+            if (item.readiness.expired.length) details.push(`Vencido: ${item.readiness.expired.join(', ')}`);
+          }
+          if (kind === 'hotel') {
+            const hotel = item.member?.JORNADA?.HOTEL_NOME || 'Hotel não informado';
+            const cidade = item.member?.JORNADA?.HOTEL_CIDADE || 'Cidade não informada';
+            details.push(`${hotel} • ${cidade}`);
+          }
+          if (kind === 'noshow') details.push('Sem apresentação no deslocamento.');
 
-  function handleCreateProgramacao() {
-    const next = [...programacoes, buildProgramacao({})];
-    setSelectedProgId(next[next.length - 1].PROG_ID);
-    persistProgramacoes(next);
-  }
-
-  function reloadDemo() {
-    seedDemoDataIfNeeded(getDemoScenario(), true);
-  }
-
-  function handleAddColaborador(empId) {
-    if (!selectedProgramacao) return;
-    const exists = selectedProgramacao.COLABORADORES.some(
-      (item) => normalizeText(item.COLABORADOR_ID) === normalizeText(empId)
+          return (
+            <div key={`${item.employeeId}-${kind}`} className="rounded-lg border border-slate-200 px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold text-slate-900">{name}</div>
+                  <div className="text-xs text-slate-500">{cpf}</div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Badge tone={item.badge.tone}>{item.badge.label}</Badge>
+                  {item.turnaroundRisk && <Badge tone="amber">VENCE NA TROCA</Badge>}
+                </div>
+              </div>
+              {details.length > 0 && <div className="mt-1 text-xs text-slate-600">{details.join(' • ')}</div>}
+            </div>
+          );
+        })}
+      </div>
     );
-    if (exists) return;
-    updateProgramacao(selectedProgramacao.PROG_ID, (prog) => ({
-      ...prog,
-      COLABORADORES: [
-        ...prog.COLABORADORES,
-        {
-          COLABORADOR_ID: empId,
-          LOCAL_ATUAL: 'Base',
-          PASSAGEM_STATUS: 'Não comprada',
-          CARTAO_EMBARQUE_REF: '',
-          OBS: ''
-        }
-      ]
-    }));
-  }
+  };
 
-  function handleRemoveColaborador(empId) {
-    if (!selectedProgramacao) return;
-    updateProgramacao(selectedProgramacao.PROG_ID, (prog) => ({
-      ...prog,
-      COLABORADORES: prog.COLABORADORES.filter(
-        (item) => normalizeText(item.COLABORADOR_ID) !== normalizeText(empId)
-      )
-    }));
-    if (selectedMemberId === empId) setSelectedMemberId('');
+  if (!programacoes.length) {
+    return (
+      <Card className="p-6 text-sm text-slate-500">
+        Nenhuma programação disponível. Em produção isso pode ocorrer sem carga inicial; em demo, recarregue os dados.
+      </Card>
+    );
   }
-
-  const programacoesSummary = useMemo(() => {
-    return programacoes.map((prog) => {
-      const counts = computeProgramacaoKPIs(prog, employeesById, docsByEmployee);
-      return { ...prog, counts };
-    });
-  }, [programacoes, employeesById, docsByEmployee]);
 
   return (
-    <div className="grid grid-cols-12 gap-6">
-      <div className="col-span-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-xl font-bold">Escala e Embarque</div>
-            <div className="text-sm text-slate-500">Gerencie programações e validações de janela.</div>
-          </div>
-          <Button type="button" onClick={handleCreateProgramacao}>
-            Nova Programação
-          </Button>
+    <div className="space-y-4">
+      <Card className="p-4">
+        <div className="text-lg font-semibold text-slate-900">Escala e Embarque</div>
+        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+          {renderKpi('Programações (próx 14d)', nowKPIs.proximas14d)}
+          {renderKpi('Aptos', selectedKPIs.apto, 'green')}
+          {renderKpi('Atenção', selectedKPIs.atencao, 'amber')}
+          {renderKpi('Não aptos', selectedKPIs.naoApto, 'red')}
+          {renderKpi('Vence na troca', selectedKPIs.venceNaTroca, 'amber')}
+          {renderKpi('Hospedados agora', nowKPIs.hospedadosAgora)}
+          {renderKpi('No-show agora', nowKPIs.noShowAgora, 'red')}
         </div>
+      </Card>
 
-        <div className="space-y-2">
-          {programacoesSummary.map((prog) => {
-            const isActive = prog.PROG_ID === selectedProgId;
-            return (
-              <button
-                key={prog.PROG_ID}
-                type="button"
-                onClick={() => {
-                  setSelectedProgId(prog.PROG_ID);
-                  setSelectedMemberId('');
-                }}
-                className={
-                  'w-full text-left rounded-xl border p-4 transition-colors ' +
-                  (isActive ? 'border-blue-200 bg-blue-50' : 'border-slate-200 hover:bg-slate-50')
-                }
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-semibold text-slate-900">{prog.UNIDADE || 'Unidade não definida'}</div>
-                    <div className="text-xs text-slate-500 mt-1">
-                      {prog.EMBARQUE_DT || '—'} → {prog.DESEMBARQUE_DT || '—'}
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                      <Badge tone="gray">Total: {prog.COLABORADORES.length}</Badge>
-                      <Badge tone="red">Não aptos: {prog.counts.naoApto}</Badge>
-                      <Badge tone="amber">Atenção: {prog.counts.atencao}</Badge>
-                      <Badge tone="green">Aptos: {prog.counts.apto}</Badge>
-                    </div>
-                  </div>
-                  <Badge tone="gray">{prog.STATUS}</Badge>
-                </div>
-              </button>
-            );
-          })}
-          {!programacoesSummary.length && (
-            <Card className="p-6 text-center text-sm text-slate-500">Nenhuma programação cadastrada.</Card>
-          )}
-        </div>
-      </div>
-
-      <div className="col-span-7 space-y-4">
-        {!selectedProgramacao ? (
-          <Card className="p-6 space-y-3 text-sm text-slate-500">
-            <div>Selecione uma programação para editar.</div>
-            {employees.length > 0 && demoMode && (
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" onClick={reloadDemo}>
-                  Carregar dados de demonstração
-                </Button>
-              </div>
-            )}
-          </Card>
-        ) : (
-          <>
-            <Card className="p-6 space-y-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-lg font-semibold text-slate-900">
-                    {selectedProgramacao.UNIDADE || 'Unidade não definida'}
-                  </div>
-                  <div className="text-xs text-slate-500">Base: {selectedProgramacao.BASE}</div>
-                </div>
-                <select
-                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
-                  value={selectedProgramacao.STATUS}
-                  onChange={(e) =>
-                    updateProgramacao(selectedProgramacao.PROG_ID, (prog) => ({
-                      ...prog,
-                      STATUS: e.target.value
-                    }))
-                  }
+      <div className="grid grid-cols-12 gap-4">
+        <div className="col-span-12 lg:col-span-4 space-y-3">
+          <Card className="p-4 space-y-3">
+            <div className="text-sm font-semibold text-slate-900">Próximas Programações</div>
+            {programacoesComResumo.map((prog) => {
+              const active = selectedProgramacao?.PROG_ID === prog.PROG_ID;
+              return (
+                <button
+                  type="button"
+                  key={prog.PROG_ID}
+                  onClick={() => setSelectedProgId(prog.PROG_ID)}
+                  className={`w-full rounded-lg border p-3 text-left transition ${
+                    active ? 'border-blue-200 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'
+                  }`}
                 >
-                  {STATUS_OPTIONS.map((status) => (
-                    <option key={status} value={status}>
-                      {status}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <Input
-                  value={selectedProgramacao.UNIDADE}
-                  onChange={(e) =>
-                    updateProgramacao(selectedProgramacao.PROG_ID, (prog) => ({
-                      ...prog,
-                      UNIDADE: e.target.value
-                    }))
-                  }
-                  placeholder="Unidade"
-                />
-                <Input
-                  type="datetime-local"
-                  value={selectedProgramacao.EMBARQUE_DT}
-                  onChange={(e) =>
-                    updateProgramacao(selectedProgramacao.PROG_ID, (prog) => ({
-                      ...prog,
-                      EMBARQUE_DT: e.target.value
-                    }))
-                  }
-                  placeholder="Embarque"
-                />
-                <Input
-                  type="datetime-local"
-                  value={selectedProgramacao.DESEMBARQUE_DT}
-                  onChange={(e) =>
-                    updateProgramacao(selectedProgramacao.PROG_ID, (prog) => ({
-                      ...prog,
-                      DESEMBARQUE_DT: e.target.value
-                    }))
-                  }
-                  placeholder="Desembarque"
-                />
-                <Input
-                  value={selectedProgramacao.NOTES}
-                  onChange={(e) =>
-                    updateProgramacao(selectedProgramacao.PROG_ID, (prog) => ({
-                      ...prog,
-                      NOTES: e.target.value
-                    }))
-                  }
-                  placeholder="Observações"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                {[
-                  { key: 'total', filterKey: null, label: 'Total escalados', value: selectedProgramacaoKPIs.total, tone: 'gray' },
-                  { key: 'APTO', filterKey: 'APTO', label: 'Aptos', value: selectedProgramacaoKPIs.apto, tone: 'green' },
-                  {
-                    key: 'ATENCAO',
-                    filterKey: 'ATENCAO',
-                    label: 'Atenção',
-                    value: selectedProgramacaoKPIs.atencao,
-                    tone: 'amber'
-                  },
-                  {
-                    key: 'NAO_APTO',
-                    filterKey: 'NAO_APTO',
-                    label: 'Não aptos',
-                    value: selectedProgramacaoKPIs.naoApto,
-                    tone: 'red'
-                  },
-                  {
-                    key: 'vence_durante',
-                    filterKey: null,
-                    label: 'Vence Durante',
-                    value: selectedProgramacaoKPIs.venceDurante,
-                    tone: 'amber'
-                  },
-                  {
-                    key: 'evidence_pending',
-                    filterKey: null,
-                    label: 'Evidência Pendente',
-                    value: selectedProgramacaoKPIs.evidencePending,
-                    tone: 'amber'
-                  },
-                  { key: 'hospedado', filterKey: null, label: 'Hospedados', value: selectedProgramacaoKPIs.hospedado, tone: 'gray' },
-                  { key: 'embarcado', filterKey: null, label: 'Embarcados', value: selectedProgramacaoKPIs.embarcado, tone: 'gray' }
-                ].map((card) => {
-                  const total = selectedProgramacaoKPIs.total || 1;
-                  const percent = Math.round(((card.value || 0) / total) * 100);
-                  const active = Boolean(card.filterKey) && filterAptidao === card.filterKey;
-                  return (
-                    <button
-                      key={card.key}
-                      type="button"
-                      className={
-                        'rounded-xl border p-3 text-left transition ' +
-                        (active ? 'border-blue-200 bg-blue-50' : 'border-slate-200 hover:bg-slate-50')
-                      }
-                      onClick={() => {
-                        if (!card.filterKey) return;
-                        setFilterAptidao(active ? null : card.filterKey);
-                      }}
-                    >
-                      <div className="text-xs text-slate-500">{card.label}</div>
-                      <div className="mt-1 text-lg font-semibold text-slate-900">{card.value}</div>
-                      <div className="mt-2 h-2 w-full rounded-full bg-slate-100">
-                        <div
-                          className={`h-2 rounded-full ${
-                            card.tone === 'green'
-                              ? 'bg-emerald-400'
-                              : card.tone === 'amber'
-                                ? 'bg-amber-400'
-                                : card.tone === 'red'
-                                  ? 'bg-rose-400'
-                                  : 'bg-slate-300'
-                          }`}
-                          style={{ width: `${percent}%` }}
-                        />
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {(filterAptidao || filterDocType || filterEvidence) && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => {
-                      setFilterAptidao(null);
-                      setFilterDocType(null);
-                      setFilterEvidence(null);
-                    }}
-                  >
-                    Limpar filtros
-                  </Button>
-                )}
-                {demoMode && (
-                  <Button type="button" variant="secondary" onClick={reloadDemo}>
-                    Recarregar demo
-                  </Button>
-                )}
-              </div>
-            </Card>
-
-            {!hasWindow && (
-              <Card className="p-4 text-sm text-slate-600">
-                <div>Para ativar validações: defina Unidade + Embarque + Desembarque.</div>
-                {employees.length > 0 && demoMode && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Button type="button" onClick={reloadDemo}>
-                      Carregar dados de demonstração
-                    </Button>
+                  <div className="text-sm font-semibold text-slate-900">{prog.UNIDADE || 'Unidade não definida'}</div>
+                  <div className="text-xs text-slate-500">{formatDateTime(prog.EMBARQUE_DT)} → {formatDateTime(prog.DESEMBARQUE_DT)}</div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <Badge tone="green">Aptos {prog.counts.apto}</Badge>
+                    <Badge tone="amber">Atenção {prog.counts.atencao}</Badge>
+                    <Badge tone="red">Não aptos {prog.counts.naoApto}</Badge>
+                    <Badge tone="amber">Troca {prog.counts.venceNaTroca}</Badge>
                   </div>
-                )}
-              </Card>
-            )}
+                </button>
+              );
+            })}
+          </Card>
+        </div>
 
-            <Card className="p-6 space-y-4">
-              <div className="text-sm font-semibold text-slate-900">Cobertura documental na janela</div>
-              {!hasWindow && (
-                <div className="text-xs text-slate-500">Aguardando janela para calcular cobertura.</div>
-              )}
-              <div className="space-y-3">
-                {docCoverage.map((doc) => {
-                  const percent = doc.total ? Math.round((doc.ok / doc.total) * 100) : 0;
-                  const active = filterDocType === doc.type;
-                  return (
-                    <button
-                      key={doc.type}
-                      type="button"
-                      className={
-                        'w-full rounded-xl border p-3 text-left transition ' +
-                        (active ? 'border-blue-200 bg-blue-50' : 'border-slate-200 hover:bg-slate-50')
-                      }
-                      onClick={() => setFilterDocType(active ? null : doc.type)}
-                    >
-                      <div className="flex items-center justify-between text-sm font-semibold text-slate-900">
-                        <span>{doc.type}</span>
-                        <span>
-                          {doc.ok}/{doc.total || 0}
-                        </span>
-                      </div>
-                      <div className="mt-2 h-2 w-full rounded-full bg-slate-100">
-                        <div className="h-2 rounded-full bg-emerald-400" style={{ width: `${percent}%` }} />
-                      </div>
-                      <div className="mt-2 text-xs text-slate-500">
-                        Vence durante: {doc.expiring} • Vencido/ausente: {doc.expired}
-                      </div>
-                    </button>
-                  );
-                })}
+        <div className="col-span-12 lg:col-span-8 space-y-3">
+          <Card className="p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-base font-semibold text-slate-900">{selectedProgramacao?.UNIDADE || 'Programação'}</div>
+                <div className="text-xs text-slate-500">Base {selectedProgramacao?.BASE || '—'} • {selectedProgramacao?.STATUS || '—'}</div>
+                <div className="text-xs text-slate-500">{formatDateTime(selectedProgramacao?.EMBARQUE_DT)} → {formatDateTime(selectedProgramacao?.DESEMBARQUE_DT)}</div>
               </div>
-            </Card>
+              <Badge tone="gray">Total escalados {selectedKPIs.total}</Badge>
+            </div>
+          </Card>
 
-            <Card className="p-6 space-y-3">
-              <div className="text-sm font-semibold text-slate-900">Pendências de evidência/verificação</div>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { key: 'SEM_EVIDENCIA', label: 'Sem evidência', tone: 'red', value: evidenceCounts.SEM_EVIDENCIA },
-                  {
-                    key: 'PENDENTE_VERIFICACAO',
-                    label: 'Pendente verificação',
-                    tone: 'amber',
-                    value: evidenceCounts.PENDENTE_VERIFICACAO
-                  },
-                  { key: 'VERIFICADO', label: 'Verificados', tone: 'green', value: evidenceCounts.VERIFICADO }
-                ].map((chip) => {
-                  const active = filterEvidence === chip.key;
-                  return (
-                    <button
-                      key={chip.key}
-                      type="button"
-                      className={
-                        'rounded-full border px-3 py-1 text-xs transition ' +
-                        (active ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600')
-                      }
-                      onClick={() => setFilterEvidence(active ? null : chip.key)}
-                    >
-                      {chip.label} ({chip.value})
-                    </button>
-                  );
-                })}
-              </div>
-            </Card>
+          <Card className="p-4 space-y-2">
+            <div className="text-sm font-semibold text-slate-900">Quem pode embarcar</div>
+            {renderList(secoes.aptos, 'apto')}
+          </Card>
 
-            <Card className="p-6 space-y-4">
-              <div className="text-sm font-semibold text-slate-900">Escalados</div>
-              {!!selectedProgramacao &&
-                selectedProgramacao.COLABORADORES.length === 0 &&
-                employees.length > 0 &&
-                demoMode && (
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="secondary" onClick={reloadDemo}>
-                    Carregar dados de demonstração
-                  </Button>
-                </div>
-              )}
-              {!employees.length && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                  Importe colaboradores para exibir nomes completos.
-                </div>
-              )}
-              <div className="space-y-3">
-                {filteredEscalados.map(({ colab, id, employee, apt, reasons }) => {
-                  const aptLabel =
-                    apt.level === 'APTO' ? 'APTO' : apt.level === 'ATENCAO' ? 'ATENÇÃO' : 'NÃO APTO';
-                  const aptTone = apt.level === 'APTO' ? 'green' : apt.level === 'ATENCAO' ? 'amber' : 'red';
-                  return (
-                    <div key={id} className="rounded-xl border border-slate-200 p-4">
-                      <button
-                        type="button"
-                        className="w-full text-left"
-                        onClick={() => setSelectedMemberId(selectedMemberId === id ? '' : id)}
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <div className="font-semibold text-slate-900">{employee?.name || `ID ${id}`}</div>
-                            <div className="text-xs text-slate-500">
-                              {employee?.cpf ? `CPF ${employee.cpf}` : 'CPF não informado'}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge tone={aptTone}>{aptLabel}</Badge>
-                            {apt.evidencePending && <Badge tone="amber">EVIDÊNCIA</Badge>}
-                            {apt.during.length > 0 && <Badge tone="amber">VENCE NA TROCA</Badge>}
-                          </div>
-                        </div>
-                        {reasons.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {reasons.slice(0, 4).map((reason) => (
-                              <Badge key={reason} tone="gray">
-                                {reason}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                      </button>
+          <Card className="p-4 space-y-2">
+            <div className="text-sm font-semibold text-slate-900">Em risco</div>
+            {renderList(secoes.emRisco, 'risco')}
+          </Card>
 
-                      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-                        <select
-                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
-                          value={colab.LOCAL_ATUAL}
-                          onChange={(e) =>
-                            updateProgramacao(selectedProgramacao.PROG_ID, (prog) => ({
-                              ...prog,
-                              COLABORADORES: prog.COLABORADORES.map((item) =>
-                                normalizeText(item.COLABORADOR_ID) === id
-                                  ? { ...item, LOCAL_ATUAL: e.target.value }
-                                  : item
-                              )
-                            }))
-                          }
-                        >
-                          {LOCAL_OPTIONS.map((opt) => (
-                            <option key={opt} value={opt}>
-                              {opt}
-                            </option>
-                          ))}
-                        </select>
-                        <select
-                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
-                          value={colab.PASSAGEM_STATUS}
-                          onChange={(e) =>
-                            updateProgramacao(selectedProgramacao.PROG_ID, (prog) => ({
-                              ...prog,
-                              COLABORADORES: prog.COLABORADORES.map((item) =>
-                                normalizeText(item.COLABORADOR_ID) === id
-                                  ? { ...item, PASSAGEM_STATUS: e.target.value }
-                                  : item
-                              )
-                            }))
-                          }
-                        >
-                          {PASSAGEM_OPTIONS.map((opt) => (
-                            <option key={opt} value={opt}>
-                              {opt}
-                            </option>
-                          ))}
-                        </select>
-                        <Input
-                          value={colab.CARTAO_EMBARQUE_REF || ''}
-                          onChange={(e) =>
-                            updateProgramacao(selectedProgramacao.PROG_ID, (prog) => ({
-                              ...prog,
-                              COLABORADORES: prog.COLABORADORES.map((item) =>
-                                normalizeText(item.COLABORADOR_ID) === id
-                                  ? { ...item, CARTAO_EMBARQUE_REF: e.target.value }
-                                  : item
-                              )
-                            }))
-                          }
-                          placeholder="Link cartão embarque"
-                        />
-                      </div>
+          <Card className="p-4 space-y-2">
+            <div className="text-sm font-semibold text-slate-900">Barrado</div>
+            {renderList(secoes.barrados, 'barrado')}
+          </Card>
 
-                      <div className="mt-3 flex items-center justify-between gap-2">
-                        <Input
-                          value={colab.OBS || ''}
-                          onChange={(e) =>
-                            updateProgramacao(selectedProgramacao.PROG_ID, (prog) => ({
-                              ...prog,
-                              COLABORADORES: prog.COLABORADORES.map((item) =>
-                                normalizeText(item.COLABORADOR_ID) === id
-                                  ? { ...item, OBS: e.target.value }
-                                  : item
-                              )
-                            }))
-                          }
-                          placeholder="Observações"
-                        />
-                        <div className="flex items-center gap-2">
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            onClick={() => setCardModal({ employee, colab })}
-                          >
-                            Cartão
-                          </Button>
-                          <Button type="button" variant="secondary" onClick={() => handleRemoveColaborador(id)}>
-                            Remover
-                          </Button>
-                        </div>
-                      </div>
+          <Card className="p-4 space-y-2">
+            <div className="text-sm font-semibold text-slate-900">Hospedados</div>
+            {renderList(secoes.hospedados, 'hotel')}
+          </Card>
 
-                      {selectedMemberId === id && (
-                        <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3 text-xs text-slate-600">
-                          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                            {REQUIRED_DOCS.map((type) => {
-                              const doc = (docsByEmployee.get(id) || []).find(
-                                (d) => normalizeDocType(d.TIPO_DOCUMENTO) === type
-                              );
-                              const status = doc
-                                ? docWindowStatus(doc, selectedProgramacao.EMBARQUE_DT, selectedProgramacao.DESEMBARQUE_DT)
-                                : 'AUSENTE';
-                              const label =
-                                status === 'OK'
-                                  ? '✅ OK'
-                                  : status === 'VENCE_DURANTE'
-                                    ? '⚠️ Vence durante'
-                                    : status === 'VENCIDO'
-                                      ? '✖ Vencido'
-                                      : '✖ Ausente';
-                              return (
-                                <div key={type} className="flex items-center justify-between rounded-lg border border-slate-200 px-2 py-1">
-                                  <span>{type}</span>
-                                  <span>{label}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-                {!filteredEscalados.length && (
-                  <div className="rounded-xl border border-slate-200 p-4 text-sm text-slate-500">
-                    Nenhum colaborador encontrado para os filtros atuais.
-                  </div>
-                )}
-              </div>
-            </Card>
-
-            <Card className="p-6 space-y-3">
-              <div className="text-sm font-semibold text-slate-900">Sugestões</div>
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar por nome, CPF ou ID"
-              />
-              <div className="space-y-2">
-                {suggestions.map((emp) => (
-                  <div key={emp.id} className="flex items-center justify-between rounded-xl border border-slate-200 p-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">{emp.name || `ID ${emp.id}`}</div>
-                      <div className="text-xs text-slate-500">{emp.cpf ? `CPF ${emp.cpf}` : 'CPF não informado'}</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {emp.apt.evidencePending && <Badge tone="gray">Pendência evidência</Badge>}
-                      <Button type="button" onClick={() => handleAddColaborador(emp.id)}>
-                        Adicionar
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-                {!suggestions.length && (
-                  <div className="rounded-xl border border-slate-200 p-3 text-sm text-slate-500">
-                    Nenhuma sugestão apta disponível para esta janela.
-                  </div>
-                )}
-              </div>
-            </Card>
-          </>
-        )}
+          <Card className="p-4 space-y-2">
+            <div className="text-sm font-semibold text-slate-900">No-show</div>
+            {renderList(secoes.noShow, 'noshow')}
+          </Card>
+        </div>
       </div>
-      <Modal
-        open={!!cardModal}
-        title="Cartão de embarque"
-        onClose={() => setCardModal(null)}
-        className="max-w-2xl"
-      >
-        {cardModal ? (
-          <div className="space-y-3 text-sm text-slate-700">
-            <div className="font-semibold text-slate-900">
-              {cardModal.employee?.name || `ID ${cardModal.colab.COLABORADOR_ID}`}
-            </div>
-            <div className="text-xs text-slate-500">
-              Status da passagem: {cardModal.colab.PASSAGEM_STATUS || 'Não comprada'}
-            </div>
-            {cardModal.colab.PASSAGEM_STATUS !== 'Emitida' ? (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
-                Aguardando emissão do cartão.
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
-                  <span>Código</span>
-                  <span className="font-semibold">{cardModal.colab.CARTAO_EMBARQUE?.codigo || '—'}</span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
-                  <span>Apresentação</span>
-                  <span>{formatDateTime(cardModal.colab.CARTAO_EMBARQUE?.apresentacao_dt)}</span>
-                </div>
-                <div className="rounded-lg border border-slate-200 px-3 py-2">
-                  <div className="text-xs text-slate-500">Roteiro</div>
-                  <div className="mt-1 flex flex-wrap gap-2">
-                    {(cardModal.colab.CARTAO_EMBARQUE?.roteiro || []).map((step) => (
-                      <Badge key={step} tone="gray">
-                        {step}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
-                  <span>Contato</span>
-                  <span>{cardModal.colab.CARTAO_EMBARQUE?.contato || '—'}</span>
-                </div>
-                <div className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-500">
-                  {cardModal.colab.CARTAO_EMBARQUE?.observacoes || 'Sem observações.'}
-                </div>
-              </div>
-            )}
-          </div>
-        ) : null}
-      </Modal>
     </div>
   );
 }
