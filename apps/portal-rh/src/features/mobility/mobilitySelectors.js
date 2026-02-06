@@ -116,6 +116,15 @@ function normalizeLocal(localAtual) {
   return 'base';
 }
 
+function resolveLocal(member) {
+  const local = normalizeLocal(member?.LOCAL_ATUAL);
+  if (local !== 'base') return local;
+  const stage = normalizeText(member?.JORNADA?.STAGE).toLowerCase();
+  if (stage === 'hotel') return 'hospedado';
+  if (stage === 'embarcado') return 'embarcado';
+  return 'base';
+}
+
 function computeProgramacaoKPIs(programacao, docsByEmployee, turnaroundRiskIndex) {
   const members = Array.isArray(programacao?.COLABORADORES) ? programacao.COLABORADORES : [];
   const progId = normalizeText(programacao?.PROG_ID);
@@ -143,16 +152,19 @@ function computeProgramacaoKPIs(programacao, docsByEmployee, turnaroundRiskIndex
       disembarkDate: programacao?.DESEMBARQUE_DT
     });
 
-    if (readiness.level === 'APTO') kpis.apto += 1;
-    if (readiness.level === 'ATENCAO') kpis.atencao += 1;
+    const riskKey = `${employeeId}::${progId}`;
+    const hasTurnaround = turnaroundRiskIndex?.has(riskKey);
+    const attention = readiness.level === 'ATENCAO' || readiness.evidencePending || hasTurnaround;
+
     if (readiness.level === 'NAO_APTO') kpis.naoApto += 1;
+    else if (attention) kpis.atencao += 1;
+    else kpis.apto += 1;
     if (readiness.evidencePending) kpis.evidencePending += 1;
     if (readiness.during.length > 0) kpis.venceDurante += 1;
 
-    const riskKey = `${employeeId}::${progId}`;
-    if (turnaroundRiskIndex?.has(riskKey)) kpis.venceNaTroca += 1;
+    if (hasTurnaround) kpis.venceNaTroca += 1;
 
-    const local = normalizeLocal(member?.LOCAL_ATUAL || 'Base');
+    const local = resolveLocal(member);
     if (local === 'hospedado') kpis.hospedado += 1;
     if (local === 'embarcado') kpis.embarcado += 1;
     if (local === 'base') kpis.base += 1;
@@ -161,4 +173,11 @@ function computeProgramacaoKPIs(programacao, docsByEmployee, turnaroundRiskIndex
   return kpis;
 }
 
-export { buildDocsByEmployee, computeReadiness, buildTurnaroundRiskIndex, computeProgramacaoKPIs, normalizeLocal };
+export {
+  buildDocsByEmployee,
+  computeReadiness,
+  buildTurnaroundRiskIndex,
+  computeProgramacaoKPIs,
+  normalizeLocal,
+  toDate
+};

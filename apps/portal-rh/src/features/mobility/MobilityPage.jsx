@@ -10,7 +10,8 @@ import {
   buildTurnaroundRiskIndex,
   computeProgramacaoKPIs,
   computeReadiness,
-  normalizeLocal
+  normalizeLocal,
+  toDate
 } from './mobilitySelectors';
 
 const ZERO_KPIS = {
@@ -25,12 +26,6 @@ const ZERO_KPIS = {
   base: 0,
   venceNaTroca: 0
 };
-
-function toDate(value) {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
 
 function formatDateTime(value) {
   const date = toDate(value);
@@ -179,7 +174,9 @@ export default function MobilityPage() {
     programacoesOrdenadas.forEach((prog) => {
       const embark = toDate(prog.EMBARQUE_DT);
       const disembark = toDate(prog.DESEMBARQUE_DT);
-      if (!embark || !disembark || now < embark || now > disembark) return;
+      if (!embark || !disembark) return;
+      const hotelStart = new Date(embark.getTime() - 24 * 60 * 60 * 1000);
+      if (now < hotelStart || now > disembark) return;
 
       (prog.COLABORADORES || []).forEach((member) => {
         if (isHospedado(member)) hospedadosAgora += 1;
@@ -274,6 +271,9 @@ export default function MobilityPage() {
 
           if (kind === 'risco' && item.readiness.during.length > 0) {
             details.push(`Vence durante: ${item.readiness.during.join(', ')}`);
+          }
+          if (kind === 'risco' && item.readiness.evidencePending) {
+            details.push('Evidência pendente');
           }
           if (kind === 'risco' && item.turnaroundRisk?.docs?.length) {
             details.push(`Vence na troca: ${item.turnaroundRisk.docs.join(', ')}`);
