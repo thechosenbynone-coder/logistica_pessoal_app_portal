@@ -9,7 +9,8 @@ import {
   buildDocsByEmployee,
   buildTurnaroundRiskIndex,
   computeProgramacaoKPIs,
-  computeReadiness
+  computeReadiness,
+  normalizeLocal
 } from './mobilitySelectors';
 
 const ZERO_KPIS = {
@@ -83,8 +84,14 @@ function findDefaultProgramacaoId(programacoesOrdenadas, currentSelectedId) {
   return programacoesOrdenadas[0].PROG_ID;
 }
 
-function normalizeStage(stage) {
-  return normalizeText(stage).toLowerCase();
+function isHospedado(member) {
+  if (normalizeLocal(member?.LOCAL_ATUAL) === 'hospedado') return true;
+  const stage = normalizeText(member?.JORNADA?.STAGE).toLowerCase();
+  return stage === 'hotel';
+}
+
+function isNoShow(member) {
+  return Boolean(member?.JORNADA?.NO_SHOW ?? member?.NO_SHOW ?? false);
 }
 
 export default function MobilityPage() {
@@ -148,14 +155,14 @@ export default function MobilityPage() {
   const programacoesComResumo = useMemo(() => {
     return programacoesOrdenadas.map((prog) => ({
       ...prog,
-      counts: computeProgramacaoKPIs(prog, employeesById, docsByEmployee, turnaroundRiskIndex)
+      counts: computeProgramacaoKPIs(prog, docsByEmployee, turnaroundRiskIndex)
     }));
-  }, [programacoesOrdenadas, employeesById, docsByEmployee, turnaroundRiskIndex]);
+  }, [programacoesOrdenadas, docsByEmployee, turnaroundRiskIndex]);
 
   const selectedKPIs = useMemo(() => {
     if (!selectedProgramacao) return ZERO_KPIS;
-    return computeProgramacaoKPIs(selectedProgramacao, employeesById, docsByEmployee, turnaroundRiskIndex);
-  }, [selectedProgramacao, employeesById, docsByEmployee, turnaroundRiskIndex]);
+    return computeProgramacaoKPIs(selectedProgramacao, docsByEmployee, turnaroundRiskIndex);
+  }, [selectedProgramacao, docsByEmployee, turnaroundRiskIndex]);
 
   const nowKPIs = useMemo(() => {
     const now = new Date();
@@ -175,8 +182,8 @@ export default function MobilityPage() {
       if (!embark || !disembark || now < embark || now > disembark) return;
 
       (prog.COLABORADORES || []).forEach((member) => {
-        if (normalizeStage(member?.JORNADA?.STAGE) === 'hotel') hospedadosAgora += 1;
-        if (Boolean(member?.JORNADA?.NO_SHOW)) noShowAgora += 1;
+        if (isHospedado(member)) hospedadosAgora += 1;
+        if (isNoShow(member)) noShowAgora += 1;
       });
     });
 
@@ -199,10 +206,11 @@ export default function MobilityPage() {
 
       const riskKey = `${employeeId}::${selectedProgIdNormalized}`;
       const turnaroundRisk = turnaroundRiskIndex.get(riskKey) || null;
+      const needsAttention = readiness.level === 'ATENCAO' || turnaroundRisk || readiness.evidencePending;
       const badge =
         readiness.level === 'NAO_APTO'
           ? { tone: 'red', label: 'NÃO APTO' }
-          : readiness.level === 'ATENCAO' || turnaroundRisk
+          : needsAttention
             ? { tone: 'amber', label: 'ATENÇÃO' }
             : { tone: 'green', label: 'APTO' };
 
@@ -219,10 +227,14 @@ export default function MobilityPage() {
 
     membrosSelecionados.forEach((item) => {
       if (item.readiness.level === 'NAO_APTO') barrados.push(item);
-      if (item.readiness.level === 'ATENCAO' || item.turnaroundRisk) emRisco.push(item);
-      if (item.readiness.level === 'APTO' && !item.turnaroundRisk) aptos.push(item);
-      if (normalizeStage(item.member?.JORNADA?.STAGE) === 'hotel') hospedados.push(item);
-      if (Boolean(item.member?.JORNADA?.NO_SHOW)) noShow.push(item);
+      else if (item.readiness.level === 'ATENCAO' || item.turnaroundRisk || item.readiness.evidencePending) {
+        emRisco.push(item);
+      } else {
+        aptos.push(item);
+      }
+
+      if (isHospedado(item.member)) hospedados.push(item);
+      if (isNoShow(item.member)) noShow.push(item);
     });
 
     return { aptos, emRisco, barrados, hospedados, noShow };
@@ -271,13 +283,19 @@ export default function MobilityPage() {
             if (item.readiness.expired.length > 0) details.push(`Vencido: ${item.readiness.expired.join(', ')}`);
           }
           if (kind === 'hotel') {
-            const hotel = normalizeText(item.member?.JORNADA?.HOTEL_NOME) || 'Hotel não informado';
-            const city = normalizeText(item.member?.JORNADA?.HOTEL_CIDADE) || 'Cidade não informada';
-            details.push(`${hotel} • ${city}`);
+            const hotel = normalizeText(item.member?.JORNADA?.HOTEL_NOME);
+            const city = normalizeText(item.member?.JORNADA?.HOTEL_CIDADE);
+            if (hotel || city) {
+              details.push(`${hotel || 'Hotel não informado'} • ${city || 'Cidade não informada'}`);
+            } else {
+              details.push('Hospedagem registrada (sem detalhes)');
+            }
           }
           if (kind === 'noshow') {
-            const stage = normalizeText(item.member?.JORNADA?.STAGE) || 'Etapa não informada';
-            details.push(`Última etapa: ${stage}`);
+            const stage = normalizeText(item.member?.JORNADA?.STAGE);
+            const localAtual = normalizeText(item.member?.LOCAL_ATUAL) || 'Local não informado';
+            details.push(`Local atual: ${localAtual}`);
+            if (stage) details.push(`Etapa: ${stage}`);
           }
 
           return (

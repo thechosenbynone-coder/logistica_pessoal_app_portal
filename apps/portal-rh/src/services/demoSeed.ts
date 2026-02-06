@@ -163,7 +163,9 @@ function applyDocPatch(
 function applyScenarioPatches(
   scenario: Scenario,
   docsByKey: Map<string, any>,
-  windows: any
+  windows: any,
+  programacoes: any[],
+  now: Date
 ) {
   const overlapP1P2 = ['D0007', 'D0008', 'D0009', 'D0010'];
   const overlapP2P3 = ['D0013', 'D0014', 'D0015', 'D0016'];
@@ -195,16 +197,35 @@ function applyScenarioPatches(
     }
   }[scenario];
 
+  function findFirstProgWindow(employeeId: string) {
+    for (const prog of programacoes) {
+      if ((prog.COLABORADORES || []).some((member: any) => member.COLABORADOR_ID === employeeId)) {
+        return {
+          embark: new Date(prog.EMBARQUE_DT),
+          disembark: new Date(prog.DESEMBARQUE_DT)
+        };
+      }
+    }
+    return null;
+  }
+
   scenarioConfig.naoApto.forEach((employeeId) => {
+    const window = findFirstProgWindow(employeeId);
+    const baseDate = window?.embark || now;
     applyDocPatch(docsByKey, employeeId, REQUIRED_DOC_TYPES[0], {
-      DATA_VENCIMENTO: shiftDays(new Date(), -1),
+      DATA_VENCIMENTO: shiftHours(baseDate, -2),
       OBS: 'Documento vencido antes do embarque.'
     });
   });
 
   scenarioConfig.atencao.forEach((employeeId, idx) => {
+    const window = findFirstProgWindow(employeeId);
+    const baseEmbark = window?.embark || now;
+    const baseDisembark = window?.disembark || now;
+    const target = shiftHours(baseEmbark, 24 + idx * 2);
+    const finalTarget = new Date(target) > baseDisembark ? shiftHours(baseDisembark, -2) : target;
     applyDocPatch(docsByKey, employeeId, REQUIRED_DOC_TYPES[1], {
-      DATA_VENCIMENTO: shiftHours(new Date(windows.p1.embarque), 24 + idx * 2),
+      DATA_VENCIMENTO: finalTarget,
       OBS: 'Documento vence durante a janela operacional.'
     });
   });
@@ -240,7 +261,7 @@ export function buildDemoPayload(scenario: Scenario = 'saudavel') {
 
   const baseDocs = createBaseDocs(colaboradores, now);
   const docsByKey = new Map(baseDocs.map((doc) => [`${doc.COLABORADOR_ID}::${doc.TIPO_DOCUMENTO}`, doc]));
-  applyScenarioPatches(scenario, docsByKey, windows);
+  applyScenarioPatches(scenario, docsByKey, windows, programacoes, now);
   const documentacoes = Array.from(docsByKey.values());
 
   return {

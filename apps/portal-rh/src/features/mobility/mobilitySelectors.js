@@ -2,12 +2,9 @@ import {
   REQUIRED_DOC_TYPES,
   docWindowStatus,
   evidenceStatus,
-  normalizeText
+  normalizeText,
+  normalizeDocType
 } from '../../lib/documentationUtils';
-
-function normalizeDocType(value) {
-  return normalizeText(value).toUpperCase();
-}
 
 function toDate(value) {
   if (!value) return null;
@@ -113,13 +110,13 @@ function buildTurnaroundRiskIndex(programacoes, docsByEmployee) {
 
 function normalizeLocal(localAtual) {
   const local = normalizeText(localAtual).toLowerCase();
-  if (local === 'hospedado') return 'hospedado';
-  if (local === 'embarcado') return 'embarcado';
+  if (!local) return 'base';
+  if (local.includes('hotel') || local.includes('hosped')) return 'hospedado';
+  if (local.includes('embarc')) return 'embarcado';
   return 'base';
 }
 
-function computeProgramacaoKPIs(programacao, employeesById, docsByEmployee, turnaroundRiskIndex) {
-  void employeesById;
+function computeProgramacaoKPIs(programacao, docsByEmployee, turnaroundRiskIndex) {
   const members = Array.isArray(programacao?.COLABORADORES) ? programacao.COLABORADORES : [];
   const progId = normalizeText(programacao?.PROG_ID);
   const kpis = {
@@ -164,4 +161,4 @@ function computeProgramacaoKPIs(programacao, employeesById, docsByEmployee, turn
   return kpis;
 }
 
-export { buildDocsByEmployee, computeReadiness, buildTurnaroundRiskIndex, computeProgramacaoKPIs };
+export { buildDocsByEmployee, computeReadiness, buildTurnaroundRiskIndex, computeProgramacaoKPIs, normalizeLocal };
