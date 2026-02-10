@@ -14,9 +14,7 @@ export class ErrorBoundary extends React.Component {
     }
 
     componentDidCatch(error, errorInfo) {
-        // Log error without sensitive data
-        console.error('ErrorBoundary caught an error:', error.message);
-        console.error('Component stack:', errorInfo.componentStack);
+        console.error('🚨 CRASH DETECTADO:', error, errorInfo);
     }
 
     render() {
@@ -45,6 +43,9 @@ export class ErrorBoundary extends React.Component {
                         <p className="text-gray-600 mb-6">
                             Ocorreu um erro inesperado. Por favor, recarregue a página.
                         </p>
+                        <pre className="text-left text-xs text-gray-500 mb-6 max-h-32 overflow-auto whitespace-pre-wrap break-words">
+                            {this.state.error?.stack || this.state.error?.message || 'Sem detalhes técnicos disponíveis.'}
+                        </pre>
                         <button
                             onClick={() => window.location.reload()}
                             className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
