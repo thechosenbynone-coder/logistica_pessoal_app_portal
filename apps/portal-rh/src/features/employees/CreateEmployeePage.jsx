@@ -6,7 +6,7 @@ import Input from '../../ui/Input';
 import Badge from '../../ui/Badge';
 import { normalizeDigitsOnly } from '../../lib/documentationUtils';
 import { isDemoMode } from '../../services/demoMode';
-import { api } from '../../services/api';
+import api from '../../services/api';
 
 function formatCPF(digits) {
   const d = normalizeDigitsOnly(digits).slice(0, 11);

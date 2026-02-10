@@ -8,7 +8,7 @@ import FinancePage from './features/finance/FinancePage';
 import MobilityPage from './features/mobility/MobilityPage';
 import HotelPage from './features/hotel/HotelPage';
 import WorkPage from './features/work/WorkPage';
-import { api } from './services/api';
+import api from './services/api';
 import CreateEmployeePage from './features/employees/CreateEmployeePage';
 
 export default function HRPortalApp() {
@@ -99,7 +99,7 @@ export default function HRPortalApp() {
   }, [activePage, employees, focus, openEmployee, createEmployee, storageTick]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-slate-950 text-slate-200">
       <div className="flex min-h-screen">
         {/* Always-visible icon sidebar that expands on hover (desktop) */}
         <Sidebar active={activePage} onNavigate={onSidebarNavigate} />

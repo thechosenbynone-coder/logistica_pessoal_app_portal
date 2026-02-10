@@ -5,7 +5,7 @@ import Badge from '../../ui/Badge';
 import Input from '../../ui/Input';
 import Button from '../../ui/Button';
 import EmployeeProfile from './EmployeeProfile';
-import { api } from '../../services/api';
+import api from '../../services/api';
 
 // Funções visuais
 function docTone(d) {
