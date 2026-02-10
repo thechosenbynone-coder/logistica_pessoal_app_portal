@@ -1,355 +1,132 @@
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
-import { toJson } from './serializers.js';
 
-dotenv.config();
-
-const app = express();
 const prisma = new PrismaClient();
+const app = express();
+const PORT = 3001; // Porta Fixa
 
-const PORT = process.env.PORT || 3001;
-const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+// 1. Permite acesso de qualquer lugar (Resolve bloqueios de CORS)
+app.use(cors());
+app.use(express.json());
 
-app.use(
-  cors({
-    origin: CORS_ORIGIN === '*' ? true : CORS_ORIGIN,
-    credentials: false
-  })
-);
-app.use(express.json({ limit: '10mb' }));
+// 2. O TRADUTOR (DTO): Converte Banco -> Formato Frontend
+const toFrontendDTO = (user) => {
+  // Lógica de Status
+  const embarque = user.deployments.find(d => d.status === 'ONBOARD');
 
-app.get('/health', (req, res) => {
-  res.json({ ok: true, service: 'employee-logistics-api', time: new Date().toISOString() });
-});
+  // Contagem de Documentos
+  const docStats = { valid: 0, warning: 0, expired: 0 };
+  user.documents.forEach(d => {
+    if (d.status === 'VALID') docStats.valid++;
+    if (d.status === 'WARNING') docStats.warning++;
+    if (d.status === 'EXPIRED') docStats.expired++;
+  });
 
-// --- Employees (Full list for HR) ---
+  // Cálculo do GATE (Cor do Card)
+  let gate = { level: 'APTO', reason: 'OK' };
+  if (docStats.expired > 0) gate = { level: 'NAO_APTO', reason: 'Documentos Vencidos' };
+  else if (docStats.warning > 0) gate = { level: 'APTO_RESTRICAO', reason: 'Atenção' };
+
+  return {
+    id: user.id,
+    name: user.name, // O Frontend PRECISA desse campo 'name'
+    registration: user.registration,
+    role: user.jobTitle || 'Colaborador',
+    // Campos visuais que o Frontend espera
+    opStatus: embarque ? 'EMBARCADO' : 'EM_BASE',
+    unit: embarque ? embarque.destination : '',
+    base: embarque ? '' : 'Base Macaé',
+    currentLocation: embarque ? { kind: 'unit', name: embarque.destination } : { kind: 'base', name: 'Base Macaé' },
+    // Dados técnicos
+    docs: docStats,
+    gate: gate,
+    deployments: user.deployments
+  };
+};
+
+// Rota Principal (Colaboradores)
 app.get('/api/employees', async (req, res) => {
   try {
-    const employees = await prisma.user.findMany({
-      orderBy: { name: 'asc' },
-      include: {
-        deployments: {
-          where: { status: { in: ['SCHEDULED', 'IN_TRANSIT', 'ACTIVE'] } },
-          take: 1
-        }
-      }
+    const users = await prisma.user.findMany({
+      include: { documents: true, deployments: true }
     });
-    res.json(toJson({ employees }));
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'INTERNAL_ERROR' });
+
+    // Aplica a tradução em todos os usuários
+    const formatted = users.map(toFrontendDTO);
+
+    console.log(`✅ Enviando ${formatted.length} colaboradores para o Frontend.`);
+    res.json(formatted);
+  } catch (error) {
+    console.error('❌ Erro no banco:', error);
+    res.status(500).json([]);
   }
 });
 
-// --- Dashboard (Summary stats) ---
+// Create Employee
+app.post('/api/employees', async (req, res) => {
+  try {
+    const { name, role, cpf, base, unit } = req.body;
+
+    // Simple Validation
+    if (!name || !cpf) {
+      return res.status(400).json({ error: 'Nome e CPF são obrigatórios.' });
+    }
+
+    // Gerar campos únicos obrigatórios do Schema
+    const cleanCpf = cpf.replace(/\D/g, '');
+    const registration = `MT-${cleanCpf.slice(-6)}`; // Fallback registration
+    const email = `${cleanCpf}@fake-portal.com`; // Fallback unique email
+
+    // Prepare nested write for Unit (Deployment) if 'unit' is provided
+    let deploymentsCreate = [];
+    if (unit) {
+      deploymentsCreate.push({
+        destination: unit,
+        embarkDate: new Date(),
+        status: 'ONBOARD'
+      });
+    }
+
+    const newUser = await prisma.user.create({
+      data: {
+        name,
+        registration,
+        email,
+        jobTitle: role,
+        deployments: {
+          create: deploymentsCreate
+        }
+      },
+      include: { documents: true, deployments: true }
+    });
+
+    console.log(`✨ Criado usuário: ${newUser.name} (${newUser.id})`);
+    res.status(201).json(toFrontendDTO(newUser));
+
+  } catch (error) {
+    console.error('❌ Erro ao criar colaborador:', error);
+    // Prisma Unique Constraint Error
+    if (error.code === 'P2002') {
+      return res.status(409).json({ error: 'CPF ou Matrícula já existe.' });
+    }
+    res.status(500).json({ error: 'Erro interno ao salvar.' });
+  }
+});
+
+// Rota Dashboard
 app.get('/api/dashboard', async (req, res) => {
   try {
-    const [totalEmployees, activeDeployments, pendingDocs, pendingExpenses] = await Promise.all([
-      prisma.user.count(),
-      prisma.deployment.count({ where: { status: 'ACTIVE' } }),
-      prisma.userDocument.count({ where: { status: { in: ['WARNING', 'EXPIRED'] } } }),
-      prisma.expense.count({ where: { status: 'PENDING' } })
-    ]);
-
-    res.json({
-      stats: {
-        totalEmployees,
-        activeDeployments,
-        pendingDocs,
-        pendingExpenses
-      }
-    });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'INTERNAL_ERROR' });
-  }
-});
-
-// Helper: resolve user by registration (matrícula) or id
-async function resolveUser({ userId, registration }) {
-  if (userId) {
-    return prisma.user.findUnique({ where: { id: userId } });
-  }
-  if (registration) {
-    return prisma.user.findUnique({ where: { registration } });
-  }
-  return null;
-}
-
-// --- Profile (user + current trip + docs + assets) ---
-app.get('/api/profile', async (req, res) => {
-  try {
-    const { userId, registration } = req.query;
-    const user = await resolveUser({ userId, registration });
-    if (!user) return res.status(404).json({ error: 'USER_NOT_FOUND' });
-
-    const [documents, assets] = await Promise.all([
-      prisma.userDocument.findMany({ where: { userId: user.id }, orderBy: { name: 'asc' } }),
-      prisma.assetAssignment.findMany({ where: { userId: user.id }, orderBy: { isRequired: 'desc' } })
-    ]);
-
-    const currentDeployment = await prisma.deployment.findFirst({
-      where: {
-        userId: user.id,
-        status: { in: ['SCHEDULED', 'IN_TRANSIT', 'ACTIVE'] }
-      },
-      orderBy: { embarkDate: 'asc' }
-    });
-
-    res.json(
-      toJson({
-        user,
-        documents,
-        assets,
-        currentDeployment
-      })
-    );
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'INTERNAL_ERROR' });
-  }
-});
-
-// --- Deployments ---
-app.get('/api/deployments', async (req, res) => {
-  try {
-    const { userId, registration } = req.query;
-    const user = await resolveUser({ userId, registration });
-    if (!user) return res.status(404).json({ error: 'USER_NOT_FOUND' });
-
-    const deployments = await prisma.deployment.findMany({
-      where: { userId: user.id },
-      orderBy: { embarkDate: 'desc' }
-    });
-
-    res.json(toJson({ deployments }));
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'INTERNAL_ERROR' });
-  }
-});
-
-app.get('/api/deployments/current', async (req, res) => {
-  try {
-    const { userId, registration } = req.query;
-    const user = await resolveUser({ userId, registration });
-    if (!user) return res.status(404).json({ error: 'USER_NOT_FOUND' });
-
-    const deployment = await prisma.deployment.findFirst({
-      where: {
-        userId: user.id,
-        status: { in: ['SCHEDULED', 'IN_TRANSIT', 'ACTIVE'] }
-      },
-      orderBy: { embarkDate: 'asc' }
-    });
-
-    res.json(toJson({ deployment }));
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'INTERNAL_ERROR' });
-  }
-});
-
-// --- Check-ins ---
-app.post('/api/checkins', async (req, res) => {
-  try {
-    const { userId, registration, type, latitude, longitude, address, timestamp } = req.body || {};
-
-    const user = await resolveUser({ userId, registration });
-    if (!user) return res.status(404).json({ error: 'USER_NOT_FOUND' });
-
-    if (!type || typeof latitude !== 'number' || typeof longitude !== 'number') {
-      return res.status(400).json({ error: 'INVALID_PAYLOAD' });
-    }
-
-    const checkIn = await prisma.checkIn.create({
-      data: {
-        userId: user.id,
-        type,
-        latitude,
-        longitude,
-        address: address || null,
-        timestamp: timestamp ? new Date(timestamp) : new Date()
-      }
-    });
-
-    res.status(201).json(toJson({ checkIn }));
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'INTERNAL_ERROR' });
-  }
-});
-
-app.get('/api/checkins', async (req, res) => {
-  try {
-    const { userId, registration, limit } = req.query;
-    const user = await resolveUser({ userId, registration });
-    if (!user) return res.status(404).json({ error: 'USER_NOT_FOUND' });
-
-    const checkIns = await prisma.checkIn.findMany({
-      where: { userId: user.id },
-      orderBy: { timestamp: 'desc' },
-      take: limit ? Math.min(Number(limit), 100) : 20
-    });
-
-    res.json(toJson({ checkIns }));
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'INTERNAL_ERROR' });
-  }
-});
-
-// --- Expenses ---
-app.get('/api/expenses', async (req, res) => {
-  try {
-    const { userId, registration, deploymentId } = req.query;
-    const user = await resolveUser({ userId, registration });
-    if (!user) return res.status(404).json({ error: 'USER_NOT_FOUND' });
-
-    const expenses = await prisma.expense.findMany({
-      where: {
-        userId: user.id,
-        ...(deploymentId ? { deploymentId } : {})
-      },
-      orderBy: { date: 'desc' }
-    });
-
-    res.json(toJson({ expenses }));
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'INTERNAL_ERROR' });
-  }
-});
-
-app.post('/api/expenses', async (req, res) => {
-  try {
-    const { userId, registration, deploymentId, type, value, date, description, receiptUrl } = req.body || {};
-
-    const user = await resolveUser({ userId, registration });
-    if (!user) return res.status(404).json({ error: 'USER_NOT_FOUND' });
-
-    if (!type || value == null || !date) {
-      return res.status(400).json({ error: 'INVALID_PAYLOAD' });
-    }
-
-    const expense = await prisma.expense.create({
-      data: {
-        userId: user.id,
-        deploymentId: deploymentId || null,
-        type,
-        value,
-        date: new Date(date),
-        description: description || null,
-        receiptUrl: receiptUrl || null
-      }
-    });
-
-    res.status(201).json(toJson({ expense }));
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'INTERNAL_ERROR' });
-  }
-});
-
-// --- Advances ---
-app.get('/api/advances', async (req, res) => {
-  try {
-    const { userId, registration, deploymentId } = req.query;
-    const user = await resolveUser({ userId, registration });
-    if (!user) return res.status(404).json({ error: 'USER_NOT_FOUND' });
-
-    const advances = await prisma.advanceRequest.findMany({
-      where: {
-        userId: user.id,
-        ...(deploymentId ? { deploymentId } : {})
-      },
-      orderBy: { date: 'desc' }
-    });
-
-    res.json(toJson({ advances }));
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'INTERNAL_ERROR' });
-  }
-});
-
-app.post('/api/advances', async (req, res) => {
-  try {
-    const { userId, registration, deploymentId, value, justification } = req.body || {};
-
-    const user = await resolveUser({ userId, registration });
-    if (!user) return res.status(404).json({ error: 'USER_NOT_FOUND' });
-
-    if (!deploymentId || value == null || !justification) {
-      return res.status(400).json({ error: 'INVALID_PAYLOAD' });
-    }
-
-    const advance = await prisma.advanceRequest.create({
-      data: {
-        userId: user.id,
-        deploymentId,
-        value,
-        justification
-      }
-    });
-
-    res.status(201).json(toJson({ advance }));
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'INTERNAL_ERROR' });
-  }
-});
-
-// --- Assets ---
-app.get('/api/assets', async (req, res) => {
-  try {
-    const { userId, registration } = req.query;
-    const user = await resolveUser({ userId, registration });
-    if (!user) return res.status(404).json({ error: 'USER_NOT_FOUND' });
-
-    const assets = await prisma.assetAssignment.findMany({
-      where: { userId: user.id },
-      orderBy: [{ isRequired: 'desc' }, { name: 'asc' }]
-    });
-
-    res.json(toJson({ assets }));
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'INTERNAL_ERROR' });
-  }
-});
-
-app.patch('/api/assets/:id/status', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body || {};
-
-    if (!status) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
-
-    const asset = await prisma.assetAssignment.update({
-      where: { id },
-      data: { status, lastConfirmedAt: new Date() }
-    });
-
-    res.json(toJson({ asset }));
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'INTERNAL_ERROR' });
-  }
-});
-
-// --- graceful shutdown ---
-process.on('SIGINT', async () => {
-  await prisma.$disconnect();
-  process.exit(0);
-});
-process.on('SIGTERM', async () => {
-  await prisma.$disconnect();
-  process.exit(0);
+    const stats = {
+      totalEmployees: await prisma.user.count(),
+      activeDeployments: await prisma.deployment.count({ where: { status: 'ONBOARD' } }),
+      pendingDocs: await prisma.userDocument.count({ where: { status: { in: ['WARNING', 'EXPIRED'] } } }),
+      pendingExpenses: 0
+    };
+    res.json({ stats });
+  } catch (e) { res.status(500).json({ stats: {} }); }
 });
 
 app.listen(PORT, () => {
-  console.log(`API listening on http://localhost:${PORT}`);
+  console.log(`🔥 Backend rodando na porta ${PORT}`);
 });

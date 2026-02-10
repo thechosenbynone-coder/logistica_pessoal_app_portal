@@ -4,10 +4,9 @@ import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import Input from '../../ui/Input';
 import Badge from '../../ui/Badge';
-import { buildMinimalCollaborators, computeDashboardMetrics, parseXlsxToDataset } from '../../services/portalXlsxImporter';
 import { normalizeDigitsOnly } from '../../lib/documentationUtils';
-import { mergePayload, readPayload, writePayload } from '../../services/portalStorage';
 import { isDemoMode } from '../../services/demoMode';
+import { api } from '../../services/api';
 
 function formatCPF(digits) {
   const d = normalizeDigitsOnly(digits).slice(0, 11);
@@ -15,18 +14,14 @@ function formatCPF(digits) {
   return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9, 11)}`;
 }
 
-function uid() {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
-  return `emp_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
-}
-
 export default function CreateEmployeePage({ employees = [], onCreateEmployee }) {
   const [mode, setMode] = useState('choose'); // choose | manual
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
-  const fileInputRef = useRef(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const demoMode = isDemoMode();
 
+  // Existing CPFs check (client-side only for immediate feedback, backup is backend unique constraint)
   const existingCpfs = useMemo(() => new Set(employees.map((e) => normalizeDigitsOnly(e.cpf))), [employees]);
 
   const [form, setForm] = useState({
@@ -46,7 +41,7 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
     setOk('');
   }
 
-  function submitManual(e) {
+  async function submitManual(e) {
     e.preventDefault();
     resetMessages();
 
@@ -55,96 +50,35 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
 
     if (!name) return setErr('Informe o nome do colaborador.');
     if (cpfDigits.length !== 11) return setErr('CPF inválido. Digite os 11 números.');
-    if (existingCpfs.has(cpfDigits)) return setErr('Já existe um colaborador cadastrado com este CPF.');
+    if (existingCpfs.has(cpfDigits)) return setErr('Já existe um colaborador cadastrado com este CPF (verificação local).');
 
-    const base = form.base.trim() || '—';
-    const unit = form.unit.trim() || '—';
+    setIsSubmitting(true);
 
-    const employee = {
-      id: uid(),
-      name,
-      cpf: formatCPF(cpfDigits),
-      role: form.role.trim() || '—',
-
-      // ✅ Novo domínio
-      base,
-      unit,
-
-      // compat: evita quebrar partes antigas enquanto você migra
-      hub: base,
-      client: unit,
-
-      status: 'ATIVO',
-      docs: { valid: 0, warning: 0, expired: 0 },
-      equipment: { assigned: 0, pendingReturn: 0 },
-      nextDeployment: null,
-      finance: {
-        status: 'Em análise',
-        note: '',
-        bank: '—',
-        pix: '—',
-        lastPayment: null,
-        lastAmount: null,
-        notes: ''
-      }
-    };
-
-    onCreateEmployee?.(employee);
-    setOk('Colaborador cadastrado com sucesso.');
-
-    setForm({ name: '', cpf: '', role: '', base: '', unit: '' });
-    setMode('choose');
-  }
-
-  async function handleXlsxImport(file) {
-    if (!file) return;
-    resetMessages();
     try {
-      const dataset = await parseXlsxToDataset(file);
-      const prevPayload = readPayload();
-      const nextDataset = { ...prevPayload.dataset, ...dataset };
-      if (!Array.isArray(nextDataset.documentacoes) && Array.isArray(prevPayload.dataset?.documentacoes)) {
-        nextDataset.documentacoes = prevPayload.dataset.documentacoes;
-      }
-      if (!Array.isArray(nextDataset.colaboradores) || nextDataset.colaboradores.length === 0) {
-        nextDataset.colaboradores = prevPayload.dataset?.colaboradores || [];
-      }
-      const colaboradores_minimos = buildMinimalCollaborators(nextDataset.colaboradores);
-      const metrics = computeDashboardMetrics(nextDataset);
-      const importedAt = new Date().toISOString();
-      const payload = mergePayload(prevPayload, {
-        importedAt,
-        dataset: nextDataset,
-        metrics,
-        colaboradores_minimos:
-          colaboradores_minimos.length > 0
-            ? colaboradores_minimos
-            : prevPayload.colaboradores_minimos || prevPayload.dataset?.colaboradores_minimos || []
-      });
-      try {
-        writePayload(payload);
-        setOk('Planilha importada com sucesso.');
-        return;
-      } catch (storageErr) {
-        try {
-          writePayload(
-            mergePayload(prevPayload, {
-              importedAt,
-              metrics,
-              colaboradores_minimos:
-                colaboradores_minimos.length > 0
-                  ? colaboradores_minimos
-                  : prevPayload.colaboradores_minimos || prevPayload.dataset?.colaboradores_minimos || []
-            })
-          );
-          setOk('Planilha importada com sucesso (dados resumidos).');
-          return;
-        } catch (fallbackErr) {
-          setErr('Planilha carregada, mas não foi possível salvar os dados no navegador.');
-        }
-      }
-    } catch (parseErr) {
-      setErr('Falha ao importar planilha XLSX. Verifique o arquivo.');
+      const payload = {
+        name,
+        cpf: formatCPF(cpfDigits),
+        role: form.role.trim() || 'Colaborador',
+        base: form.base.trim(),
+        unit: form.unit.trim()
+      };
+
+      // 🚀 CALL REAL API
+      const createdEmployee = await api.employees.create(payload);
+
+      // Notify parent & UI
+      onCreateEmployee?.(createdEmployee);
+      setOk(`Colaborador ${createdEmployee.name} cadastrado com sucesso!`);
+
+      // Reset form
+      setForm({ name: '', cpf: '', role: '', base: '', unit: '' });
+      setMode('choose');
+
+    } catch (error) {
+      console.error(error);
+      setErr(error.message || 'Erro desconhecido ao comunicar com o servidor.');
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -162,16 +96,13 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
         <div className="mt-4 space-y-3">
           <button
             type="button"
-            onClick={() => {
-              resetMessages();
-              setErr('Integração via e-CPF: em breve.');
-            }}
-            className="w-full rounded-xl border border-slate-200 p-4 text-left hover:bg-slate-50"
+            disabled={true}
+            className="w-full rounded-xl border border-slate-200 p-4 text-left opacity-50 cursor-not-allowed"
           >
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="font-medium text-slate-900">Inserir via e-CPF</div>
-                <div className="text-sm text-slate-500">Automatizado via certificado digital (em breve).</div>
+                <div className="text-sm text-slate-500">Em breve integration Gov.br</div>
               </div>
               <IdCard />
             </div>
@@ -183,48 +114,31 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
               resetMessages();
               setMode('manual');
             }}
-            className="w-full rounded-xl border border-slate-900 p-4 text-left hover:bg-slate-50"
+            className="w-full rounded-xl border border-slate-900 p-4 text-left hover:bg-slate-50 transition-colors"
           >
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="font-medium text-slate-900">Inserir manualmente</div>
-                <div className="text-sm text-slate-500">Cadastro rápido, sem duplicidade (CPF único).</div>
+                <div className="text-sm text-slate-500">Cadastro direto no Banco de Dados.</div>
               </div>
               <FileText />
             </div>
           </button>
 
-          {!demoMode && (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  resetMessages();
-                  fileInputRef.current?.click();
-                }}
-                className="w-full rounded-xl border border-slate-200 p-4 text-left hover:bg-slate-50"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="font-medium text-slate-900">Inserir via Excel</div>
-                    <div className="text-sm text-slate-500">Upload de planilha com validação (em breve).</div>
-                  </div>
-                  <FileSpreadsheet />
-                </div>
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (e.target) e.target.value = '';
-                  handleXlsxImport(file);
-                }}
-              />
-            </>
-          )}
+          {/* Excel Import Disabled during Migration */}
+          <button
+            type="button"
+            disabled={true}
+            className="w-full rounded-xl border border-slate-200 p-4 text-left opacity-50 cursor-not-allowed"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="font-medium text-slate-900">Inserir via Excel</div>
+                <div className="text-sm text-slate-500">Desativado temporariamente para migração.</div>
+              </div>
+              <FileSpreadsheet />
+            </div>
+          </button>
 
           {err && (
             <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{err}</div>
@@ -244,13 +158,18 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
           <form onSubmit={submitManual} className="space-y-4">
             <div>
               <div className="text-lg font-semibold text-slate-900">Cadastro manual</div>
-              <div className="text-sm text-slate-500">CPF é obrigatório e não pode repetir.</div>
+              <div className="text-sm text-slate-500">Os dados serão salvos diretamente no Servidor.</div>
             </div>
 
             <div className="grid grid-cols-1 gap-3">
               <div>
                 <div className="text-sm font-medium text-slate-700">Nome</div>
-                <Input value={form.name} onChange={(e) => setField('name', e.target.value)} placeholder="Nome completo" />
+                <Input
+                  value={form.name}
+                  onChange={(e) => setField('name', e.target.value)}
+                  placeholder="Nome completo"
+                  disabled={isSubmitting}
+                />
               </div>
               <div>
                 <div className="text-sm font-medium text-slate-700">CPF</div>
@@ -258,27 +177,46 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
                   value={form.cpf}
                   onChange={(e) => setField('cpf', e.target.value)}
                   placeholder="000.000.000-00"
+                  disabled={isSubmitting}
                 />
               </div>
               <div>
                 <div className="text-sm font-medium text-slate-700">Função</div>
-                <Input value={form.role} onChange={(e) => setField('role', e.target.value)} placeholder="Ex: Motorista" />
+                <Input
+                  value={form.role}
+                  onChange={(e) => setField('role', e.target.value)}
+                  placeholder="Ex: Motorista"
+                  disabled={isSubmitting}
+                />
               </div>
               <div>
                 <div className="text-sm font-medium text-slate-700">Base (terra)</div>
-                <Input value={form.base} onChange={(e) => setField('base', e.target.value)} placeholder="Ex: Base Cabiúnas" />
+                <Input
+                  value={form.base}
+                  onChange={(e) => setField('base', e.target.value)}
+                  placeholder="Ex: Base Cabiúnas"
+                  disabled={isSubmitting}
+                />
               </div>
               <div>
                 <div className="text-sm font-medium text-slate-700">Unidade (plataforma/embarcação)</div>
-                <Input value={form.unit} onChange={(e) => setField('unit', e.target.value)} placeholder="Ex: Plataforma P-74" />
+                <Input
+                  value={form.unit}
+                  onChange={(e) => setField('unit', e.target.value)}
+                  placeholder="Ex: Plataforma P-74"
+                  disabled={isSubmitting}
+                />
               </div>
             </div>
 
             <div className="flex gap-2">
-              <Button type="submit">Salvar colaborador</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Salvando...' : 'Salvar colaborador'}
+              </Button>
               <Button
                 type="button"
                 variant="secondary"
+                disabled={isSubmitting}
                 onClick={() => {
                   resetMessages();
                   setMode('choose');

@@ -1,215 +1,72 @@
-// --- schema.prisma ---
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
-}
-
-// --------------------------------------
-// 1. USUÁRIOS E PERFIS
-// --------------------------------------
-
-enum UserRole {
-  COLLABORATOR
-  ADMIN_RH
-  MANAGER_LOGISTICS
 }
 
 model User {
   id            String    @id @default(uuid())
-  registration  String    @unique // Matrícula (ex: 12345)
-  email         String    @unique
-  cpf           String    @unique
+  registration  String    @unique
   name          String
-  role          UserRole  @default(COLLABORATOR)
-  passwordHash  String
-  photoUrl      String?
-
-  // Relações
+  email         String    @unique
+  role          String    @default("COLLABORATOR")
+  jobTitle      String?   
+  avatarUrl     String?
+  
   documents     UserDocument[]
   deployments   Deployment[]
+  timeSheets    TimeSheet[]
   expenses      Expense[]
-  advances      AdvanceRequest[]
-  assets        AssetAssignment[]
-  checkIns      CheckIn[]
-
   createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
 }
 
-// --------------------------------------
-// 2. DOCUMENTAÇÃO E COMPLIANCE
-// --------------------------------------
-
-enum DocStatus {
-  VALID
-  WARNING
-  EXPIRED
-}
-
-model UserDocument {
-  id           String    @id @default(uuid())
-  userId       String
-  name         String    // Ex: "NR-35", "ASO"
-  number       String?
-  issueDate    DateTime
-  expiryDate   DateTime?
-  fileUrl      String?   // PDF ou Foto
-
-  // Campo calculado via Cron Job ou na Query, mas bom ter status cacheado
-  status       DocStatus @default(VALID)
-
-  user         User      @relation(fields: [userId], references: [id])
-}
-
-// --------------------------------------
-// 3. OPERAÇÃO DE EMBARQUE (LOGÍSTICA)
-// --------------------------------------
-
-enum DeploymentStatus {
-  SCHEDULED
-  IN_TRANSIT
-  ACTIVE
-  COMPLETED
-  CANCELLED
-}
-
-enum TransportType {
-  HELICOPTER
-  BOAT
+model Project {
+  id          String       @id @default(uuid())
+  name        String       
+  deployments Deployment[]
 }
 
 model Deployment {
-  id             String           @id @default(uuid())
-  userId         String
-  destination    String           // Ex: "Plataforma P-74"
-  location       String           // Ex: "Bacia de Campos"
-
-  embarkDate     DateTime
-  disembarkDate  DateTime
-
-  transportType  TransportType    // HELICOPTER ou BOAT
-  flightInfo     String?          // "Voo HEL-458"
-
-  status         DeploymentStatus @default(SCHEDULED)
-
-  // QR Code Data String (gerado no backend para segurança)
-  qrCodeData     String?
-
-  user           User             @relation(fields: [userId], references: [id])
-  expenses       Expense[]        // Despesas ligadas a essa viagem
-  advances       AdvanceRequest[] // Adiantamentos dessa viagem
-
-  @@index([userId, embarkDate])
+  id            String    @id @default(uuid())
+  userId        String
+  projectId     String?
+  destination   String    
+  embarkDate    DateTime
+  disembarkDate DateTime?
+  status        String    @default("SCHEDULED")
+  
+  user          User      @relation(fields: [userId], references: [id])
+  project       Project?  @relation(fields: [projectId], references: [id])
 }
 
-// --------------------------------------
-// 4. FINANCEIRO (PRESTAÇÃO DE CONTAS)
-// --------------------------------------
-
-enum ExpenseStatus {
-  PENDING
-  APPROVED
-  REJECTED
-}
-
-enum AdvanceStatus {
-  PENDING
-  APPROVED
-  REJECTED
-  PAID
-  CANCELLED
+model UserDocument {
+  id          String    @id @default(uuid())
+  userId      String
+  name        String    
+  issueDate   DateTime? // <--- ADICIONADO
+  expiryDate  DateTime
+  status      String    @default("VALID")
+  fileUrl     String?
+  
+  user        User      @relation(fields: [userId], references: [id])
 }
 
 model Expense {
-  id           String        @id @default(uuid())
-  userId       String
-  deploymentId String?       // Pode ser gasto fora de embarque? Se não, obrigatório.
-
-  type         String        // Alimentação, Transporte, etc.
-  value        Decimal       @db.Decimal(10, 2)
-  date         DateTime
-  description  String?
-  receiptUrl   String?       // Foto da nota fiscal
-
-  status       ExpenseStatus @default(PENDING)
-  rejectionReason String?
-
-  user         User          @relation(fields: [userId], references: [id])
-  deployment   Deployment?   @relation(fields: [deploymentId], references: [id])
-
-  @@index([deploymentId])
-  @@index([userId, date])
+  id          String    @id @default(uuid())
+  userId      String
+  amount      Decimal
+  status      String    @default("PENDING")
+  description String?
+  user        User      @relation(fields: [userId], references: [id])
 }
 
-model AdvanceRequest {
-  id            String        @id @default(uuid())
-  userId        String
-  deploymentId  String
-
-  value         Decimal       @db.Decimal(10, 2)
-  justification String
-  status        AdvanceStatus @default(PENDING)
-
-  paidAt        DateTime?     // Data que o dinheiro caiu na conta
-
-  user          User          @relation(fields: [userId], references: [id])
-  deployment    Deployment    @relation(fields: [deploymentId], references: [id])
-}
-
-// --------------------------------------
-// 5. ATIVOS E EPIs
-// --------------------------------------
-
-enum AssetStatus {
-  ON_BASE      // Na base (casa/escritório)
-  ON_BOARD     // Embarcado com o usuário
-  LOST         // Perdido
-  RETURNED     // Devolvido ao almoxarifado
-}
-
-model AssetAssignment {
-  id              String      @id @default(uuid())
-  userId          String
-
-  name            String      // Capacete, Notebook
-  code            String      // Patrimônio/CA
-  isRequired      Boolean     @default(false) // É EPI obrigatório?
-  condition       String      // "Bom", "Novo", "Desgastado"
-
-  status          AssetStatus @default(ON_BASE)
-  lastConfirmedAt DateTime?   // Data da última confirmação do usuário no app
-
-  updatedAt       DateTime    @updatedAt
-
-  user            User        @relation(fields: [userId], references: [id])
-}
-
-// --------------------------------------
-// 6. RASTREABILIDADE
-// --------------------------------------
-
-enum CheckInType {
-  CHECK_IN
-  CHECK_OUT
-}
-
-model CheckIn {
-  id        String       @id @default(uuid())
-  userId    String
-
-  latitude  Float
-  longitude Float
-  address   String?      // Geocoding reverso opcional
-  timestamp DateTime     @default(now())
-
-  type      CheckInType  // CHECK_IN ou CHECK_OUT
-
-  user      User         @relation(fields: [userId], references: [id])
-
-  @@index([userId, timestamp])
+model TimeSheet {
+  id          String    @id @default(uuid())
+  userId      String
+  date        DateTime
+  hours       Decimal
+  user        User      @relation(fields: [userId], references: [id])
 }
