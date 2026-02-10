@@ -1,15 +1,32 @@
 // apps/portal-rh/src/services/api.js
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
+async function monitoredFetch(url, options) {
+  console.log('📡 Chamando API:', url);
+  let res;
+
+  try {
+    res = await fetch(url, options);
+    return res;
+  } catch (err) {
+    console.error('❌ FALHA NA API:', {
+      status: res?.status,
+      url: res?.url || url,
+      error: err
+    });
+    throw err;
+  }
+}
+
 const api = {
   employees: {
     list: async () => {
-      const res = await fetch(`${API_URL}/employees`);
+      const res = await monitoredFetch(`${API_URL}/employees`);
       if (!res.ok) throw new Error('Erro ao listar funcionários');
       return res.json();
     },
     create: async (data) => {
-      const res = await fetch(`${API_URL}/employees`, {
+      const res = await monitoredFetch(`${API_URL}/employees`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -20,7 +37,7 @@ const api = {
   },
   dashboard: {
     getMetrics: async () => {
-      const res = await fetch(`${API_URL}/dashboard/metrics`);
+      const res = await monitoredFetch(`${API_URL}/dashboard/metrics`);
       return res.json();
     }
   }

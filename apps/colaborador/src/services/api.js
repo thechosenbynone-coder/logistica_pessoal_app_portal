@@ -2,11 +2,23 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 const CURRENT_USER_REGISTRATION = import.meta.env.VITE_REGISTRATION || '12345';
 
 async function fetchJson(url, options) {
-  const res = await fetch(url, options);
-  if (!res.ok) {
-    throw new Error(`Request failed: ${res.status}`);
+  console.log('📡 Chamando API:', url);
+  let res;
+
+  try {
+    res = await fetch(url, options);
+    if (!res.ok) {
+      throw new Error(`Request failed: ${res.status}`);
+    }
+    return res.json();
+  } catch (err) {
+    console.error('❌ FALHA NA API:', {
+      status: res?.status,
+      url: res?.url || url,
+      error: err
+    });
+    throw err;
   }
-  return res.json();
 }
 
 function withRegistration(path) {
