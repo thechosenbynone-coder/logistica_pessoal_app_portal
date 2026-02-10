@@ -15,7 +15,7 @@ import { FinanceTab } from './features/finance';
 import { ProfileTab } from './features/profile';
 import { EquipmentView } from './features/equipment';
 import { HistoryView } from './features/history';
-import { api } from './services/api';
+import api from './services/api';
 
 // Data
 import {

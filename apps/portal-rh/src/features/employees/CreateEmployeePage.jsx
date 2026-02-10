@@ -6,7 +6,7 @@ import Input from '../../ui/Input';
 import Badge from '../../ui/Badge';
 import { normalizeDigitsOnly } from '../../lib/documentationUtils';
 import { isDemoMode } from '../../services/demoMode';
-import { api } from '../../services/api';
+import api from '../../services/api';
 
 function formatCPF(digits) {
   const d = normalizeDigitsOnly(digits).slice(0, 11);
@@ -87,7 +87,7 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
       <Card className="p-6">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-lg font-semibold text-slate-900">Cadastrar colaborador</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500">Cadastrar colaborador</div>
             <div className="text-sm text-slate-500">Escolha o método de cadastro.</div>
           </div>
           <UserPlus />
@@ -97,11 +97,11 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
           <button
             type="button"
             disabled={true}
-            className="w-full rounded-xl border border-slate-200 p-4 text-left opacity-50 cursor-not-allowed"
+            className="w-full rounded-2xl border border-slate-700/50 p-4 text-left opacity-50 cursor-not-allowed bg-slate-900/40 backdrop-blur-md"
           >
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="font-medium text-slate-900">Inserir via e-CPF</div>
+                <div className="font-medium text-slate-100">Inserir via e-CPF</div>
                 <div className="text-sm text-slate-500">Em breve integration Gov.br</div>
               </div>
               <IdCard />
@@ -114,11 +114,11 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
               resetMessages();
               setMode('manual');
             }}
-            className="w-full rounded-xl border border-slate-900 p-4 text-left hover:bg-slate-50 transition-colors"
+            className="w-full rounded-2xl border border-slate-700/50 p-4 text-left bg-slate-900/40 backdrop-blur-md hover:bg-slate-800/60 transition-all"
           >
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="font-medium text-slate-900">Inserir manualmente</div>
+                <div className="font-medium text-slate-100">Inserir manualmente</div>
                 <div className="text-sm text-slate-500">Cadastro direto no Banco de Dados.</div>
               </div>
               <FileText />
@@ -129,11 +129,11 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
           <button
             type="button"
             disabled={true}
-            className="w-full rounded-xl border border-slate-200 p-4 text-left opacity-50 cursor-not-allowed"
+            className="w-full rounded-2xl border border-slate-700/50 p-4 text-left opacity-50 cursor-not-allowed bg-slate-900/40 backdrop-blur-md"
           >
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="font-medium text-slate-900">Inserir via Excel</div>
+                <div className="font-medium text-slate-100">Inserir via Excel</div>
                 <div className="text-sm text-slate-500">Desativado temporariamente para migração.</div>
               </div>
               <FileSpreadsheet />
@@ -141,10 +141,10 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
           </button>
 
           {err && (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{err}</div>
+            <div className="rounded-2xl border border-rose-500/40 bg-rose-500/20 p-3 text-sm text-rose-200 border-l-4 border-l-rose-500">{err}</div>
           )}
           {ok && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{ok}</div>
+            <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/20 p-3 text-sm text-emerald-200 border-l-4 border-l-blue-500">{ok}</div>
           )}
         </div>
       </Card>
@@ -157,13 +157,13 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
         ) : (
           <form onSubmit={submitManual} className="space-y-4">
             <div>
-              <div className="text-lg font-semibold text-slate-900">Cadastro manual</div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500">Cadastro manual</div>
               <div className="text-sm text-slate-500">Os dados serão salvos diretamente no Servidor.</div>
             </div>
 
             <div className="grid grid-cols-1 gap-3">
               <div>
-                <div className="text-sm font-medium text-slate-700">Nome</div>
+                <div className="text-sm font-medium text-slate-300">Nome</div>
                 <Input
                   value={form.name}
                   onChange={(e) => setField('name', e.target.value)}
@@ -172,16 +172,16 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
                 />
               </div>
               <div>
-                <div className="text-sm font-medium text-slate-700">CPF</div>
+                <div className="text-sm font-medium text-slate-300">CPF</div>
                 <Input
                   value={form.cpf}
                   onChange={(e) => setField('cpf', e.target.value)}
-                  placeholder="000.000.000-00"
+                  placeholder="000.000.000-00" className="font-mono"
                   disabled={isSubmitting}
                 />
               </div>
               <div>
-                <div className="text-sm font-medium text-slate-700">Função</div>
+                <div className="text-sm font-medium text-slate-300">Função</div>
                 <Input
                   value={form.role}
                   onChange={(e) => setField('role', e.target.value)}
@@ -190,7 +190,7 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
                 />
               </div>
               <div>
-                <div className="text-sm font-medium text-slate-700">Base (terra)</div>
+                <div className="text-sm font-medium text-slate-300">Base (terra)</div>
                 <Input
                   value={form.base}
                   onChange={(e) => setField('base', e.target.value)}
@@ -199,7 +199,7 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
                 />
               </div>
               <div>
-                <div className="text-sm font-medium text-slate-700">Unidade (plataforma/embarcação)</div>
+                <div className="text-sm font-medium text-slate-300">Unidade (plataforma/embarcação)</div>
                 <Input
                   value={form.unit}
                   onChange={(e) => setField('unit', e.target.value)}

@@ -56,7 +56,7 @@ function DashboardMetricCard({
           : undefined
       }
       transition={{ type: "spring", stiffness: 400, damping: 22 }}
-      className={cn(clickable ? "cursor-pointer" : "", "rounded-2xl", className)}
+      className={cn(clickable ? "cursor-pointer" : "", "rounded-2xl bg-slate-900/40 backdrop-blur-md border border-slate-700/50 shadow-2xl transition-all border-l-4 border-l-blue-500", className)}
       onClick={onClick}
       role={clickable ? "button" : undefined}
       tabIndex={clickable ? 0 : undefined}
@@ -69,14 +69,14 @@ function DashboardMetricCard({
       }
       aria-label={clickable ? `${title}: ${value}` : undefined}
     >
-      <div className="h-full rounded-2xl border border-slate-200 bg-white shadow-sm transition-colors duration-200">
+      <div className="h-full rounded-2xl bg-transparent transition-colors duration-200">
         <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-2">
-          <div className="text-sm font-semibold text-slate-500">{title}</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500">{title}</div>
           {IconComponent ? <IconComponent className="h-4 w-4 text-slate-400" aria-hidden="true" /> : null}
         </div>
 
         <div className="px-4 pb-4">
-          <div className="text-2xl font-extrabold text-slate-900">{value}</div>
+          <div className="text-2xl font-extrabold text-slate-100">{value}</div>
 
           <div className="mt-2 flex items-center justify-between gap-3">
             {trendChange ? (
@@ -98,10 +98,10 @@ function DashboardMetricCard({
 
 function SectionCard({ title, subtitle, children, right }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="bg-slate-900/40 backdrop-blur-md border border-slate-700/50 rounded-2xl p-5 shadow-2xl transition-all">
       <div className="flex items-start justify-between gap-3 px-5 pt-5">
         <div className="min-w-0">
-          <div className="text-sm font-extrabold text-slate-900">{title}</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500">{title}</div>
           {subtitle ? <div className="mt-1 text-xs text-slate-500">{subtitle}</div> : null}
         </div>
         {right ? <div className="shrink-0">{right}</div> : null}
@@ -337,7 +337,7 @@ export default function DashboardPage({ onNavigate }) {
       {/* Cabeçalho do Dashboard (novo) */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="text-2xl font-extrabold text-slate-900">Olá, {firstName || "Usuário"}</div>
+          <div className="text-2xl font-extrabold text-slate-100">Olá, {firstName || "Usuário"}</div>
           <div className="text-sm text-slate-500">Qual o plano de hoje?</div>
         </div>
 

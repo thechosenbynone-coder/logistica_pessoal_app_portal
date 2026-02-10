@@ -5,3 +5,17 @@
 html, body {
   height: 100%;
 }
+
+@layer base {
+  body {
+    @apply bg-slate-950 text-slate-100 antialiased;
+  }
+
+  table {
+    @apply bg-transparent;
+  }
+
+  tr {
+    @apply border-b border-slate-800/50;
+  }
+}
