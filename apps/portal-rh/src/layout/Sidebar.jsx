@@ -144,14 +144,14 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
 
       <aside
         className={cn(
-          "h-screen sticky top-0 bg-white border-r border-slate-100 flex flex-col overflow-hidden",
+          "h-screen sticky top-0 bg-slate-950/80 backdrop-blur-xl border-r border-slate-800 flex flex-col overflow-hidden",
           SIDEBAR_W
         )}
         aria-label="Menu lateral"
       >
         <div className="w-full pt-3 pb-2 shrink-0">
           <div className="w-full grid place-items-center">
-            <div className="h-9 w-9 rounded-xl bg-blue-600 text-white grid place-items-center text-[11px] font-extrabold tracking-wide shrink-0">
+            <div className="h-9 w-9 rounded-xl bg-slate-900 border border-blue-500/60 text-blue-400 grid place-items-center text-[11px] font-extrabold tracking-wide shrink-0">
               RH
             </div>
           </div>
@@ -175,13 +175,13 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
                   aria-label={it.label}
                   className={cn(
                     "grid h-11 w-11 place-items-center rounded-xl bg-transparent border-0 p-0 m-0 transition",
-                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60",
+                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60",
                     isActive
-                      ? "ring-2 ring-blue-400/60 shadow-[0_0_0_5px_rgba(59,130,246,0.12)]"
-                      : "hover:ring-2 hover:ring-blue-400/45"
+                      ? "ring-2 ring-blue-500/70 bg-slate-900/70 shadow-[0_0_0_5px_rgba(59,130,246,0.12)]"
+                      : "hover:ring-2 hover:ring-blue-500/45 hover:bg-slate-900/60"
                   )}
                 >
-                  <Icon size={ICON_SIZE} className={isActive ? "text-blue-700" : "text-slate-700"} />
+                  <Icon size={ICON_SIZE} className={isActive ? "text-blue-500" : "text-slate-400"} />
                 </button>
               );
             })}
@@ -193,7 +193,7 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
             type="button"
             aria-label={`${user.name} • ${user.role}`}
             className={cn(
-              "relative w-full rounded-2xl border border-slate-100 bg-white shadow-sm",
+              "relative w-full rounded-2xl border border-slate-700/60 bg-slate-900/50 shadow-sm",
               "flex items-center p-2.5",
               "gap-0 justify-center"
             )}
@@ -206,18 +206,18 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
               <img
                 src={user.avatar}
                 alt={user.name}
-                className="h-11 w-11 rounded-full object-cover border border-slate-100"
+                className="h-11 w-11 rounded-full object-cover border border-slate-700/60"
               />
             ) : (
-              <div className="h-11 w-11 rounded-full bg-gradient-to-br from-blue-100 via-indigo-100 to-sky-100 border border-blue-200/70 grid place-items-center text-sm font-bold text-blue-700">
+              <div className="h-11 w-11 rounded-full bg-gradient-to-br from-blue-100 via-indigo-100 to-sky-100 border border-blue-200/70 grid place-items-center text-sm font-bold text-blue-500">
                 JM
               </div>
             )}
           </button>
 
-          <div className="mt-2 text-center text-[11px] font-semibold text-slate-700">Jéssica</div>
+          <div className="mt-2 text-center text-[11px] font-semibold text-slate-400">Jéssica</div>
 
-          <div className="mt-2 text-center text-[10px] font-medium text-slate-400">desenvolvido por Hubye</div>
+          <div className="mt-2 text-center text-[10px] font-medium text-slate-500">desenvolvido por Hubye</div>
         </div>
       </aside>
     </>

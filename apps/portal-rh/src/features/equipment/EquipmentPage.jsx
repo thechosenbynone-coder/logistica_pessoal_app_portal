@@ -55,8 +55,8 @@ export default function EquipmentPage({ employees = [] }) {
       <Card className="p-6 lg:col-span-1">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-lg font-semibold text-slate-900">EPIs e Equipamentos</div>
-            <div className="text-sm text-slate-500">Selecione um colaborador para abrir a ficha.</div>
+            <div className="text-lg font-bold text-slate-100">EPIs e Equipamentos</div>
+            <div className="text-sm text-slate-400">Selecione um colaborador para abrir a ficha.</div>
           </div>
           <HardHat />
         </div>
@@ -77,15 +77,15 @@ export default function EquipmentPage({ employees = [] }) {
                 key={e.id}
                 type="button"
                 className={
-                  'w-full rounded-xl border p-3 text-left hover:bg-slate-50 ' +
-                  (active ? 'border-slate-900' : 'border-slate-200')
+                  'w-full rounded-2xl border p-3 text-left hover:bg-slate-900/70 ' +
+                  (active ? 'border-blue-500/60 bg-blue-500/10' : 'border-slate-700/50 bg-slate-900/40')
                 }
                 onClick={() => setSelectedId(e.id)}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="font-medium text-slate-900">{e.name}</div>
-                    <div className="text-xs text-slate-500">{e.cpf} • {e.role} • {e.hub}</div>
+                    <div className="font-medium text-slate-100">{e.name}</div>
+                    <div className="text-xs font-mono text-slate-400">{e.cpf} • {e.role} • {e.hub}</div>
                   </div>
                   <Badge tone={epiStatus(e) === 'OK' ? 'green' : 'yellow'}>{epiStatus(e)}</Badge>
                 </div>
@@ -93,13 +93,13 @@ export default function EquipmentPage({ employees = [] }) {
             );
           })}
 
-          {filtered.length === 0 && <div className="text-sm text-slate-500">Nenhum colaborador encontrado.</div>}
+          {filtered.length === 0 && <div className="text-sm text-slate-400">Nenhum colaborador encontrado.</div>}
         </div>
       </Card>
 
       <Card className="p-6 lg:col-span-2">
         {!selected ? (
-          <div className="text-sm text-slate-500">Selecione um colaborador para visualizar a ficha.</div>
+          <div className="text-sm text-slate-400">Selecione um colaborador para visualizar a ficha.</div>
         ) : (
           <EmployeeProfile employee={selected} initialTab="equipment" />
         )}

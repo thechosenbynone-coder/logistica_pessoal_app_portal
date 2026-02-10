@@ -32,7 +32,7 @@ const TrendIconFor = (trendType) =>
   trendType === "up" ? ArrowUp : trendType === "down" ? ArrowDown : Minus;
 
 const TrendColorClassFor = (trendType) =>
-  trendType === "up" ? "text-green-600" : trendType === "down" ? "text-red-600" : "text-slate-500";
+  trendType === "up" ? "text-emerald-400" : trendType === "down" ? "text-rose-400" : "text-slate-500";
 
 function DashboardMetricCard({
   value,
@@ -69,14 +69,14 @@ function DashboardMetricCard({
       }
       aria-label={clickable ? `${title}: ${value}` : undefined}
     >
-      <div className="h-full rounded-2xl border border-slate-200 bg-white shadow-sm transition-colors duration-200">
+      <div className="h-full rounded-2xl border border-slate-700/50 bg-slate-900/40 backdrop-blur-md shadow-2xl transition-colors duration-200">
         <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-2">
-          <div className="text-sm font-semibold text-slate-500">{title}</div>
-          {IconComponent ? <IconComponent className="h-4 w-4 text-slate-400" aria-hidden="true" /> : null}
+          <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500">{title}</div>
+          {IconComponent ? <IconComponent className="h-4 w-4 text-blue-400" aria-hidden="true" /> : null}
         </div>
 
         <div className="px-4 pb-4">
-          <div className="text-2xl font-extrabold text-slate-900">{value}</div>
+          <div className="text-2xl font-bold text-slate-100">{value}</div>
 
           <div className="mt-2 flex items-center justify-between gap-3">
             {trendChange ? (
@@ -85,10 +85,10 @@ function DashboardMetricCard({
                 <span className="whitespace-nowrap">{trendChange}</span>
               </div>
             ) : (
-              <div className="text-xs text-slate-400"> </div>
+              <div className="text-xs text-slate-500"> </div>
             )}
 
-            {hint ? <div className="text-xs text-slate-500 truncate">{hint}</div> : null}
+            {hint ? <div className="text-xs font-mono text-slate-400 truncate">{hint}</div> : null}
           </div>
         </div>
       </div>
@@ -98,11 +98,11 @@ function DashboardMetricCard({
 
 function SectionCard({ title, subtitle, children, right }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="rounded-2xl border border-slate-700/50 bg-slate-900/40 backdrop-blur-md shadow-2xl">
       <div className="flex items-start justify-between gap-3 px-5 pt-5">
         <div className="min-w-0">
-          <div className="text-sm font-extrabold text-slate-900">{title}</div>
-          {subtitle ? <div className="mt-1 text-xs text-slate-500">{subtitle}</div> : null}
+          <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500">{title}</div>
+          {subtitle ? <div className="mt-1 text-xs font-mono text-slate-400">{subtitle}</div> : null}
         </div>
         {right ? <div className="shrink-0">{right}</div> : null}
       </div>
@@ -115,12 +115,12 @@ function Pill({ tone = "slate", icon: Icon, label, onClick }) {
   const clickable = typeof onClick === "function";
   const toneCls =
     tone === "red"
-      ? "border-red-200 bg-red-50 text-red-700"
+      ? "border-rose-500/50 bg-rose-500/10 text-rose-300"
       : tone === "amber"
-        ? "border-amber-200 bg-amber-50 text-amber-800"
+        ? "border-amber-500/50 bg-amber-500/10 text-amber-300"
         : tone === "blue"
-          ? "border-blue-200 bg-blue-50 text-blue-700"
-          : "border-slate-200 bg-slate-50 text-slate-700";
+          ? "border-blue-500/50 bg-blue-500/10 text-blue-300"
+          : "border-slate-700 bg-slate-900/70 text-slate-300";
 
   return (
     <button
@@ -142,13 +142,13 @@ function Pill({ tone = "slate", icon: Icon, label, onClick }) {
 function ProgressRow({ label, value, total, tone = "blue" }) {
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
   const barTone =
-    tone === "amber" ? "bg-amber-500" : tone === "red" ? "bg-red-500" : tone === "green" ? "bg-green-500" : "bg-blue-600";
+    tone === "amber" ? "bg-amber-500" : tone === "red" ? "bg-rose-500" : tone === "green" ? "bg-emerald-500" : "bg-blue-500";
 
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-3">
-        <div className="text-xs font-semibold text-slate-700 truncate">{label}</div>
-        <div className="text-xs font-semibold text-slate-600">
+        <div className="text-xs font-mono text-slate-300 truncate">{label}</div>
+        <div className="text-xs font-mono text-slate-400">
           {value} <span className="text-slate-400">({pct}%)</span>
         </div>
       </div>
@@ -333,12 +333,12 @@ export default function DashboardPage({ onNavigate }) {
   const missingTotal = currentData.rdo.missingDays + currentData.os.missingDays;
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="rounded-2xl bg-slate-950 p-6 lg:p-8">
       {/* Cabeçalho do Dashboard (novo) */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="text-2xl font-extrabold text-slate-900">Olá, {firstName || "Usuário"}</div>
-          <div className="text-sm text-slate-500">Qual o plano de hoje?</div>
+          <div className="text-2xl font-bold text-slate-100">Olá, {firstName || "Usuário"}</div>
+          <div className="text-sm text-slate-400">Qual o plano de hoje?</div>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -372,6 +372,7 @@ export default function DashboardPage({ onNavigate }) {
       {/* Cards topo */}
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <DashboardMetricCard
+          className="border-l-4 border-l-blue-500"
           title="HC (Colaboradores)"
           value={`${currentData.hc.total}`}
           icon={Users}
@@ -383,6 +384,7 @@ export default function DashboardPage({ onNavigate }) {
 
         {/* ✅ DOCS em 1 card só */}
         <DashboardMetricCard
+          className="border-l-4 border-l-rose-500"
           title="Documentos - Atenção"
           value={`${docsTotalIssues}`}
           icon={FileText}
@@ -393,6 +395,7 @@ export default function DashboardPage({ onNavigate }) {
 
         {/* ✅ Card que faltou: RDOs aguardando aprovação */}
         <DashboardMetricCard
+          className="border-l-4 border-l-emerald-500"
           title="RDOs aguardando aprovação"
           value={`${currentData.rdo.pendingApproval}`}
           icon={ClipboardCheck}
@@ -402,6 +405,7 @@ export default function DashboardPage({ onNavigate }) {
         />
 
         <DashboardMetricCard
+          className="border-l-4 border-l-blue-500"
           title="OS aguardando aprovação"
           value={`${currentData.os.pendingApproval}`}
           icon={ClipboardCheck}
@@ -414,6 +418,7 @@ export default function DashboardPage({ onNavigate }) {
       {/* Cards operação */}
       <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <DashboardMetricCard
+          className="border-l-4 border-l-rose-500"
           title="Solicitações pendentes"
           value={`${currentData.requests.pendingApprovals}`}
           icon={AlertTriangle}
@@ -425,6 +430,7 @@ export default function DashboardPage({ onNavigate }) {
 
         {/* ✅ EPIs: estoque baixo */}
         <DashboardMetricCard
+          className="border-l-4 border-l-rose-500"
           title="EPIs com estoque baixo"
           value={`${currentData.inventory.epiLowStock}`}
           icon={HardHat}
@@ -435,6 +441,7 @@ export default function DashboardPage({ onNavigate }) {
         />
 
         <DashboardMetricCard
+          className="border-l-4 border-l-blue-500"
           title="Próximos embarques (7 dias)"
           value={`${currentData.requests.upcomingEmbark}`}
           icon={Plane}
@@ -444,6 +451,7 @@ export default function DashboardPage({ onNavigate }) {
         />
 
         <DashboardMetricCard
+          className="border-l-4 border-l-rose-500"
           title="RDO/OS faltando"
           value={`${missingTotal}`}
           icon={ClipboardX}
@@ -460,7 +468,7 @@ export default function DashboardPage({ onNavigate }) {
           title="Colaboradores por plataforma"
           subtitle="Distribuição de HC (mock)"
           right={
-            <button type="button" onClick={() => go("employees")} className="text-xs font-semibold text-blue-700 hover:underline">
+            <button type="button" onClick={() => go("employees")} className="text-xs font-semibold text-blue-400 hover:text-blue-300">
               Ver detalhes
             </button>
           }
@@ -476,7 +484,7 @@ export default function DashboardPage({ onNavigate }) {
           title="Colaboradores por embarcação/plataforma"
           subtitle="Top alocações (mock)"
           right={
-            <button type="button" onClick={() => go("mobility")} className="text-xs font-semibold text-blue-700 hover:underline">
+            <button type="button" onClick={() => go("mobility")} className="text-xs font-semibold text-blue-400 hover:text-blue-300">
               Abrir operação
             </button>
           }
@@ -498,25 +506,25 @@ export default function DashboardPage({ onNavigate }) {
                 className={cn(
                   "flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition",
                   a.tone === "red"
-                    ? "border-red-200 bg-red-50 hover:brightness-[0.98]"
+                    ? "border-rose-500/50 bg-rose-500/10 hover:bg-rose-500/20"
                     : a.tone === "amber"
-                      ? "border-amber-200 bg-amber-50 hover:brightness-[0.98]"
-                      : "border-blue-200 bg-blue-50 hover:brightness-[0.98]"
+                      ? "border-amber-500/50 bg-amber-500/10 hover:bg-amber-500/20"
+                      : "border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/20"
                 )}
               >
-                <div className="text-sm font-semibold text-slate-900">{a.label}</div>
-                <span className="text-xs font-extrabold text-slate-600">Ir</span>
+                <div className="text-sm font-semibold text-slate-100">{a.label}</div>
+                <span className="text-xs font-bold text-blue-300">Ir</span>
               </button>
             ))}
           </div>
 
-          <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
-            <div className="text-xs font-extrabold text-slate-900">Últimas movimentações</div>
+          <div className="mt-4 rounded-xl border border-slate-700/50 bg-slate-900/50 p-4">
+            <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500">Últimas movimentações</div>
             <div className="mt-3 space-y-2">
               {currentData.recentActivity.map((x, i) => (
                 <div key={i} className="flex items-start justify-between gap-3">
-                  <div className="text-xs text-slate-500 shrink-0">{x.ts}</div>
-                  <div className="text-xs font-semibold text-slate-700 text-right">{x.text}</div>
+                  <div className="text-xs font-mono text-slate-500 shrink-0">{x.ts}</div>
+                  <div className="text-xs text-slate-300 text-right">{x.text}</div>
                 </div>
               ))}
             </div>

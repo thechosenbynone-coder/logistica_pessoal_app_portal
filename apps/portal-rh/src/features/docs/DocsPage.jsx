@@ -194,8 +194,8 @@ export default function DocsPage({ onOpenEmployee }) {
       <Card className="p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="text-lg font-semibold text-slate-900">Documentações (Painel de Massa)</div>
-            <div className="text-sm text-slate-500">
+            <div className="text-lg font-bold text-slate-100">Documentações (Painel de Massa)</div>
+            <div className="text-sm text-slate-400">
               Importação e triagem de pendências. Para editar, abra o colaborador.
             </div>
           </div>
@@ -230,28 +230,28 @@ export default function DocsPage({ onOpenEmployee }) {
         <div className="mt-4 flex flex-wrap gap-2">
           <button
             type="button"
-            className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50"
+            className="rounded-full border border-slate-700/60 bg-slate-900/50 px-3 py-1 text-xs text-slate-300 hover:bg-slate-800/60"
             onClick={() => applyFilter('status', 'VENCIDO')}
           >
             Vencidos ({summaryCounts.vencidos})
           </button>
           <button
             type="button"
-            className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50"
+            className="rounded-full border border-slate-700/60 bg-slate-900/50 px-3 py-1 text-xs text-slate-300 hover:bg-slate-800/60"
             onClick={() => applyFilter('status', 'VENCENDO')}
           >
             Vencendo ({summaryCounts.vencendo})
           </button>
           <button
             type="button"
-            className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50"
+            className="rounded-full border border-slate-700/60 bg-slate-900/50 px-3 py-1 text-xs text-slate-300 hover:bg-slate-800/60"
             onClick={() => applyFilter('evidence', 'SEM_EVIDENCIA')}
           >
             Sem evidência ({summaryCounts.semEvidencia})
           </button>
           <button
             type="button"
-            className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50"
+            className="rounded-full border border-slate-700/60 bg-slate-900/50 px-3 py-1 text-xs text-slate-300 hover:bg-slate-800/60"
             onClick={() => applyFilter('evidence', 'PENDENTE_VERIFICACAO')}
           >
             Pendente verificação ({summaryCounts.pendente})
@@ -267,7 +267,7 @@ export default function DocsPage({ onOpenEmployee }) {
             placeholder="Buscar por colaborador, ID ou tipo"
           />
           <select
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+            className="w-full rounded-xl border border-slate-700/60 bg-slate-900/50 px-3 py-2 text-sm text-slate-200 outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/60"
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
           >
@@ -279,7 +279,7 @@ export default function DocsPage({ onOpenEmployee }) {
             ))}
           </select>
           <select
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+            className="w-full rounded-xl border border-slate-700/60 bg-slate-900/50 px-3 py-2 text-sm text-slate-200 outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/60"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
@@ -289,7 +289,7 @@ export default function DocsPage({ onOpenEmployee }) {
             <option value="OK">OK</option>
           </select>
           <select
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+            className="w-full rounded-xl border border-slate-700/60 bg-slate-900/50 px-3 py-2 text-sm text-slate-200 outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/60"
             value={evidenceFilter}
             onChange={(e) => setEvidenceFilter(e.target.value)}
           >
@@ -298,12 +298,12 @@ export default function DocsPage({ onOpenEmployee }) {
             <option value="PENDENTE_VERIFICACAO">Pendente verificação</option>
             <option value="VERIFICADO">Verificado</option>
           </select>
-          <label className="flex items-center gap-2 text-sm text-slate-600">
+          <label className="flex items-center gap-2 text-sm text-slate-300">
             <input
               type="checkbox"
               checked={requiredOnly}
               onChange={(e) => setRequiredOnly(e.target.checked)}
-              className="rounded border-slate-300 text-blue-600 focus:ring-blue-200"
+              className="rounded border-slate-600 bg-slate-900 text-blue-500 focus:ring-blue-500/40"
             />
             Somente obrigatórios
           </label>
@@ -311,7 +311,7 @@ export default function DocsPage({ onOpenEmployee }) {
 
         <div className="mt-4 space-y-2">
           {!colaboradores.length && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            <div className="rounded-xl border border-amber-500/50 bg-amber-500/10 p-3 text-xs text-amber-300">
               Importe colaboradores para exibir nomes completos.
             </div>
           )}
@@ -324,32 +324,32 @@ export default function DocsPage({ onOpenEmployee }) {
             const docType = normalizeDocType(doc.TIPO_DOCUMENTO);
             const isRequired = REQUIRED_DOC_TYPES.includes(docType);
             return (
-              <div key={buildDocKey(doc)} className="rounded-xl border border-slate-200 p-4">
+              <div key={buildDocKey(doc)} className="rounded-2xl border border-slate-700/50 bg-slate-900/30 p-4">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
                   <div className="md:col-span-2">
-                    <div className="text-sm font-semibold text-slate-900">{colabName}</div>
-                    <div className="text-xs text-slate-500">ID {id}</div>
+                    <div className="text-sm font-semibold text-slate-100">{colabName}</div>
+                    <div className="text-xs font-mono text-slate-400">ID {id}</div>
                   </div>
                   <div className="md:col-span-1">
-                    <div className="text-sm font-semibold text-slate-900">{doc.TIPO_DOCUMENTO}</div>
-                    <div className="text-xs text-slate-500">{isRequired ? 'Obrigatório' : 'Opcional'}</div>
+                    <div className="text-sm font-semibold text-slate-100">{doc.TIPO_DOCUMENTO}</div>
+                    <div className="text-xs font-mono text-slate-400">{isRequired ? 'Obrigatório' : 'Opcional'}</div>
                   </div>
                   <div className="md:col-span-1">
-                    <div className="text-xs text-slate-500">Vencimento</div>
-                    <div className="text-sm text-slate-800">{doc.DATA_VENCIMENTO || '—'}</div>
+                    <div className="text-xs font-mono text-slate-400">Vencimento</div>
+                    <div className="text-sm font-mono text-slate-200">{doc.DATA_VENCIMENTO || '—'}</div>
                     <Badge tone={status === 'VENCIDO' ? 'red' : status === 'VENCENDO' ? 'amber' : 'green'}>
                       {status}
                     </Badge>
                   </div>
                   <div className="md:col-span-1">
-                    <div className="text-xs text-slate-500">Evidência</div>
-                    <div className="mt-1 flex items-center gap-2 text-sm text-slate-700">
+                    <div className="text-xs font-mono text-slate-400">Evidência</div>
+                    <div className="mt-1 flex items-center gap-2 text-sm text-slate-300">
                       <Paperclip size={14} />
                       {evidence}
                     </div>
                   </div>
                   <div className="md:col-span-1">
-                    <div className="text-xs text-slate-500">Verificação</div>
+                    <div className="text-xs font-mono text-slate-400">Verificação</div>
                     <Badge tone={doc.VERIFIED ? 'green' : 'gray'}>{doc.VERIFIED ? 'Verificado' : 'Pendente'}</Badge>
                   </div>
                 </div>
@@ -366,7 +366,7 @@ export default function DocsPage({ onOpenEmployee }) {
             );
           })}
           {!filtered.length && (
-            <div className="rounded-xl border border-slate-200 p-4 text-sm text-slate-500">
+            <div className="rounded-2xl border border-slate-700/50 bg-slate-900/30 p-4 text-sm text-slate-400">
               Nenhuma documentação encontrada.
             </div>
           )}

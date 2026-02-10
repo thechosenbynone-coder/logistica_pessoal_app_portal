@@ -6,7 +6,7 @@ import Input from '../../ui/Input';
 import Badge from '../../ui/Badge';
 import { normalizeDigitsOnly } from '../../lib/documentationUtils';
 import { isDemoMode } from '../../services/demoMode';
-import { api } from '../../services/api';
+import api from '../../services/api';
 
 function formatCPF(digits) {
   const d = normalizeDigitsOnly(digits).slice(0, 11);
@@ -87,8 +87,8 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
       <Card className="p-6">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-lg font-semibold text-slate-900">Cadastrar colaborador</div>
-            <div className="text-sm text-slate-500">Escolha o método de cadastro.</div>
+            <div className="text-lg font-bold text-slate-100">Cadastrar colaborador</div>
+            <div className="text-sm text-slate-400">Escolha o método de cadastro.</div>
           </div>
           <UserPlus />
         </div>
@@ -97,12 +97,12 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
           <button
             type="button"
             disabled={true}
-            className="w-full rounded-xl border border-slate-200 p-4 text-left opacity-50 cursor-not-allowed"
+            className="w-full rounded-2xl border border-slate-700/50 bg-slate-900/40 p-4 text-left opacity-50 cursor-not-allowed"
           >
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="font-medium text-slate-900">Inserir via e-CPF</div>
-                <div className="text-sm text-slate-500">Em breve integration Gov.br</div>
+                <div className="font-medium text-slate-100">Inserir via e-CPF</div>
+                <div className="text-sm text-slate-400">Em breve integration Gov.br</div>
               </div>
               <IdCard />
             </div>
@@ -114,12 +114,12 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
               resetMessages();
               setMode('manual');
             }}
-            className="w-full rounded-xl border border-slate-900 p-4 text-left hover:bg-slate-50 transition-colors"
+            className="w-full rounded-2xl border border-blue-500/60 bg-slate-900/40 p-4 text-left hover:bg-slate-900/70 transition-colors"
           >
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="font-medium text-slate-900">Inserir manualmente</div>
-                <div className="text-sm text-slate-500">Cadastro direto no Banco de Dados.</div>
+                <div className="font-medium text-slate-100">Inserir manualmente</div>
+                <div className="text-sm text-slate-400">Cadastro direto no Banco de Dados.</div>
               </div>
               <FileText />
             </div>
@@ -129,41 +129,41 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
           <button
             type="button"
             disabled={true}
-            className="w-full rounded-xl border border-slate-200 p-4 text-left opacity-50 cursor-not-allowed"
+            className="w-full rounded-2xl border border-slate-700/50 bg-slate-900/40 p-4 text-left opacity-50 cursor-not-allowed"
           >
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="font-medium text-slate-900">Inserir via Excel</div>
-                <div className="text-sm text-slate-500">Desativado temporariamente para migração.</div>
+                <div className="font-medium text-slate-100">Inserir via Excel</div>
+                <div className="text-sm text-slate-400">Desativado temporariamente para migração.</div>
               </div>
               <FileSpreadsheet />
             </div>
           </button>
 
           {err && (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{err}</div>
+            <div className="rounded-xl border border-rose-500/50 bg-rose-500/10 p-3 text-sm text-rose-300">{err}</div>
           )}
           {ok && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{ok}</div>
+            <div className="rounded-xl border border-emerald-500/50 bg-emerald-500/10 p-3 text-sm text-emerald-300">{ok}</div>
           )}
         </div>
       </Card>
 
       <Card className="p-6">
         {mode !== 'manual' ? (
-          <div className="text-sm text-slate-500">
+          <div className="text-sm text-slate-400">
             Selecione <Badge tone="gray">Inserir manualmente</Badge> para preencher o cadastro.
           </div>
         ) : (
           <form onSubmit={submitManual} className="space-y-4">
             <div>
-              <div className="text-lg font-semibold text-slate-900">Cadastro manual</div>
-              <div className="text-sm text-slate-500">Os dados serão salvos diretamente no Servidor.</div>
+              <div className="text-lg font-bold text-slate-100">Cadastro manual</div>
+              <div className="text-sm text-slate-400">Os dados serão salvos diretamente no Servidor.</div>
             </div>
 
             <div className="grid grid-cols-1 gap-3">
               <div>
-                <div className="text-sm font-medium text-slate-700">Nome</div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500">Nome</div>
                 <Input
                   value={form.name}
                   onChange={(e) => setField('name', e.target.value)}
@@ -172,7 +172,7 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
                 />
               </div>
               <div>
-                <div className="text-sm font-medium text-slate-700">CPF</div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500">CPF</div>
                 <Input
                   value={form.cpf}
                   onChange={(e) => setField('cpf', e.target.value)}
@@ -181,7 +181,7 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
                 />
               </div>
               <div>
-                <div className="text-sm font-medium text-slate-700">Função</div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500">Função</div>
                 <Input
                   value={form.role}
                   onChange={(e) => setField('role', e.target.value)}
@@ -190,7 +190,7 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
                 />
               </div>
               <div>
-                <div className="text-sm font-medium text-slate-700">Base (terra)</div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500">Base (terra)</div>
                 <Input
                   value={form.base}
                   onChange={(e) => setField('base', e.target.value)}
@@ -199,7 +199,7 @@ export default function CreateEmployeePage({ employees = [], onCreateEmployee })
                 />
               </div>
               <div>
-                <div className="text-sm font-medium text-slate-700">Unidade (plataforma/embarcação)</div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500">Unidade (plataforma/embarcação)</div>
                 <Input
                   value={form.unit}
                   onChange={(e) => setField('unit', e.target.value)}
