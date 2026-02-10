@@ -15,7 +15,7 @@ function withRegistration(path) {
   return url.toString();
 }
 
-export const api = {
+const api = {
   profile: {
     get: async () => fetchJson(withRegistration('/profile'))
   },
@@ -50,3 +50,6 @@ export const api = {
       })
   }
 };
+
+// ESSA LINHA É A QUE RESOLVE O ERRO DO VERCEL
+export default api;
