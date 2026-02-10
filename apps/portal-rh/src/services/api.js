@@ -1,10 +1,9 @@
-// Este código pode variar dependendo das rotas do seu RH, 
-// mas a exportação final DEVE ser assim:
+// apps/portal-rh/src/services/api.js
 
 const api = {
   employees: {
     list: async () => {
-      const res = await fetch('/api/employees'); // ajuste para sua rota real
+      const res = await fetch('/api/employees');
       return res.json();
     },
     create: async (data) => {
@@ -24,5 +23,5 @@ const api = {
   }
 };
 
-// ESSA LINHA É OBRIGATÓRIA
+// EXPORTAÇÃO PADRÃO (ESSENCIAL PARA O VITE/VERCEL)
 export default api;
