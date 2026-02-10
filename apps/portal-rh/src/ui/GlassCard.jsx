@@ -14,13 +14,6 @@ export default function GlassCard({
   return (
     <section
       onClick={onClick}
-      className={cn(
-        className,
-        'rounded-2xl border bg-slate-800/40 backdrop-blur-md shadow-[0_10px_30px_rgba(2,6,23,0.35)] transition duration-200',
-        'border-slate-700/50 text-slate-200',
-        variant === 'alert' && 'border-rose-500/50 bg-rose-900/20',
-        clickable && 'cursor-pointer hover:scale-[1.01] hover:border-slate-600/60'
-      )}
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
       onKeyDown={
@@ -33,14 +26,25 @@ export default function GlassCard({
             }
           : undefined
       }
+      className={cn(
+        'rounded-2xl border border-slate-700/50 bg-slate-900/40 p-5 text-slate-200 backdrop-blur-xl transition duration-200',
+        'shadow-[0_10px_30px_rgba(2,6,23,0.3)]',
+        variant === 'alert' && 'border-rose-500/40 shadow-[0_0_20px_rgba(244,63,94,0.1)]',
+        clickable && 'cursor-pointer hover:scale-[1.01] hover:border-slate-600/60',
+        className
+      )}
     >
       {(title || action) && (
-        <header className="mb-4 flex items-center justify-between gap-3 border-b border-slate-700/50 px-5 pt-4 pb-3">
-          {title ? <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-300">{title}</h3> : <span />}
+        <header className="mb-4 flex items-center justify-between gap-3">
+          {title ? (
+            <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">{title}</h3>
+          ) : (
+            <span />
+          )}
           {action ? <div className="shrink-0">{action}</div> : null}
         </header>
       )}
-      <div className={cn('px-5 pb-5', !(title || action) && 'pt-5')}>{children}</div>
+      {children}
     </section>
   );
 }

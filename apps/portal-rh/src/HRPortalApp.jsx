@@ -24,7 +24,7 @@ export default function HRPortalApp() {
       try {
         const data = await api.employees.list();
         if (isMounted) {
-          setEmployees(data.employees || []);
+          setEmployees(Array.isArray(data) ? data : data.employees || []);
         }
       } catch (err) {
         console.error('Failed to load employees', err);
