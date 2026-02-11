@@ -1,46 +1,32 @@
-// apps/portal-rh/src/services/api.js
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+import axios from 'axios';
 
-async function monitoredFetch(url, options) {
-  console.log('📡 Chamando API:', url);
-  let res;
+const apiInstance = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || 'https://sua-api-no-render.onrender.com',
+});
 
-  try {
-    res = await fetch(url, options);
-    return res;
-  } catch (err) {
-    console.error('❌ FALHA NA API:', {
-      status: res?.status,
-      url: res?.url || url,
-      error: err
-    });
-    throw err;
-  }
-}
+// Interceptor para Log (Patch 3: Observabilidade)
+apiInstance.interceptors.request.use(request => {
+  console.log('🚀 API Request:', request.method.toUpperCase(), request.url);
+  return request;
+});
 
 const api = {
-  employees: {
-    list: async () => {
-      const res = await monitoredFetch(`${API_URL}/employees`);
-      if (!res.ok) throw new Error('Erro ao listar funcionários');
-      return res.json();
-    },
-    create: async (data) => {
-      const res = await monitoredFetch(`${API_URL}/employees`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      if (!res.ok) throw new Error('Erro ao criar funcionário');
-      return res.json();
+  dashboard: {
+    // Renomeado de getMetrics para get para sanar o TypeError
+    get: async () => {
+      try {
+        const response = await apiInstance.get('/dashboard/metrics');
+        return response.data;
+      } catch (error) {
+        console.error('❌ Erro ao buscar métricas:', error);
+        throw error;
+      }
     }
   },
-  dashboard: {
-    getMetrics: async () => {
-      const res = await monitoredFetch(`${API_URL}/dashboard/metrics`);
-      return res.json();
-    }
+  employees: {
+    list: () => apiInstance.get('/employees'),
+    create: (data) => apiInstance.post('/employees', data),
   }
 };
 
-export default api;
+export default api; // Garante que o 'rr' no erro do Vercel encontre o objeto
