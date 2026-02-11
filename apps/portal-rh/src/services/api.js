@@ -74,16 +74,59 @@ const apiService = {
     create: async (data) => (await api.post('/checkins', data)).data,
   },
   expenses: {
-    list: async () => (await api.get('/expenses')).data,
-    create: async (data) => (await api.post('/expenses', data)).data,
+    list: async () => (await api.get('/financial-requests?type=Reembolso')).data,
+    create: async (data) => (await api.post('/financial-requests', { ...data, type: 'Reembolso' })).data,
   },
   advances: {
-    list: async () => (await api.get('/advances')).data,
-    create: async (data) => (await api.post('/advances', data)).data,
+    list: async () => (await api.get('/financial-requests?type=Adiantamento')).data,
+    create: async (data) => (await api.post('/financial-requests', { ...data, type: 'Adiantamento' })).data,
   },
   profile: {
     get: async (reg) => (await api.get(`/profile?registration=${reg}`)).data,
   },
+  vessels: {
+    list: async () => (await api.get('/vessels')).data,
+    create: async (data) => (await api.post('/vessels', data)).data,
+  },
+  documentTypes: {
+    list: async () => (await api.get('/document-types')).data,
+    create: async (data) => (await api.post('/document-types', data)).data,
+  },
+  documents: {
+    list: async () => (await api.get('/documents')).data,
+    create: async (data) => (await api.post('/documents', data)).data,
+    listByEmployee: async (employeeId) => (await api.get(`/employees/${employeeId}/documents`)).data,
+  },
+  deployments: {
+    list: async () => (await api.get('/deployments')).data,
+    create: async (data) => (await api.post('/deployments', data)).data,
+    listByEmployee: async (employeeId) => (await api.get(`/employees/${employeeId}/deployments`)).data,
+  },
+  epiCatalog: {
+    list: async () => (await api.get('/epi/catalog')).data,
+    create: async (data) => (await api.post('/epi/catalog', data)).data,
+  },
+  epiDeliveries: {
+    list: async () => (await api.get('/epi/deliveries')).data,
+    create: async (data) => (await api.post('/epi/deliveries', data)).data,
+    listByEmployee: async (employeeId) => (await api.get(`/employees/${employeeId}/epi-deliveries`)).data,
+  },
+  dailyReports: {
+    list: async () => (await api.get('/daily-reports')).data,
+    create: async (data) => (await api.post('/daily-reports', data)).data,
+  },
+  serviceOrders: {
+    list: async () => (await api.get('/service-orders')).data,
+    create: async (data) => (await api.post('/service-orders', data)).data,
+  },
+  financialRequests: {
+    list: async () => (await api.get('/financial-requests')).data,
+    create: async (data) => (await api.post('/financial-requests', data)).data,
+  },
 };
+
+apiService.client = api;
+
+export const apiClient = api;
 
 export default apiService;
