@@ -1,25 +1,20 @@
 {
-  "name": "employee-logistics-server",
-  "private": true,
+  "name": "logistica-api",
+  "version": "1.0.0",
+  "description": "API Backend para Portal RH Offshore",
+  "main": "server.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon src/index.js",
-    "start": "node src/index.js",
-    "migrate": "prisma migrate dev",
-    "seed": "node prisma/seed.js",
-    "prisma:generate": "prisma generate",
-    "migrate:deploy": "prisma migrate deploy",
-    "postinstall": "prisma generate"
+    "start": "node server.js",
+    "dev": "node --watch server.js"
   },
   "dependencies": {
-    "@prisma/client": "5.10.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "pg": "^8.13.1"
+    "express": "^4.21.0",
+    "pg": "^8.13.0"
   },
-  "devDependencies": {
-    "nodemon": "^3.1.4",
-    "prisma": "5.10.2"
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
