@@ -2,10 +2,7 @@ import axios from 'axios';
 
 const baseURL =
   (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) ||
-  (typeof process !== 'undefined' &&
-    process.env &&
-    (process.env.REACT_APP_API_URL || process.env.NEXT_PUBLIC_API_URL)) ||
-  'https://sua-api-no-render.onrender.com';
+  'https://logistica-api-v1bk.onrender.com/api';
 
 const isProd =
   (typeof import.meta !== 'undefined' &&
@@ -71,6 +68,21 @@ const apiService = {
   employees: {
     list: async () => (await api.get('/employees')).data,
     create: async (data) => (await api.post('/employees', data)).data,
+  },
+  checkins: {
+    list: async () => (await api.get('/checkins')).data,
+    create: async (data) => (await api.post('/checkins', data)).data,
+  },
+  expenses: {
+    list: async () => (await api.get('/expenses')).data,
+    create: async (data) => (await api.post('/expenses', data)).data,
+  },
+  advances: {
+    list: async () => (await api.get('/advances')).data,
+    create: async (data) => (await api.post('/advances', data)).data,
+  },
+  profile: {
+    get: async (reg) => (await api.get(`/profile?registration=${reg}`)).data,
   },
 };
 
