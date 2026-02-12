@@ -41,7 +41,7 @@ export default function EmployeeProfile({ employee, initialTab = 'overview' }) {
     () => [
       { key: 'overview', label: 'Abrir Perfil', icon: UserCircle2 },
       { key: 'equipment', label: 'EPIs e Equipamentos', icon: HardHat },
-      { key: 'docs', label: 'Documentação', icon: FileText },
+      { key: 'docs', label: 'Documentações', icon: FileText },
       { key: 'requests', label: 'Solicitações', icon: ClipboardList },
       { key: 'mobility', label: 'Escala e Embarque', icon: Truck },
       { key: 'finance', label: 'Financeiro', icon: Wallet }
