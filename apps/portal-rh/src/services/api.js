@@ -11,7 +11,6 @@ const isProd =
 
 const api = axios.create({ baseURL });
 
-
 function normalizeListResponse(data) {
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.items)) return data.items;
@@ -42,7 +41,8 @@ api.interceptors.request.use(
 
 api.interceptors.response.use(
   (response) => {
-    const method = response.config?.metadata?.method || (response.config?.method || 'GET').toUpperCase();
+    const method =
+      response.config?.metadata?.method || (response.config?.method || 'GET').toUpperCase();
     const url = response.config?.url || '';
     const status = response.status;
     const start = response.config?.metadata?.startTime ?? Date.now();
@@ -81,11 +81,13 @@ const apiService = {
   },
   expenses: {
     list: async () => (await api.get('/financial-requests?type=Reembolso')).data,
-    create: async (data) => (await api.post('/financial-requests', { ...data, type: 'Reembolso' })).data,
+    create: async (data) =>
+      (await api.post('/financial-requests', { ...data, type: 'Reembolso' })).data,
   },
   advances: {
     list: async () => (await api.get('/financial-requests?type=Adiantamento')).data,
-    create: async (data) => (await api.post('/financial-requests', { ...data, type: 'Adiantamento' })).data,
+    create: async (data) =>
+      (await api.post('/financial-requests', { ...data, type: 'Adiantamento' })).data,
   },
   profile: {
     get: async (reg) => (await api.get(`/profile?registration=${reg}`)).data,
@@ -104,21 +106,24 @@ const apiService = {
   documents: {
     list: async () => (await api.get('/documents')).data,
     create: async (data) => (await api.post('/documents', data)).data,
-    listByEmployee: async (employeeId) => (await api.get(`/employees/${employeeId}/documents`)).data,
+    listByEmployee: async (employeeId) =>
+      (await api.get(`/employees/${employeeId}/documents`)).data,
   },
   deployments: {
     list: async () => (await api.get('/deployments')).data,
     create: async (data) => (await api.post('/deployments', data)).data,
-    listByEmployee: async (employeeId) => (await api.get(`/employees/${employeeId}/deployments`)).data,
+    listByEmployee: async (employeeId) =>
+      (await api.get(`/employees/${employeeId}/deployments`)).data,
   },
   epiCatalog: {
-    list: async () => (await api.get('/epi/catalog')).data,
+    list: async () => normalizeListResponse((await api.get('/epi/catalog')).data),
     create: async (data) => (await api.post('/epi/catalog', data)).data,
   },
   epiDeliveries: {
-    list: async () => (await api.get('/epi/deliveries')).data,
+    list: async () => normalizeListResponse((await api.get('/epi/deliveries')).data),
     create: async (data) => (await api.post('/epi/deliveries', data)).data,
-    listByEmployee: async (employeeId) => (await api.get(`/employees/${employeeId}/epi-deliveries`)).data,
+    listByEmployee: async (employeeId) =>
+      normalizeListResponse((await api.get(`/employees/${employeeId}/epi-deliveries`)).data),
   },
   dailyReports: {
     list: async () => (await api.get('/daily-reports')).data,

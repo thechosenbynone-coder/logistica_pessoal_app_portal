@@ -31,7 +31,8 @@ const handleServerError = (res, error, context) => {
 const pickData = (body, allowedKeys) => {
   const out = {};
   for (const k of allowedKeys) {
-    if (body && Object.prototype.hasOwnProperty.call(body, k) && body[k] !== undefined) out[k] = body[k];
+    if (body && Object.prototype.hasOwnProperty.call(body, k) && body[k] !== undefined)
+      out[k] = body[k];
   }
   return out;
 };
@@ -46,7 +47,139 @@ const createInsertQuery = (table, data) => {
 
 const normalizeCPF = (cpf) => String(cpf || '').replace(/\D/g, '');
 
+const parseOptionalInteger = (value, fieldName) => {
+  if (value === undefined || value === null || value === '') return undefined;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return { error: `${fieldName} deve ser um número válido` };
+  }
+  return { value: Math.trunc(parsed) };
+};
+
+const parseOptionalBoolean = (value, fieldName) => {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (typeof value === 'boolean') return { value };
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') return { value: true };
+    if (normalized === 'false') return { value: false };
+  }
+  return { error: `${fieldName} deve ser boolean (true/false)` };
+};
+
+async function ensureEpiCatalogSchema() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS epi_catalog (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        code TEXT,
+        ca TEXT,
+        unit TEXT,
+        stock_qty INTEGER NOT NULL DEFAULT 0,
+        min_stock INTEGER NOT NULL DEFAULT 0,
+        active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await pool.query(`ALTER TABLE epi_catalog ADD COLUMN IF NOT EXISTS code TEXT`);
+    await pool.query(`ALTER TABLE epi_catalog ADD COLUMN IF NOT EXISTS ca TEXT`);
+    await pool.query(`ALTER TABLE epi_catalog ADD COLUMN IF NOT EXISTS unit TEXT`);
+    await pool.query(`ALTER TABLE epi_catalog ADD COLUMN IF NOT EXISTS stock_qty INTEGER`);
+    await pool.query(`ALTER TABLE epi_catalog ADD COLUMN IF NOT EXISTS min_stock INTEGER`);
+    await pool.query(`ALTER TABLE epi_catalog ADD COLUMN IF NOT EXISTS active BOOLEAN`);
+    await pool.query(`ALTER TABLE epi_catalog ADD COLUMN IF NOT EXISTS created_at TIMESTAMP`);
+    await pool.query(`ALTER TABLE epi_catalog ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP`);
+
+    await pool.query(`UPDATE epi_catalog SET stock_qty = 0 WHERE stock_qty IS NULL`);
+    await pool.query(`UPDATE epi_catalog SET min_stock = 0 WHERE min_stock IS NULL`);
+    await pool.query(`UPDATE epi_catalog SET active = TRUE WHERE active IS NULL`);
+    await pool.query(`UPDATE epi_catalog SET created_at = NOW() WHERE created_at IS NULL`);
+    await pool.query(`UPDATE epi_catalog SET updated_at = NOW() WHERE updated_at IS NULL`);
+
+    await pool.query(`ALTER TABLE epi_catalog ALTER COLUMN stock_qty SET DEFAULT 0`);
+    await pool.query(`ALTER TABLE epi_catalog ALTER COLUMN min_stock SET DEFAULT 0`);
+    await pool.query(`ALTER TABLE epi_catalog ALTER COLUMN active SET DEFAULT TRUE`);
+    await pool.query(`ALTER TABLE epi_catalog ALTER COLUMN created_at SET DEFAULT NOW()`);
+    await pool.query(`ALTER TABLE epi_catalog ALTER COLUMN updated_at SET DEFAULT NOW()`);
+    await pool.query(`ALTER TABLE epi_catalog ALTER COLUMN stock_qty SET NOT NULL`);
+    await pool.query(`ALTER TABLE epi_catalog ALTER COLUMN min_stock SET NOT NULL`);
+    await pool.query(`ALTER TABLE epi_catalog ALTER COLUMN active SET NOT NULL`);
+    await pool.query(`ALTER TABLE epi_catalog ALTER COLUMN created_at SET NOT NULL`);
+    await pool.query(`ALTER TABLE epi_catalog ALTER COLUMN updated_at SET NOT NULL`);
+
+    console.log('[BOOT] epi_catalog schema pronto');
+  } catch (error) {
+    console.error('[BOOT] falha ao ajustar schema de epi_catalog:', error?.stack || error);
+    throw error;
+  }
+}
+
+async function ensureEpiDeliveriesSchema() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS epi_deliveries (
+        id SERIAL PRIMARY KEY,
+        employee_id INTEGER NOT NULL,
+        epi_item_id INTEGER NOT NULL,
+        delivery_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        quantity INTEGER NOT NULL DEFAULT 1,
+        signature_url TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await pool.query(`ALTER TABLE epi_deliveries ADD COLUMN IF NOT EXISTS delivery_date DATE`);
+    await pool.query(`ALTER TABLE epi_deliveries ADD COLUMN IF NOT EXISTS quantity INTEGER`);
+    await pool.query(`ALTER TABLE epi_deliveries ADD COLUMN IF NOT EXISTS signature_url TEXT`);
+    await pool.query(`ALTER TABLE epi_deliveries ADD COLUMN IF NOT EXISTS created_at TIMESTAMP`);
+    await pool.query(`ALTER TABLE epi_deliveries ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP`);
+
+    await pool.query(
+      `UPDATE epi_deliveries SET delivery_date = CURRENT_DATE WHERE delivery_date IS NULL`
+    );
+    await pool.query(`UPDATE epi_deliveries SET quantity = 1 WHERE quantity IS NULL`);
+    await pool.query(`UPDATE epi_deliveries SET created_at = NOW() WHERE created_at IS NULL`);
+    await pool.query(`UPDATE epi_deliveries SET updated_at = NOW() WHERE updated_at IS NULL`);
+
+    await pool.query(
+      `ALTER TABLE epi_deliveries ALTER COLUMN delivery_date SET DEFAULT CURRENT_DATE`
+    );
+    await pool.query(`ALTER TABLE epi_deliveries ALTER COLUMN quantity SET DEFAULT 1`);
+    await pool.query(`ALTER TABLE epi_deliveries ALTER COLUMN created_at SET DEFAULT NOW()`);
+    await pool.query(`ALTER TABLE epi_deliveries ALTER COLUMN updated_at SET DEFAULT NOW()`);
+    await pool.query(`ALTER TABLE epi_deliveries ALTER COLUMN delivery_date SET NOT NULL`);
+    await pool.query(`ALTER TABLE epi_deliveries ALTER COLUMN quantity SET NOT NULL`);
+    await pool.query(`ALTER TABLE epi_deliveries ALTER COLUMN created_at SET NOT NULL`);
+    await pool.query(`ALTER TABLE epi_deliveries ALTER COLUMN updated_at SET NOT NULL`);
+
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_epi_deliveries_employee_id ON epi_deliveries (employee_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_epi_deliveries_epi_item_id ON epi_deliveries (epi_item_id)`
+    );
+
+    console.log('[BOOT] epi_deliveries schema pronto');
+  } catch (error) {
+    console.error('[BOOT] falha ao ajustar schema de epi_deliveries:', error?.stack || error);
+    throw error;
+  }
+}
+
 app.get('/api/health', async (_req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ status: 'ok', database: 'connected' });
+  } catch (error) {
+    handleServerError(res, error, 'health-check');
+  }
+});
+
+app.get('/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
     res.json({ status: 'ok', database: 'connected' });
@@ -74,9 +207,18 @@ app.get('/api/employees', async (_req, res) => {
 app.post('/api/employees', async (req, res) => {
   try {
     const data = pickData(req.body, ['name', 'cpf', 'role', 'email', 'phone', 'base']);
-    if (!data.name) return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'Campo name é obrigatório' });
-    if (!data.role) return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'Campo role é obrigatório' });
-    if (!data.cpf) return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'Campo cpf é obrigatório' });
+    if (!data.name)
+      return res
+        .status(400)
+        .json({ errorCode: 'VALIDATION_ERROR', message: 'Campo name é obrigatório' });
+    if (!data.role)
+      return res
+        .status(400)
+        .json({ errorCode: 'VALIDATION_ERROR', message: 'Campo role é obrigatório' });
+    if (!data.cpf)
+      return res
+        .status(400)
+        .json({ errorCode: 'VALIDATION_ERROR', message: 'Campo cpf é obrigatório' });
 
     data.cpf = normalizeCPF(data.cpf); // armazena normalizado
     const q = createInsertQuery('employees', data);
@@ -135,7 +277,10 @@ app.get('/api/vessels', async (_req, res) => {
 app.post('/api/vessels', async (req, res) => {
   try {
     const data = pickData(req.body, ['name', 'type', 'client']);
-    if (!data.name || !data.type) return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'name e type são obrigatórios' });
+    if (!data.name || !data.type)
+      return res
+        .status(400)
+        .json({ errorCode: 'VALIDATION_ERROR', message: 'name e type são obrigatórios' });
     const result = await pool.query(createInsertQuery('vessels', data));
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -148,7 +293,9 @@ app.post('/api/vessels', async (req, res) => {
 ========================= */
 app.get('/api/document-types', async (_req, res) => {
   try {
-    const result = await pool.query('SELECT id, code, name, category, requires_expiration FROM document_types ORDER BY id ASC');
+    const result = await pool.query(
+      'SELECT id, code, name, category, requires_expiration FROM document_types ORDER BY id ASC'
+    );
     res.json(result.rows);
   } catch (error) {
     handleServerError(res, error, 'document-types-list');
@@ -158,7 +305,10 @@ app.get('/api/document-types', async (_req, res) => {
 app.post('/api/document-types', async (req, res) => {
   try {
     const data = pickData(req.body, ['code', 'name', 'category', 'requires_expiration']);
-    if (!data.code || !data.name) return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'code e name são obrigatórios' });
+    if (!data.code || !data.name)
+      return res
+        .status(400)
+        .json({ errorCode: 'VALIDATION_ERROR', message: 'code e name são obrigatórios' });
     const result = await pool.query(createInsertQuery('document_types', data));
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -202,9 +352,18 @@ app.get('/api/employees/:id/documents', async (req, res) => {
 
 app.post('/api/documents', async (req, res) => {
   try {
-    const data = pickData(req.body, ['employee_id', 'document_type_id', 'issue_date', 'expiration_date', 'file_url']);
+    const data = pickData(req.body, [
+      'employee_id',
+      'document_type_id',
+      'issue_date',
+      'expiration_date',
+      'file_url',
+    ]);
     if (!data.employee_id || !data.document_type_id || !data.issue_date) {
-      return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'employee_id, document_type_id, issue_date são obrigatórios' });
+      return res.status(400).json({
+        errorCode: 'VALIDATION_ERROR',
+        message: 'employee_id, document_type_id, issue_date são obrigatórios',
+      });
     }
     const result = await pool.query(createInsertQuery('documents', data));
     res.status(201).json(result.rows[0]);
@@ -228,7 +387,10 @@ app.get('/api/deployments', async (_req, res) => {
 app.get('/api/employees/:id/deployments', async (req, res) => {
   try {
     const employeeId = Number(req.params.id);
-    const result = await pool.query('SELECT * FROM deployments WHERE employee_id = $1 ORDER BY id ASC', [employeeId]);
+    const result = await pool.query(
+      'SELECT * FROM deployments WHERE employee_id = $1 ORDER BY id ASC',
+      [employeeId]
+    );
     res.json(result.rows);
   } catch (error) {
     handleServerError(res, error, 'deployments-by-employee');
@@ -237,9 +399,19 @@ app.get('/api/employees/:id/deployments', async (req, res) => {
 
 app.post('/api/deployments', async (req, res) => {
   try {
-    const data = pickData(req.body, ['employee_id', 'vessel_id', 'start_date', 'end_date_expected', 'end_date_actual', 'notes']);
+    const data = pickData(req.body, [
+      'employee_id',
+      'vessel_id',
+      'start_date',
+      'end_date_expected',
+      'end_date_actual',
+      'notes',
+    ]);
     if (!data.employee_id || !data.start_date || !data.end_date_expected) {
-      return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'employee_id, start_date, end_date_expected são obrigatórios' });
+      return res.status(400).json({
+        errorCode: 'VALIDATION_ERROR',
+        message: 'employee_id, start_date, end_date_expected são obrigatórios',
+      });
     }
     const result = await pool.query(createInsertQuery('deployments', data));
     res.status(201).json(result.rows[0]);
@@ -253,7 +425,9 @@ app.post('/api/deployments', async (req, res) => {
 ========================= */
 app.get('/api/epi/catalog', async (_req, res) => {
   try {
-    const result = await pool.query('SELECT id, name, description, category FROM epi_catalog ORDER BY id ASC');
+    const result = await pool.query(
+      'SELECT id, name, code, ca, unit, stock_qty, min_stock, active, created_at, updated_at FROM epi_catalog ORDER BY id ASC'
+    );
     res.json(result.rows);
   } catch (error) {
     handleServerError(res, error, 'epi-catalog-list');
@@ -262,8 +436,42 @@ app.get('/api/epi/catalog', async (_req, res) => {
 
 app.post('/api/epi/catalog', async (req, res) => {
   try {
-    const data = pickData(req.body, ['name', 'description', 'category']);
-    if (!data.name) return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'name é obrigatório' });
+    const data = pickData(req.body, [
+      'name',
+      'code',
+      'ca',
+      'unit',
+      'stock_qty',
+      'min_stock',
+      'active',
+    ]);
+    if (!data.name)
+      return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'name é obrigatório' });
+
+    const parsedStockQty = parseOptionalInteger(data.stock_qty, 'stock_qty');
+    if (parsedStockQty?.error) {
+      return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: parsedStockQty.error });
+    }
+    if (parsedStockQty) {
+      data.stock_qty = parsedStockQty.value;
+    }
+
+    const parsedMinStock = parseOptionalInteger(data.min_stock, 'min_stock');
+    if (parsedMinStock?.error) {
+      return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: parsedMinStock.error });
+    }
+    if (parsedMinStock) {
+      data.min_stock = parsedMinStock.value;
+    }
+
+    const parsedActive = parseOptionalBoolean(data.active, 'active');
+    if (parsedActive?.error) {
+      return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: parsedActive.error });
+    }
+    if (parsedActive) {
+      data.active = parsedActive.value;
+    }
+
     const result = await pool.query(createInsertQuery('epi_catalog', data));
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -283,7 +491,10 @@ app.get('/api/epi/deliveries', async (_req, res) => {
 app.get('/api/employees/:id/epi-deliveries', async (req, res) => {
   try {
     const employeeId = Number(req.params.id);
-    const result = await pool.query('SELECT * FROM epi_deliveries WHERE employee_id = $1 ORDER BY id ASC', [employeeId]);
+    const result = await pool.query(
+      'SELECT * FROM epi_deliveries WHERE employee_id = $1 ORDER BY id ASC',
+      [employeeId]
+    );
     res.json(result.rows);
   } catch (error) {
     handleServerError(res, error, 'epi-deliveries-by-employee');
@@ -292,9 +503,18 @@ app.get('/api/employees/:id/epi-deliveries', async (req, res) => {
 
 app.post('/api/epi/deliveries', async (req, res) => {
   try {
-    const data = pickData(req.body, ['employee_id', 'epi_item_id', 'delivery_date', 'quantity', 'signature_url']);
+    const data = pickData(req.body, [
+      'employee_id',
+      'epi_item_id',
+      'delivery_date',
+      'quantity',
+      'signature_url',
+    ]);
     if (!data.employee_id || !data.epi_item_id) {
-      return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'employee_id e epi_item_id são obrigatórios' });
+      return res.status(400).json({
+        errorCode: 'VALIDATION_ERROR',
+        message: 'employee_id e epi_item_id são obrigatórios',
+      });
     }
     const result = await pool.query(createInsertQuery('epi_deliveries', data));
     res.status(201).json(result.rows[0]);
@@ -317,9 +537,19 @@ app.get('/api/daily-reports', async (_req, res) => {
 
 app.post('/api/daily-reports', async (req, res) => {
   try {
-    const data = pickData(req.body, ['employee_id', 'report_date', 'description', 'hours_worked', 'approval_status', 'approved_by']);
+    const data = pickData(req.body, [
+      'employee_id',
+      'report_date',
+      'description',
+      'hours_worked',
+      'approval_status',
+      'approved_by',
+    ]);
     if (!data.employee_id || !data.description) {
-      return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'employee_id e description são obrigatórios' });
+      return res.status(400).json({
+        errorCode: 'VALIDATION_ERROR',
+        message: 'employee_id e description são obrigatórios',
+      });
     }
     const result = await pool.query(createInsertQuery('daily_reports', data));
     res.status(201).json(result.rows[0]);
@@ -344,7 +574,10 @@ app.post('/api/service-orders', async (req, res) => {
   try {
     const data = pickData(req.body, ['os_number', 'description', 'vessel_id', 'status']);
     if (!data.os_number || !data.description) {
-      return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'os_number e description são obrigatórios' });
+      return res.status(400).json({
+        errorCode: 'VALIDATION_ERROR',
+        message: 'os_number e description são obrigatórios',
+      });
     }
     const result = await pool.query(createInsertQuery('service_orders', data));
     res.status(201).json(result.rows[0]);
@@ -360,7 +593,10 @@ app.get('/api/financial-requests', async (req, res) => {
   try {
     const { type } = req.query;
     if (type) {
-      const result = await pool.query('SELECT * FROM financial_requests WHERE type = $1 ORDER BY id ASC', [type]);
+      const result = await pool.query(
+        'SELECT * FROM financial_requests WHERE type = $1 ORDER BY id ASC',
+        [type]
+      );
       return res.json(result.rows);
     }
     const result = await pool.query('SELECT * FROM financial_requests ORDER BY id ASC');
@@ -374,7 +610,10 @@ app.post('/api/financial-requests', async (req, res) => {
   try {
     const data = pickData(req.body, ['employee_id', 'type', 'amount', 'description', 'status']);
     if (!data.employee_id || !data.type || data.amount === undefined) {
-      return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'employee_id, type e amount são obrigatórios' });
+      return res.status(400).json({
+        errorCode: 'VALIDATION_ERROR',
+        message: 'employee_id, type e amount são obrigatórios',
+      });
     }
     const result = await pool.query(createInsertQuery('financial_requests', data));
     res.status(201).json(result.rows[0]);
@@ -393,6 +632,15 @@ app.get('/api/profile', (_req, res) => res.json({}));
 
 app.get('/', (_req, res) => res.send('API Logística Offshore - Online 🚀'));
 
-app.listen(port, () => {
-  console.log(`API rodando na porta ${port}`);
+const bootstrap = async () => {
+  await ensureEpiCatalogSchema();
+  await ensureEpiDeliveriesSchema();
+  app.listen(port, () => {
+    console.log(`API rodando na porta ${port}`);
+  });
+};
+
+bootstrap().catch((error) => {
+  console.error('[BOOT] erro fatal ao iniciar API:', error?.stack || error);
+  process.exit(1);
 });
