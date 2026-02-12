@@ -67,6 +67,143 @@ const parseOptionalBoolean = (value, fieldName) => {
   return { error: `${fieldName} deve ser boolean (true/false)` };
 };
 
+const parseRequiredInteger = (value, fieldName) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return { error: `${fieldName} deve ser um número válido` };
+  }
+  return { value: Math.trunc(parsed) };
+};
+
+const isValidDateString = (value) => {
+  if (!value) return false;
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime());
+};
+
+async function ensureDocumentationSchema() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS document_types (
+        id SERIAL PRIMARY KEY,
+        code TEXT UNIQUE,
+        name TEXT NOT NULL,
+        category TEXT,
+        requires_expiration BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await pool.query(`ALTER TABLE document_types ADD COLUMN IF NOT EXISTS code TEXT`);
+    await pool.query(`ALTER TABLE document_types ADD COLUMN IF NOT EXISTS name TEXT`);
+    await pool.query(`ALTER TABLE document_types ADD COLUMN IF NOT EXISTS category TEXT`);
+    await pool.query(
+      `ALTER TABLE document_types ADD COLUMN IF NOT EXISTS requires_expiration BOOLEAN`
+    );
+    await pool.query(`ALTER TABLE document_types ADD COLUMN IF NOT EXISTS created_at TIMESTAMP`);
+    await pool.query(`ALTER TABLE document_types ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP`);
+
+    await pool.query(
+      `UPDATE document_types SET requires_expiration = TRUE WHERE requires_expiration IS NULL`
+    );
+    await pool.query(`UPDATE document_types SET created_at = NOW() WHERE created_at IS NULL`);
+    await pool.query(`UPDATE document_types SET updated_at = NOW() WHERE updated_at IS NULL`);
+
+    await pool.query(
+      `ALTER TABLE document_types ALTER COLUMN requires_expiration SET DEFAULT TRUE`
+    );
+    await pool.query(`ALTER TABLE document_types ALTER COLUMN created_at SET DEFAULT NOW()`);
+    await pool.query(`ALTER TABLE document_types ALTER COLUMN updated_at SET DEFAULT NOW()`);
+    await pool.query(`ALTER TABLE document_types ALTER COLUMN requires_expiration SET NOT NULL`);
+    await pool.query(`ALTER TABLE document_types ALTER COLUMN created_at SET NOT NULL`);
+    await pool.query(`ALTER TABLE document_types ALTER COLUMN updated_at SET NOT NULL`);
+    await pool.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_document_types_code ON document_types (code)`
+    );
+
+    await pool.query(`
+      INSERT INTO document_types (code, name, category, requires_expiration)
+      VALUES
+        ('ASO', 'ASO', 'Médico', TRUE),
+        ('CBSP', 'CBSP', 'Treinamento', TRUE),
+        ('HUET', 'HUET', 'Treinamento', TRUE),
+        ('NR-33', 'NR-33', 'NR', TRUE),
+        ('NR-35', 'NR-35', 'NR', TRUE),
+        ('NR-37', 'NR-37', 'NR', TRUE)
+      ON CONFLICT (code) DO NOTHING
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS documents (
+        id SERIAL PRIMARY KEY,
+        employee_id INTEGER NOT NULL,
+        document_type_id INTEGER NOT NULL,
+        issue_date DATE NOT NULL,
+        expiration_date DATE,
+        file_url TEXT,
+        evidence_type TEXT,
+        evidence_ref TEXT,
+        notes TEXT,
+        verified BOOLEAN NOT NULL DEFAULT FALSE,
+        verified_by TEXT,
+        verified_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await pool.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS employee_id INTEGER`);
+    await pool.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS document_type_id INTEGER`);
+    await pool.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS issue_date DATE`);
+    await pool.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS expiration_date DATE`);
+    await pool.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_url TEXT`);
+    await pool.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS evidence_type TEXT`);
+    await pool.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS evidence_ref TEXT`);
+    await pool.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS notes TEXT`);
+    await pool.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS verified BOOLEAN`);
+    await pool.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS verified_by TEXT`);
+    await pool.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP`);
+    await pool.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS created_at TIMESTAMP`);
+    await pool.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP`);
+
+    await pool.query(`UPDATE documents SET verified = FALSE WHERE verified IS NULL`);
+    await pool.query(`UPDATE documents SET created_at = NOW() WHERE created_at IS NULL`);
+    await pool.query(`UPDATE documents SET updated_at = NOW() WHERE updated_at IS NULL`);
+
+    await pool.query(`ALTER TABLE documents ALTER COLUMN verified SET DEFAULT FALSE`);
+    await pool.query(`ALTER TABLE documents ALTER COLUMN verified SET NOT NULL`);
+    await pool.query(`ALTER TABLE documents ALTER COLUMN created_at SET DEFAULT NOW()`);
+    await pool.query(`ALTER TABLE documents ALTER COLUMN updated_at SET DEFAULT NOW()`);
+    await pool.query(`ALTER TABLE documents ALTER COLUMN created_at SET NOT NULL`);
+    await pool.query(`ALTER TABLE documents ALTER COLUMN updated_at SET NOT NULL`);
+
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_documents_employee_id ON documents (employee_id)`);
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_documents_document_type_id ON documents (document_type_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_documents_expiration_date ON documents (expiration_date)`
+    );
+    await pool.query(`
+      DELETE FROM documents a
+      USING documents b
+      WHERE a.id < b.id
+        AND a.employee_id = b.employee_id
+        AND a.document_type_id = b.document_type_id
+    `);
+    await pool.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_employee_document_type_unique ON documents (employee_id, document_type_id)`
+    );
+
+    console.log('[BOOT] documentation schema pronto');
+  } catch (error) {
+    console.error('[BOOT] falha ao ajustar schema de documentação:', error?.stack || error);
+    throw error;
+  }
+}
+
+
 async function ensureEpiCatalogSchema() {
   try {
     await pool.query(`
@@ -252,7 +389,7 @@ app.get('/api/dashboard/metrics', async (_req, res) => {
           JOIN deployments dep ON dep.employee_id = d.employee_id
           WHERE dep.end_date_actual IS NULL
             AND d.expiration_date IS NOT NULL
-            AND d.expiration_date::date BETWEEN dep.start_date::date AND dep.end_date_expected::date
+            AND d.expiration_date::date BETWEEN dep.start_date::date AND COALESCE(dep.end_date_actual, dep.end_date_expected)::date
         ) AS "documentsExpiringDuringDeployment"
     `;
     const result = await pool.query(q);
@@ -309,6 +446,20 @@ app.post('/api/document-types', async (req, res) => {
       return res
         .status(400)
         .json({ errorCode: 'VALIDATION_ERROR', message: 'code e name são obrigatórios' });
+    const parsedRequiresExpiration = parseOptionalBoolean(
+      data.requires_expiration,
+      'requires_expiration'
+    );
+    if (parsedRequiresExpiration?.error) {
+      return res.status(400).json({
+        errorCode: 'VALIDATION_ERROR',
+        message: parsedRequiresExpiration.error,
+      });
+    }
+    if (parsedRequiresExpiration) {
+      data.requires_expiration = parsedRequiresExpiration.value;
+    }
+
     const result = await pool.query(createInsertQuery('document_types', data));
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -358,14 +509,133 @@ app.post('/api/documents', async (req, res) => {
       'issue_date',
       'expiration_date',
       'file_url',
+      'evidence_type',
+      'evidence_ref',
+      'notes',
+      'verified',
+      'verified_by',
+      'verified_at',
     ]);
+
     if (!data.employee_id || !data.document_type_id || !data.issue_date) {
       return res.status(400).json({
         errorCode: 'VALIDATION_ERROR',
         message: 'employee_id, document_type_id, issue_date são obrigatórios',
       });
     }
-    const result = await pool.query(createInsertQuery('documents', data));
+
+    const employeeIdParsed = parseRequiredInteger(data.employee_id, 'employee_id');
+    if (employeeIdParsed.error) {
+      return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: employeeIdParsed.error });
+    }
+    data.employee_id = employeeIdParsed.value;
+
+    const documentTypeIdParsed = parseRequiredInteger(data.document_type_id, 'document_type_id');
+    if (documentTypeIdParsed.error) {
+      return res
+        .status(400)
+        .json({ errorCode: 'VALIDATION_ERROR', message: documentTypeIdParsed.error });
+    }
+    data.document_type_id = documentTypeIdParsed.value;
+
+    if (!isValidDateString(data.issue_date)) {
+      return res.status(400).json({
+        errorCode: 'VALIDATION_ERROR',
+        message: 'issue_date deve ser uma data válida',
+      });
+    }
+
+    if (data.expiration_date && !isValidDateString(data.expiration_date)) {
+      return res.status(400).json({
+        errorCode: 'VALIDATION_ERROR',
+        message: 'expiration_date deve ser uma data válida',
+      });
+    }
+
+    const docTypeResult = await pool.query(
+      'SELECT id, requires_expiration FROM document_types WHERE id = $1 LIMIT 1',
+      [data.document_type_id]
+    );
+    const documentType = docTypeResult.rows[0];
+
+    if (!documentType) {
+      return res.status(404).json({
+        errorCode: 'NOT_FOUND',
+        message: 'Tipo de documento não encontrado',
+      });
+    }
+
+    if (documentType.requires_expiration && !data.expiration_date) {
+      return res.status(400).json({
+        errorCode: 'VALIDATION_ERROR',
+        message: 'expiration_date é obrigatório para este tipo de documento',
+      });
+    }
+
+    if (!documentType.requires_expiration) {
+      data.expiration_date = null;
+    }
+
+    const parsedVerified = parseOptionalBoolean(data.verified, 'verified');
+    if (parsedVerified?.error) {
+      return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: parsedVerified.error });
+    }
+    data.verified = parsedVerified ? parsedVerified.value : false;
+
+    if (data.verified && !data.verified_at) {
+      data.verified_at = new Date().toISOString();
+    }
+
+    if (data.verified_at && !isValidDateString(data.verified_at)) {
+      return res.status(400).json({
+        errorCode: 'VALIDATION_ERROR',
+        message: 'verified_at deve ser uma data válida',
+      });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO documents (
+        employee_id,
+        document_type_id,
+        issue_date,
+        expiration_date,
+        file_url,
+        evidence_type,
+        evidence_ref,
+        notes,
+        verified,
+        verified_by,
+        verified_at
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      ON CONFLICT (employee_id, document_type_id)
+      DO UPDATE SET
+        issue_date = EXCLUDED.issue_date,
+        expiration_date = EXCLUDED.expiration_date,
+        file_url = EXCLUDED.file_url,
+        evidence_type = EXCLUDED.evidence_type,
+        evidence_ref = EXCLUDED.evidence_ref,
+        notes = EXCLUDED.notes,
+        verified = EXCLUDED.verified,
+        verified_by = EXCLUDED.verified_by,
+        verified_at = EXCLUDED.verified_at,
+        updated_at = NOW()
+      RETURNING *`,
+      [
+        data.employee_id,
+        data.document_type_id,
+        data.issue_date,
+        data.expiration_date || null,
+        data.file_url || null,
+        data.evidence_type || null,
+        data.evidence_ref || null,
+        data.notes || null,
+        Boolean(data.verified),
+        data.verified_by || null,
+        data.verified_at || null,
+      ]
+    );
+
     res.status(201).json(result.rows[0]);
   } catch (error) {
     handleServerError(res, error, 'documents-create');
@@ -633,6 +903,7 @@ app.get('/api/profile', (_req, res) => res.json({}));
 app.get('/', (_req, res) => res.send('API Logística Offshore - Online 🚀'));
 
 const bootstrap = async () => {
+  await ensureDocumentationSchema();
   await ensureEpiCatalogSchema();
   await ensureEpiDeliveriesSchema();
   app.listen(port, () => {

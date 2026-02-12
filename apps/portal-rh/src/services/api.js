@@ -100,20 +100,20 @@ const apiService = {
     listVessels: async () => apiService.vessels.list(),
   },
   documentTypes: {
-    list: async () => (await api.get('/document-types')).data,
+    list: async () => normalizeListResponse((await api.get('/document-types')).data),
     create: async (data) => (await api.post('/document-types', data)).data,
   },
   documents: {
-    list: async () => (await api.get('/documents')).data,
+    list: async () => normalizeListResponse((await api.get('/documents')).data),
     create: async (data) => (await api.post('/documents', data)).data,
     listByEmployee: async (employeeId) =>
-      (await api.get(`/employees/${employeeId}/documents`)).data,
+      normalizeListResponse((await api.get(`/employees/${employeeId}/documents`)).data),
   },
   deployments: {
-    list: async () => (await api.get('/deployments')).data,
+    list: async () => normalizeListResponse((await api.get('/deployments')).data),
     create: async (data) => (await api.post('/deployments', data)).data,
     listByEmployee: async (employeeId) =>
-      (await api.get(`/employees/${employeeId}/deployments`)).data,
+      normalizeListResponse((await api.get(`/employees/${employeeId}/deployments`)).data),
   },
   epiCatalog: {
     list: async () => normalizeListResponse((await api.get('/epi/catalog')).data),

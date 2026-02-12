@@ -77,4 +77,34 @@ CREATE TABLE IF NOT EXISTS epi_deliveries (
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS document_types (
+  id SERIAL PRIMARY KEY,
+  code TEXT UNIQUE,
+  name TEXT NOT NULL,
+  category TEXT,
+  requires_expiration BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS documents (
+  id SERIAL PRIMARY KEY,
+  employee_id INTEGER NOT NULL,
+  document_type_id INTEGER NOT NULL,
+  issue_date DATE NOT NULL,
+  expiration_date DATE,
+  file_url TEXT,
+  evidence_type TEXT,
+  evidence_ref TEXT,
+  notes TEXT,
+  verified BOOLEAN NOT NULL DEFAULT FALSE,
+  verified_by TEXT,
+  verified_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_employee_document_type_unique
+  ON documents (employee_id, document_type_id);
 ```

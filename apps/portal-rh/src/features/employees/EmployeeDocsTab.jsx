@@ -1,154 +1,181 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Paperclip } from 'lucide-react';
 import Card from '../../ui/Card';
 import Badge from '../../ui/Badge';
+import Button from '../../ui/Button.jsx';
 import api from '../../services/api';
 import {
   REQUIRED_DOC_TYPES,
-  docValidityStatus,
-  evidenceStatus,
+  computeDocumentStatus,
   normalizeDocType,
-  normalizeText
+  normalizeText,
 } from '../../lib/documentationUtils';
+import DocumentationFormModal from '../documentations/DocumentationFormModal.jsx';
 
-function normalizeDocsResponse(data) {
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.documents)) return data.documents;
-  if (Array.isArray(data?.data)) return data.data;
-  return [];
+function getActiveDeployment(deployments) {
+  return deployments.find((deployment) => !deployment.end_date_actual) || null;
 }
 
-function normalizeDocRow(row) {
-  const normalized = {
-    COLABORADOR_ID: normalizeText(row?.COLABORADOR_ID || row?.employeeId || row?.employee_id),
-    TIPO_DOCUMENTO: normalizeText(row?.TIPO_DOCUMENTO || row?.documentType || row?.document_type || row?.type),
-    DATA_VENCIMENTO: normalizeText(row?.DATA_VENCIMENTO || row?.expirationDate || row?.expiration_date),
-    EVIDENCIA_TIPO: normalizeText(row?.EVIDENCIA_TIPO || row?.evidenceType || row?.evidence_type),
-    EVIDENCIA_REF: normalizeText(row?.EVIDENCIA_REF || row?.evidenceRef || row?.evidence_ref),
-    VERIFIED: Boolean(row?.VERIFIED ?? row?.verified ?? false)
-  };
-  if (!normalized.COLABORADOR_ID || !normalized.TIPO_DOCUMENTO) return null;
-  return normalized;
-}
-
-function buildDocKey(doc) {
-  return `${normalizeText(doc.COLABORADOR_ID)}::${normalizeDocType(doc.TIPO_DOCUMENTO)}`;
+function getStatusTone(status) {
+  if (status === 'VENCIDO') return 'red';
+  if (status === 'VENCENDO' || status === 'DURANTE_EMBARQUE') return 'amber';
+  if (status === 'FALTANDO') return 'gray';
+  if (status === 'SEM_VALIDADE') return 'blue';
+  return 'green';
 }
 
 export default function EmployeeDocsTab({ employee }) {
-  const [documentacoes, setDocumentacoes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [documents, setDocuments] = useState([]);
+  const [docTypes, setDocTypes] = useState([]);
+  const [deployments, setDeployments] = useState([]);
 
   const employeeId = normalizeText(employee?.id || employee?.COLABORADOR_ID);
 
-  useEffect(() => {
-    let mounted = true;
-
-    async function load() {
-      try {
-        setLoading(true);
-        setError('');
-        let data = [];
-
-        if (employeeId && typeof api.documents.listByEmployee === 'function') {
-          data = await api.documents.listByEmployee(employeeId);
-        } else {
-          data = await api.documents.list();
-        }
-
-        if (!mounted) return;
-
-        const docs = normalizeDocsResponse(data)
-          .map(normalizeDocRow)
-          .filter(Boolean)
-          .filter((doc) => !employeeId || normalizeText(doc.COLABORADOR_ID) === employeeId);
-
-        setDocumentacoes(docs);
-      } catch (err) {
-        if (!mounted) return;
-        console.error('Falha ao carregar documentações do colaborador.', err);
-        setError('Falha ao carregar documentações.');
-        setDocumentacoes([]);
-      } finally {
-        if (mounted) setLoading(false);
-      }
+  const loadData = async () => {
+    if (!employeeId) return;
+    try {
+      setLoading(true);
+      setError('');
+      const [documentRows, docTypeRows, deploymentRows] = await Promise.all([
+        api.documents.listByEmployee(employeeId),
+        api.documentTypes.list(),
+        api.deployments.listByEmployee(employeeId),
+      ]);
+      setDocuments(documentRows || []);
+      setDocTypes(docTypeRows || []);
+      setDeployments(deploymentRows || []);
+    } catch (err) {
+      console.error('Falha ao carregar documentações do colaborador.', err);
+      setError('Não foi possível carregar as documentações do colaborador.');
+      setDocuments([]);
+      setDocTypes([]);
+      setDeployments([]);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    load();
-
-    return () => {
-      mounted = false;
-    };
+  useEffect(() => {
+    loadData();
   }, [employeeId]);
 
-  const docsForEmployee = useMemo(() => {
-    return [...documentacoes].sort((a, b) => {
-      const order = { VENCIDO: 0, VENCENDO: 1, OK: 2 };
-      const statusA = docValidityStatus(a) || 'OK';
-      const statusB = docValidityStatus(b) || 'OK';
-      const diff = (order[statusA] ?? 3) - (order[statusB] ?? 3);
-      if (diff !== 0) return diff;
-      const dateA = normalizeText(a.DATA_VENCIMENTO) || '9999-12-31';
-      const dateB = normalizeText(b.DATA_VENCIMENTO) || '9999-12-31';
-      return dateA.localeCompare(dateB);
+  const typeById = useMemo(() => {
+    const map = new Map();
+    docTypes.forEach((row) => map.set(Number(row.id), row));
+    return map;
+  }, [docTypes]);
+
+  const activeDeployment = useMemo(() => getActiveDeployment(deployments), [deployments]);
+
+  const docsWithStatus = useMemo(() => {
+    return documents.map((doc) => {
+      const docType = typeById.get(Number(doc.document_type_id));
+      const status = computeDocumentStatus({ doc, docType, deploymentActive: activeDeployment });
+      return { ...doc, docType, status };
     });
-  }, [documentacoes]);
+  }, [activeDeployment, documents, typeById]);
+
+  const missingRequired = useMemo(() => {
+    const present = new Set(
+      docsWithStatus.map((doc) => normalizeDocType(doc.docType?.code || doc.docType?.name || doc.document_code))
+    );
+    return REQUIRED_DOC_TYPES.filter((code) => !present.has(normalizeDocType(code)));
+  }, [docsWithStatus]);
+
+  const handleSaveDocument = async (payload) => {
+    try {
+      setSaving(true);
+      setSaveError('');
+      await api.documents.create(payload);
+      setIsModalOpen(false);
+      await loadData();
+    } catch (err) {
+      console.error('Falha ao salvar documento do colaborador.', err);
+      setSaveError(err?.response?.data?.message || 'Não foi possível salvar o documento.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <div className="space-y-4">
-      <Card className="p-6">
+    <Card className="p-6">
+      <div className="flex items-center justify-between">
         <div>
           <div className="text-sm font-semibold text-slate-900">Documentações</div>
-          <div className="text-xs text-slate-500">Visão de documentos, evidências e status.</div>
+          <div className="text-xs text-slate-500">Status por validade, embarque e obrigatoriedade.</div>
         </div>
+        <Button onClick={() => setIsModalOpen(true)}>Adicionar documento</Button>
+      </div>
 
-        {error && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">{error}</div>}
+      {error && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">{error}</div>}
+      {loading && <div className="mt-4 rounded-xl border border-slate-200 p-3 text-sm text-slate-500">Carregando documentações...</div>}
 
-        <div className="mt-4 space-y-2">
-          {loading && <div className="rounded-xl border border-slate-200 p-4 text-sm text-slate-500">Carregando documentações...</div>}
-
-          {!loading && docsForEmployee.map((doc) => {
-            const status = docValidityStatus(doc) || 'OK';
-            const evidence = evidenceStatus(doc);
-            const docType = normalizeDocType(doc.TIPO_DOCUMENTO);
-            const isRequired = REQUIRED_DOC_TYPES.includes(docType);
-            const hasEvidence = evidence !== 'SEM_EVIDENCIA';
+      {!loading && !error && (
+        <div className="mt-4 space-y-3">
+          {docsWithStatus.map((doc) => {
+            const isVerified = Boolean(doc.verified ?? doc.VERIFIED ?? false);
             return (
-              <div key={buildDocKey(doc)} className="rounded-xl border border-slate-200 p-4">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
-                  <div className="md:col-span-2">
-                    <div className="text-sm font-semibold text-slate-900">{doc.TIPO_DOCUMENTO}</div>
-                    <div className="text-xs text-slate-500">{isRequired ? 'Obrigatório' : 'Opcional'}</div>
-                  </div>
-                  <div className="md:col-span-1">
-                    <div className="text-xs text-slate-500">Vencimento</div>
-                    <div className="text-sm text-slate-800">{doc.DATA_VENCIMENTO || '—'}</div>
-                    <Badge tone={status === 'VENCIDO' ? 'red' : status === 'VENCENDO' ? 'amber' : 'green'}>{status}</Badge>
-                  </div>
-                  <div className="md:col-span-1">
-                    <div className="text-xs text-slate-500">Evidência</div>
-                    <div className="mt-1 flex items-center gap-2 text-sm text-slate-700">
-                      <Paperclip size={14} className={hasEvidence ? 'text-slate-600' : 'text-slate-300'} />
-                      <span>{evidence}</span>
-                    </div>
-                  </div>
-                  <div className="md:col-span-1">
-                    <div className="text-xs text-slate-500">Verificação</div>
-                    <Badge tone={doc.VERIFIED ? 'green' : 'gray'}>{doc.VERIFIED ? 'Verificado' : 'Pendente'}</Badge>
-                  </div>
+            <div key={doc.id} className="rounded-xl border border-slate-200 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold text-slate-900">{doc.docType?.name || doc.document_name || 'Documento'}</div>
+                  <div className="text-xs text-slate-500">Código: {doc.docType?.code || doc.document_code || '—'}</div>
                 </div>
+                <Badge tone={getStatusTone(doc.status)}>{doc.status}</Badge>
               </div>
+              <div className="mt-2 text-xs text-slate-600">
+                Emissão: {doc.issue_date || '—'} • Vencimento: {doc.expiration_date || '—'}
+              </div>
+              <div className="mt-1 text-xs text-slate-600">
+                Evidência: {doc.evidence_type || '—'} • {doc.evidence_ref || doc.file_url || '—'}
+              </div>
+              <div className="mt-2">
+                <Badge tone={isVerified ? 'green' : 'gray'}>{isVerified ? 'Verificado' : 'Pendente verificação'}</Badge>
+              </div>
+            </div>
             );
           })}
 
-          {!loading && !docsForEmployee.length && (
+          {!docsWithStatus.length && (
             <div className="rounded-xl border border-slate-200 p-4 text-sm text-slate-500">
               Nenhuma documentação encontrada para este colaborador.
             </div>
           )}
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Obrigatórios faltando</div>
+            {missingRequired.length ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {missingRequired.map((code) => (
+                  <Badge key={code} tone="gray">
+                    {code}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-2 text-sm text-slate-600">Nenhum obrigatório faltando.</div>
+            )}
+          </div>
         </div>
-      </Card>
-    </div>
+      )}
+
+      <DocumentationFormModal
+        open={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSaveError('');
+        }}
+        onSubmit={handleSaveDocument}
+        employeeId={employeeId}
+        lockEmployee
+        docTypes={docTypes}
+        loading={saving}
+        error={saveError}
+      />
+    </Card>
   );
 }
