@@ -1,8 +1,6 @@
 import axios from 'axios';
 
-const baseURL =
-  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) ||
-  'https://logistica-api-v1bk.onrender.com/api';
+const baseURL = import.meta.env.VITE_API_URL || '/api';
 
 const isProd =
   (typeof import.meta !== 'undefined' &&
@@ -12,6 +10,14 @@ const isProd =
   (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'production');
 
 const api = axios.create({ baseURL });
+
+
+function normalizeListResponse(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
+}
 
 const getDurationMs = (startTime) => {
   const start = Number.isFinite(startTime) ? startTime : Date.now();
@@ -85,8 +91,11 @@ const apiService = {
     get: async (reg) => (await api.get(`/profile?registration=${reg}`)).data,
   },
   vessels: {
-    list: async () => (await api.get('/vessels')).data,
+    list: async () => normalizeListResponse((await api.get('/vessels')).data),
     create: async (data) => (await api.post('/vessels', data)).data,
+  },
+  mobility: {
+    listVessels: async () => apiService.vessels.list(),
   },
   documentTypes: {
     list: async () => (await api.get('/document-types')).data,

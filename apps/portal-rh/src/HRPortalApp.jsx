@@ -21,10 +21,10 @@ const ROUTE_COMPONENTS = {
   [ROUTE_PATHS.equipment]: () => <EquipmentPage />,
   [ROUTE_PATHS.finance]: () => <FinancePage />,
   '/financial-requests': () => <FinancePage />,
-  [ROUTE_PATHS.rdo]: () => <ModulePlaceholderPage title="OS / RDO" />,
-  '/daily-reports': () => <ModulePlaceholderPage title="OS / RDO" />,
-  [ROUTE_PATHS.os]: () => <ModulePlaceholderPage title="OS / RDO" />,
-  '/service-orders': () => <ModulePlaceholderPage title="OS / RDO" />,
+  [ROUTE_PATHS.rdo]: () => <ModulePlaceholderPage title="Relatórios Diários" />,
+  '/daily-reports': () => <ModulePlaceholderPage title="Relatórios Diários" />,
+  '/os': () => <ModulePlaceholderPage title="Relatórios Diários" />,
+  '/service-orders': () => <ModulePlaceholderPage title="Relatórios Diários" />,
   [ROUTE_PATHS.hotel]: () => <ModulePlaceholderPage title="Hotelaria" />
 };
 
@@ -102,7 +102,7 @@ export default function HRPortalApp() {
   const activePath = useMemo(() => {
     if (path === '/employees') return ROUTE_PATHS.employees;
     if (path === '/daily-reports') return ROUTE_PATHS.rdo;
-    if (path === ROUTE_PATHS.os) return ROUTE_PATHS.rdo;
+    if (path === '/os') return ROUTE_PATHS.rdo;
     if (path === '/service-orders') return ROUTE_PATHS.rdo;
     if (path === '/financial-requests') return ROUTE_PATHS.finance;
     return path;

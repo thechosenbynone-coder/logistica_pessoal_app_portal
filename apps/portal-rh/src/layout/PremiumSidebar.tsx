@@ -48,7 +48,7 @@ const navSections: NavSection[] = [
         items: [
             { key: 'mobility', label: 'Embarque / Translado', icon: Plane },
             { key: 'hotel', label: 'Hospedagem', icon: Hotel },
-            { key: 'work', label: 'OS / RDO', icon: ClipboardList },
+            { key: 'work', label: 'RDOs', icon: ClipboardList },
         ],
     },
     {
