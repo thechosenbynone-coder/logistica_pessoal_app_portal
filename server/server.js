@@ -117,7 +117,69 @@ async function ensureEpiCatalogSchema() {
   }
 }
 
+async function ensureEpiDeliveriesSchema() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS epi_deliveries (
+        id SERIAL PRIMARY KEY,
+        employee_id INTEGER NOT NULL,
+        epi_item_id INTEGER NOT NULL,
+        delivery_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        quantity INTEGER NOT NULL DEFAULT 1,
+        signature_url TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await pool.query(`ALTER TABLE epi_deliveries ADD COLUMN IF NOT EXISTS delivery_date DATE`);
+    await pool.query(`ALTER TABLE epi_deliveries ADD COLUMN IF NOT EXISTS quantity INTEGER`);
+    await pool.query(`ALTER TABLE epi_deliveries ADD COLUMN IF NOT EXISTS signature_url TEXT`);
+    await pool.query(`ALTER TABLE epi_deliveries ADD COLUMN IF NOT EXISTS created_at TIMESTAMP`);
+    await pool.query(`ALTER TABLE epi_deliveries ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP`);
+
+    await pool.query(
+      `UPDATE epi_deliveries SET delivery_date = CURRENT_DATE WHERE delivery_date IS NULL`
+    );
+    await pool.query(`UPDATE epi_deliveries SET quantity = 1 WHERE quantity IS NULL`);
+    await pool.query(`UPDATE epi_deliveries SET created_at = NOW() WHERE created_at IS NULL`);
+    await pool.query(`UPDATE epi_deliveries SET updated_at = NOW() WHERE updated_at IS NULL`);
+
+    await pool.query(
+      `ALTER TABLE epi_deliveries ALTER COLUMN delivery_date SET DEFAULT CURRENT_DATE`
+    );
+    await pool.query(`ALTER TABLE epi_deliveries ALTER COLUMN quantity SET DEFAULT 1`);
+    await pool.query(`ALTER TABLE epi_deliveries ALTER COLUMN created_at SET DEFAULT NOW()`);
+    await pool.query(`ALTER TABLE epi_deliveries ALTER COLUMN updated_at SET DEFAULT NOW()`);
+    await pool.query(`ALTER TABLE epi_deliveries ALTER COLUMN delivery_date SET NOT NULL`);
+    await pool.query(`ALTER TABLE epi_deliveries ALTER COLUMN quantity SET NOT NULL`);
+    await pool.query(`ALTER TABLE epi_deliveries ALTER COLUMN created_at SET NOT NULL`);
+    await pool.query(`ALTER TABLE epi_deliveries ALTER COLUMN updated_at SET NOT NULL`);
+
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_epi_deliveries_employee_id ON epi_deliveries (employee_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_epi_deliveries_epi_item_id ON epi_deliveries (epi_item_id)`
+    );
+
+    console.log('[BOOT] epi_deliveries schema pronto');
+  } catch (error) {
+    console.error('[BOOT] falha ao ajustar schema de epi_deliveries:', error?.stack || error);
+    throw error;
+  }
+}
+
 app.get('/api/health', async (_req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ status: 'ok', database: 'connected' });
+  } catch (error) {
+    handleServerError(res, error, 'health-check');
+  }
+});
+
+app.get('/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
     res.json({ status: 'ok', database: 'connected' });
@@ -572,6 +634,7 @@ app.get('/', (_req, res) => res.send('API Logística Offshore - Online 🚀'));
 
 const bootstrap = async () => {
   await ensureEpiCatalogSchema();
+  await ensureEpiDeliveriesSchema();
   app.listen(port, () => {
     console.log(`API rodando na porta ${port}`);
   });

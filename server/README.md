@@ -36,19 +36,15 @@ npm run dev
 
 A API sobe em `http://localhost:3000` por padrão (ou valor de `PORT`).
 
-## Endpoints (demo)
+## Endpoints (principais)
 
-- `GET /health`
-- `GET /api/me` (usa usuário seed)
-- `GET /api/deployments/current?userId=...`
-- `GET /api/expenses?userId=...`
-- `POST /api/expenses`
-- `GET /api/advances?userId=...`
-- `POST /api/advances`
-- `GET /api/assets?userId=...`
-- `PATCH /api/assets/:id/toggle?userId=...`
-- `GET /api/checkins?userId=...`
-- `POST /api/checkins`
+- `GET /api/health`
+- `GET /health` (alias)
+- `GET /api/epi/catalog`
+- `POST /api/epi/catalog`
+- `GET /api/epi/deliveries`
+- `POST /api/epi/deliveries`
+- `GET /api/employees/:id/epi-deliveries`
 
 > Autenticação ainda não foi implementada. Para demo, passe `?userId=` ou header `x-user-id`.
 
@@ -67,6 +63,17 @@ CREATE TABLE IF NOT EXISTS epi_catalog (
   stock_qty INTEGER NOT NULL DEFAULT 0,
   min_stock INTEGER NOT NULL DEFAULT 0,
   active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS epi_deliveries (
+  id SERIAL PRIMARY KEY,
+  employee_id INTEGER NOT NULL,
+  epi_item_id INTEGER NOT NULL,
+  delivery_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  quantity INTEGER NOT NULL DEFAULT 1,
+  signature_url TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
