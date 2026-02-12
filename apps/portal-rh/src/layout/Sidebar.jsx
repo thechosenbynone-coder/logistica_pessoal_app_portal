@@ -23,7 +23,7 @@ const NAV = [
     items: [
       { key: "mobility", path: ROUTE_PATHS.mobility, label: "Escala e Embarque", icon: Plane },
       { key: "equipment", path: ROUTE_PATHS.equipment, label: "EPIs", icon: HardHat },
-      { key: "work", path: ROUTE_PATHS.rdo, label: "OS / RDO", icon: ClipboardList },
+      { key: "work", path: ROUTE_PATHS.rdo, label: "RDOs", icon: ClipboardList },
     ],
   },
   {

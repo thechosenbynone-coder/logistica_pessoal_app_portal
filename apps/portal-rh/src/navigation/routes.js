@@ -4,7 +4,6 @@ export const ROUTE_PATHS = {
   docs: '/documentacoes',
   mobility: '/mobility',
   rdo: '/rdo',
-  os: '/os',
   finance: '/financeiro',
   equipment: '/epi',
   hotel: '/hotelaria'
