@@ -1,11 +1,27 @@
 import { REQUIRED_DOC_TYPES } from '../lib/documentationUtils';
-import { buildMinimalCollaborators } from './portalXlsxImporter';
 
 type Scenario = 'saudavel' | 'risco' | 'critico';
 
 const UNIDADES = ['MODEC - MV26', 'MODEC - MV27', 'MODEC - MV28', 'SBM - Tamandaré'];
 const BASES = ['Macaé', 'Rio das Ostras', 'Niterói'];
 const FUNCOES = ['Técnico de Segurança', 'Supervisor Offshore', 'Operador de Guindaste', 'Mecânico', 'Enfermeiro'];
+
+function normalizeText(value: unknown): string {
+  return (value || '').toString().trim();
+}
+
+function buildMinimalCollaborators(colaboradores: any[]) {
+  const rows = Array.isArray(colaboradores) ? colaboradores : [];
+  return rows.map((row) => ({
+    id: normalizeText(row.COLABORADOR_ID),
+    nome: normalizeText(row.NOME_COMPLETO),
+    cpf: normalizeText(row.CPF),
+    base: normalizeText(row.BASE_OPERACIONAL),
+    unidade: normalizeText(row.UNIDADE),
+    status: normalizeText(row.STATUS_ATUAL || row.STATUS),
+    plataforma: normalizeText(row.BASE_OPERACIONAL)
+  }));
+}
 
 function shiftDays(base: Date, days: number): string {
   const next = new Date(base);

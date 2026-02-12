@@ -115,3 +115,16 @@ npm run dev:api           # http://localhost:3001
 3. Implementar React Query para cache de dados
 4. Expandir cobertura de testes
 5. Adicionar TypeScript gradualmente
+
+
+## Deploy (Render) - SPA Rewrite
+
+Para o Portal RH (SPA com router via `history.pushState`), acessos diretos como `/dashboard` ou `/documentacoes?status=expired` podem retornar 404 no Render se não houver regra de rewrite.
+
+Configure no serviço **Static Site** do Render:
+
+- **Source**: `/*`
+- **Destination**: `/index.html`
+- **Action**: `Rewrite`
+
+Assim, o servidor entrega sempre o `index.html` e o router do frontend resolve a rota correta no browser.
