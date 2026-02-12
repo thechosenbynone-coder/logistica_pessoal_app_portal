@@ -125,8 +125,8 @@ export default function MobilityPage() {
     };
 
     load();
-    window.addEventListener('portal_rh_xlsx_updated', load);
-    return () => window.removeEventListener('portal_rh_xlsx_updated', load);
+    window.addEventListener('portal_rh_data_updated', load);
+    return () => window.removeEventListener('portal_rh_data_updated', load);
   }, []);
 
   const employeesById = useMemo(() => {

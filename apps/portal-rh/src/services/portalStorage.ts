@@ -3,8 +3,8 @@ import { buildDemoPayload } from './demoSeed';
 export type PortalMode = 'demo' | 'prod';
 
 export const MODE_KEY = 'portal_rh_mode';
-export const DEMO_KEY = 'portal_rh_xlsx_demo_v1';
-export const PROD_KEY = 'portal_rh_xlsx_v1';
+export const DEMO_KEY = 'portal_rh_data_demo_v1';
+export const PROD_KEY = 'portal_rh_data_v1';
 
 const DEFAULT_PAYLOAD = {
   version: 1,
@@ -15,7 +15,7 @@ const DEFAULT_PAYLOAD = {
 
 function notifyUpdate() {
   if (typeof window === 'undefined') return;
-  window.dispatchEvent(new Event('portal_rh_xlsx_updated'));
+  window.dispatchEvent(new Event('portal_rh_data_updated'));
 }
 
 function isPayloadEmpty(payload: any) {

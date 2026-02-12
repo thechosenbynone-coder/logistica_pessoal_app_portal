@@ -11,30 +11,32 @@ import {
   Wallet,
 } from "lucide-react";
 import { currentUser } from "../services/currentUser";
+import { ROUTE_PATHS } from '../navigation/routes.js';
 
 const NAV = [
   {
     title: "Principal",
-    items: [{ key: "dashboard", label: "Dashboard", icon: LayoutDashboard }],
+    items: [{ key: "dashboard", path: ROUTE_PATHS.dashboard, label: "Dashboard", icon: LayoutDashboard }],
   },
   {
     title: "Operação",
     items: [
-      { key: "mobility", label: "Escala e Embarque", icon: Plane },
-      { key: "equipment", label: "EPIs", icon: HardHat },
-      { key: "work", label: "OS / RDO", icon: ClipboardList },
+      { key: "mobility", path: ROUTE_PATHS.mobility, label: "Escala e Embarque", icon: Plane },
+      { key: "equipment", path: ROUTE_PATHS.equipment, label: "EPIs", icon: HardHat },
+      { key: "rdo", path: ROUTE_PATHS.rdo, label: "RDO", icon: ClipboardList },
+      { key: "os", path: ROUTE_PATHS.os, label: "OS", icon: ClipboardList },
     ],
   },
   {
     title: "RH",
     items: [
-      { key: "employees", label: "Colaboradores", icon: Users },
-      { key: "docs", label: "Documentações", icon: FileText },
+      { key: "employees", path: ROUTE_PATHS.employees, label: "Colaboradores", icon: Users },
+      { key: "docs", path: ROUTE_PATHS.docs, label: "Documentações", icon: FileText },
     ],
   },
   {
     title: "Financeiro",
-    items: [{ key: "finance", label: "Gestão Financeira", icon: Wallet }],
+    items: [{ key: "finance", path: ROUTE_PATHS.finance, label: "Gestão Financeira", icon: Wallet }],
   },
 ];
 
@@ -66,27 +68,16 @@ function TooltipPortal({ open, text, x, y }) {
   );
 }
 
-export default function Sidebar({ active, onSelect, onNavigate }) {
+export default function Sidebar({ activePath, onNavigate }) {
   const SIDEBAR_W = "w-[76px]";
   const ICON_SIZE = 18;
 
   const ttAnchorRef = useRef(null);
   const [tt, setTt] = useState({ open: false, text: "", x: 0, y: 0 });
 
-  const activeKey = useMemo(() => {
-    if (active === "hotel") return "mobility";
-    if (active === "employeeCreate") return "employees";
-    return active;
-  }, [active]);
-
   const hideTooltip = () => {
     ttAnchorRef.current = null;
     setTt((v) => (v.open ? { ...v, open: false } : v));
-  };
-
-  const handleSelect = (key) => {
-    const fn = onNavigate || onSelect;
-    if (typeof fn === "function") fn(key);
   };
 
   const showTooltip = (el, text) => {
@@ -142,18 +133,10 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
     <>
       <TooltipPortal open={tt.open} text={tt.text} x={tt.x} y={tt.y} />
 
-      <aside
-        className={cn(
-          "h-screen sticky top-0 bg-white border-r border-slate-100 flex flex-col overflow-hidden",
-          SIDEBAR_W
-        )}
-        aria-label="Menu lateral"
-      >
+      <aside className={cn("h-screen sticky top-0 bg-white border-r border-slate-100 flex flex-col overflow-hidden", SIDEBAR_W)} aria-label="Menu lateral">
         <div className="w-full pt-3 pb-2 shrink-0">
           <div className="w-full grid place-items-center">
-            <div className="h-9 w-9 rounded-xl bg-blue-600 text-white grid place-items-center text-[11px] font-extrabold tracking-wide shrink-0">
-              RH
-            </div>
+            <div className="h-9 w-9 rounded-xl bg-blue-600 text-white grid place-items-center text-[11px] font-extrabold tracking-wide shrink-0">RH</div>
           </div>
         </div>
 
@@ -161,13 +144,15 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
           <div className="flex flex-col items-center gap-3">
             {navItems.map((it) => {
               const Icon = it.icon;
-              const isActive = activeKey === it.key;
-
+              const isActive = activePath === it.path;
               return (
-                <button
+                <a
                   key={it.key}
-                  type="button"
-                  onClick={() => handleSelect(it.key)}
+                  href={it.path}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onNavigate(it.path);
+                  }}
                   onMouseEnter={(e) => showTooltip(e.currentTarget, it.label)}
                   onMouseLeave={hideTooltip}
                   onFocus={(e) => showTooltip(e.currentTarget, it.label)}
@@ -176,13 +161,11 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
                   className={cn(
                     "grid h-11 w-11 place-items-center rounded-xl bg-transparent border-0 p-0 m-0 transition",
                     "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60",
-                    isActive
-                      ? "ring-2 ring-blue-400/60 shadow-[0_0_0_5px_rgba(59,130,246,0.12)]"
-                      : "hover:ring-2 hover:ring-blue-400/45"
+                    isActive ? "ring-2 ring-blue-400/60 shadow-[0_0_0_5px_rgba(59,130,246,0.12)]" : "hover:ring-2 hover:ring-blue-400/45"
                   )}
                 >
                   <Icon size={ICON_SIZE} className={isActive ? "text-blue-700" : "text-slate-700"} />
-                </button>
+                </a>
               );
             })}
           </div>
@@ -192,31 +175,20 @@ export default function Sidebar({ active, onSelect, onNavigate }) {
           <button
             type="button"
             aria-label={`${user.name} • ${user.role}`}
-            className={cn(
-              "relative w-full rounded-2xl border border-slate-100 bg-white shadow-sm",
-              "flex items-center p-2.5",
-              "gap-0 justify-center"
-            )}
+            className={cn("relative w-full rounded-2xl border border-slate-100 bg-white shadow-sm", "flex items-center p-2.5", "gap-0 justify-center")}
             onMouseEnter={(e) => showTooltip(e.currentTarget, `${user.name} • ${user.role}`)}
             onMouseLeave={hideTooltip}
             onFocus={(e) => showTooltip(e.currentTarget, `${user.name} • ${user.role}`)}
             onBlur={hideTooltip}
           >
             {user.avatar ? (
-              <img
-                src={user.avatar}
-                alt={user.name}
-                className="h-11 w-11 rounded-full object-cover border border-slate-100"
-              />
+              <img src={user.avatar} alt={user.name} className="h-11 w-11 rounded-full object-cover border border-slate-100" />
             ) : (
-              <div className="h-11 w-11 rounded-full bg-gradient-to-br from-blue-100 via-indigo-100 to-sky-100 border border-blue-200/70 grid place-items-center text-sm font-bold text-blue-700">
-                JM
-              </div>
+              <div className="h-11 w-11 rounded-full bg-gradient-to-br from-blue-100 via-indigo-100 to-sky-100 border border-blue-200/70 grid place-items-center text-sm font-bold text-blue-700">JM</div>
             )}
           </button>
 
           <div className="mt-2 text-center text-[11px] font-semibold text-slate-700">Jéssica</div>
-
           <div className="mt-2 text-center text-[10px] font-medium text-slate-400">desenvolvido por Hubye</div>
         </div>
       </aside>

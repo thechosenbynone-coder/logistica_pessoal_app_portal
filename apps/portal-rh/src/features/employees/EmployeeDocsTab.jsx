@@ -1,174 +1,114 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Paperclip } from 'lucide-react';
 import Card from '../../ui/Card';
 import Badge from '../../ui/Badge';
-import Button from '../../ui/Button';
-import Input from '../../ui/Input';
-import Modal from '../../ui/Modal';
+import api from '../../services/api';
 import {
-  OPTIONAL_DOC_TYPES,
   REQUIRED_DOC_TYPES,
   docValidityStatus,
   evidenceStatus,
   normalizeDocType,
   normalizeText
 } from '../../lib/documentationUtils';
-import { computeDashboardMetrics } from '../../services/portalXlsxImporter';
-import { mergePayload, readPayload, writePayload } from '../../services/portalStorage';
 
-const ALL_DOC_TYPES = [...REQUIRED_DOC_TYPES, ...OPTIONAL_DOC_TYPES];
+function normalizeDocsResponse(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.documents)) return data.documents;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
+}
 
-const EMPTY_FORM = {
-  COLABORADOR_ID: '',
-  TIPO_DOCUMENTO: '',
-  DATA_EMISSAO: '',
-  DATA_VENCIMENTO: '',
-  EVIDENCIA_TIPO: '',
-  EVIDENCIA_REF: '',
-  OBS: '',
-  VERIFIED: false,
-  VERIFIED_BY: '',
-  VERIFIED_AT: ''
-};
+function normalizeDocRow(row) {
+  const normalized = {
+    COLABORADOR_ID: normalizeText(row?.COLABORADOR_ID || row?.employeeId || row?.employee_id),
+    TIPO_DOCUMENTO: normalizeText(row?.TIPO_DOCUMENTO || row?.documentType || row?.document_type || row?.type),
+    DATA_VENCIMENTO: normalizeText(row?.DATA_VENCIMENTO || row?.expirationDate || row?.expiration_date),
+    EVIDENCIA_TIPO: normalizeText(row?.EVIDENCIA_TIPO || row?.evidenceType || row?.evidence_type),
+    EVIDENCIA_REF: normalizeText(row?.EVIDENCIA_REF || row?.evidenceRef || row?.evidence_ref),
+    VERIFIED: Boolean(row?.VERIFIED ?? row?.verified ?? false)
+  };
+  if (!normalized.COLABORADOR_ID || !normalized.TIPO_DOCUMENTO) return null;
+  return normalized;
+}
 
 function buildDocKey(doc) {
   return `${normalizeText(doc.COLABORADOR_ID)}::${normalizeDocType(doc.TIPO_DOCUMENTO)}`;
 }
 
-function resetVerificationIfChanged(prevDoc, nextDoc) {
-  const fields = ['TIPO_DOCUMENTO', 'DATA_EMISSAO', 'DATA_VENCIMENTO', 'EVIDENCIA_TIPO', 'EVIDENCIA_REF'];
-  const changed = fields.some((field) => normalizeText(prevDoc?.[field]) !== normalizeText(nextDoc?.[field]));
-  if (prevDoc?.VERIFIED && changed) {
-    return { ...nextDoc, VERIFIED: false, VERIFIED_BY: '', VERIFIED_AT: '' };
-  }
-  return nextDoc;
-}
-
 export default function EmployeeDocsTab({ employee }) {
   const [documentacoes, setDocumentacoes] = useState([]);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [editingKey, setEditingKey] = useState('');
-  const [originalDoc, setOriginalDoc] = useState(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const uploadInputRef = useRef(null);
-
-  useEffect(() => {
-    const payload = readPayload();
-    setDocumentacoes(Array.isArray(payload?.dataset?.documentacoes) ? payload.dataset.documentacoes : []);
-    const handleUpdate = () => {
-      const updated = readPayload();
-      setDocumentacoes(Array.isArray(updated?.dataset?.documentacoes) ? updated.dataset.documentacoes : []);
-    };
-    window.addEventListener('portal_rh_xlsx_updated', handleUpdate);
-    return () => {
-      window.removeEventListener('portal_rh_xlsx_updated', handleUpdate);
-    };
-  }, []);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const employeeId = normalizeText(employee?.id || employee?.COLABORADOR_ID);
 
-  const docsForEmployee = useMemo(() => {
-    if (!employeeId) return [];
-    return documentacoes
-      .filter((doc) => normalizeText(doc.COLABORADOR_ID) === employeeId)
-      .sort((a, b) => {
-        const order = { VENCIDO: 0, VENCENDO: 1, OK: 2 };
-        const statusA = docValidityStatus(a) || 'OK';
-        const statusB = docValidityStatus(b) || 'OK';
-        const diff = (order[statusA] ?? 3) - (order[statusB] ?? 3);
-        if (diff !== 0) return diff;
-        const dateA = normalizeText(a.DATA_VENCIMENTO) || '9999-12-31';
-        const dateB = normalizeText(b.DATA_VENCIMENTO) || '9999-12-31';
-        return dateA.localeCompare(dateB);
-      });
-  }, [documentacoes, employeeId]);
+  useEffect(() => {
+    let mounted = true;
 
-  function updateForm(field, value) {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  }
+    async function load() {
+      try {
+        setLoading(true);
+        setError('');
+        let data = [];
 
-  function resetForm() {
-    setForm({ ...EMPTY_FORM, COLABORADOR_ID: employeeId });
-    setEditingKey('');
-    setOriginalDoc(null);
-  }
+        if (employeeId && typeof api.documents.listByEmployee === 'function') {
+          data = await api.documents.listByEmployee(employeeId);
+        } else {
+          data = await api.documents.list();
+        }
 
-  function handleEdit(doc) {
-    setForm({ ...EMPTY_FORM, ...doc });
-    setEditingKey(buildDocKey(doc));
-    setOriginalDoc(doc);
-    setDrawerOpen(true);
-  }
+        if (!mounted) return;
 
-  function handleNew() {
-    resetForm();
-    setDrawerOpen(true);
-  }
+        const docs = normalizeDocsResponse(data)
+          .map(normalizeDocRow)
+          .filter(Boolean)
+          .filter((doc) => !employeeId || normalizeText(doc.COLABORADOR_ID) === employeeId);
 
-  function handleSave(e) {
-    e.preventDefault();
-    const nextDoc = {
-      ...form,
-      COLABORADOR_ID: employeeId,
-      TIPO_DOCUMENTO: normalizeText(form.TIPO_DOCUMENTO),
-      DATA_EMISSAO: normalizeText(form.DATA_EMISSAO),
-      DATA_VENCIMENTO: normalizeText(form.DATA_VENCIMENTO),
-      EVIDENCIA_TIPO: normalizeText(form.EVIDENCIA_TIPO),
-      EVIDENCIA_REF: normalizeText(form.EVIDENCIA_REF),
-      OBS: normalizeText(form.OBS)
+        setDocumentacoes(docs);
+      } catch (err) {
+        if (!mounted) return;
+        console.error('Falha ao carregar documentações do colaborador.', err);
+        setError('Falha ao carregar documentações.');
+        setDocumentacoes([]);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    load();
+
+    return () => {
+      mounted = false;
     };
-    if (!nextDoc.COLABORADOR_ID || !nextDoc.TIPO_DOCUMENTO) return;
-    let updatedDoc = { ...nextDoc };
-    if (updatedDoc.VERIFIED) {
-      updatedDoc = {
-        ...updatedDoc,
-        VERIFIED_BY: updatedDoc.VERIFIED_BY || 'Usuário Atual',
-        VERIFIED_AT: updatedDoc.VERIFIED_AT || new Date().toISOString()
-      };
-    } else {
-      updatedDoc = { ...updatedDoc, VERIFIED_BY: '', VERIFIED_AT: '' };
-    }
-    if (originalDoc) {
-      updatedDoc = resetVerificationIfChanged(originalDoc, updatedDoc);
-    }
+  }, [employeeId]);
 
-    const updated = [...documentacoes];
-    const index = updated.findIndex((doc) => buildDocKey(doc) === (editingKey || buildDocKey(updatedDoc)));
-    if (index >= 0) {
-      const prev = updated[index];
-      updated[index] = resetVerificationIfChanged(prev, { ...prev, ...updatedDoc });
-    } else {
-      updated.push(updatedDoc);
-    }
-
-    const prevPayload = readPayload();
-    const nextDataset = { ...prevPayload.dataset, documentacoes: updated };
-    const nextPayload = mergePayload(prevPayload, {
-      dataset: nextDataset,
-      metrics: computeDashboardMetrics(nextDataset),
-      importedAt: prevPayload.importedAt || new Date().toISOString()
+  const docsForEmployee = useMemo(() => {
+    return [...documentacoes].sort((a, b) => {
+      const order = { VENCIDO: 0, VENCENDO: 1, OK: 2 };
+      const statusA = docValidityStatus(a) || 'OK';
+      const statusB = docValidityStatus(b) || 'OK';
+      const diff = (order[statusA] ?? 3) - (order[statusB] ?? 3);
+      if (diff !== 0) return diff;
+      const dateA = normalizeText(a.DATA_VENCIMENTO) || '9999-12-31';
+      const dateB = normalizeText(b.DATA_VENCIMENTO) || '9999-12-31';
+      return dateA.localeCompare(dateB);
     });
-    writePayload(nextPayload);
-    setDocumentacoes(updated);
-    resetForm();
-    setDrawerOpen(false);
-  }
+  }, [documentacoes]);
 
   return (
     <div className="space-y-4">
       <Card className="p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="text-sm font-semibold text-slate-900">Documentações</div>
-            <div className="text-xs text-slate-500">Gerencie documentos, evidências e verificação.</div>
-          </div>
-          <Button type="button" onClick={handleNew}>
-            Adicionar documento
-          </Button>
+        <div>
+          <div className="text-sm font-semibold text-slate-900">Documentações</div>
+          <div className="text-xs text-slate-500">Visão de documentos, evidências e status.</div>
         </div>
 
+        {error && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">{error}</div>}
+
         <div className="mt-4 space-y-2">
-          {docsForEmployee.map((doc) => {
+          {loading && <div className="rounded-xl border border-slate-200 p-4 text-sm text-slate-500">Carregando documentações...</div>}
+
+          {!loading && docsForEmployee.map((doc) => {
             const status = docValidityStatus(doc) || 'OK';
             const evidence = evidenceStatus(doc);
             const docType = normalizeDocType(doc.TIPO_DOCUMENTO);
@@ -184,15 +124,13 @@ export default function EmployeeDocsTab({ employee }) {
                   <div className="md:col-span-1">
                     <div className="text-xs text-slate-500">Vencimento</div>
                     <div className="text-sm text-slate-800">{doc.DATA_VENCIMENTO || '—'}</div>
-                    <Badge tone={status === 'VENCIDO' ? 'red' : status === 'VENCENDO' ? 'amber' : 'green'}>
-                      {status}
-                    </Badge>
+                    <Badge tone={status === 'VENCIDO' ? 'red' : status === 'VENCENDO' ? 'amber' : 'green'}>{status}</Badge>
                   </div>
                   <div className="md:col-span-1">
                     <div className="text-xs text-slate-500">Evidência</div>
                     <div className="mt-1 flex items-center gap-2 text-sm text-slate-700">
                       <Paperclip size={14} className={hasEvidence ? 'text-slate-600' : 'text-slate-300'} />
-                      <span title={hasEvidence ? evidence : 'Adicionar PDF ou link'}>{evidence}</span>
+                      <span>{evidence}</span>
                     </div>
                   </div>
                   <div className="md:col-span-1">
@@ -200,129 +138,17 @@ export default function EmployeeDocsTab({ employee }) {
                     <Badge tone={doc.VERIFIED ? 'green' : 'gray'}>{doc.VERIFIED ? 'Verificado' : 'Pendente'}</Badge>
                   </div>
                 </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <Button type="button" variant="secondary" onClick={() => handleEdit(doc)}>
-                    Editar
-                  </Button>
-                </div>
               </div>
             );
           })}
-          {!docsForEmployee.length && (
+
+          {!loading && !docsForEmployee.length && (
             <div className="rounded-xl border border-slate-200 p-4 text-sm text-slate-500">
               Nenhuma documentação encontrada para este colaborador.
             </div>
           )}
         </div>
       </Card>
-
-      <Modal
-        open={drawerOpen}
-        title={editingKey ? 'Editar documentação' : 'Novo documento'}
-        onClose={() => {
-          setDrawerOpen(false);
-        }}
-        className="max-w-3xl"
-      >
-        <form className="space-y-4" onSubmit={handleSave}>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <select
-              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
-              value={form.TIPO_DOCUMENTO}
-              onChange={(e) => updateForm('TIPO_DOCUMENTO', e.target.value)}
-            >
-              <option value="">Selecione o tipo</option>
-              {ALL_DOC_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
-            <Input
-              value={form.DATA_EMISSAO}
-              onChange={(e) => updateForm('DATA_EMISSAO', e.target.value)}
-              placeholder="Data emissão (YYYY-MM-DD)"
-            />
-            <Input
-              value={form.DATA_VENCIMENTO}
-              onChange={(e) => updateForm('DATA_VENCIMENTO', e.target.value)}
-              placeholder="Data vencimento (YYYY-MM-DD)"
-            />
-          </div>
-
-          <div className="rounded-xl border border-slate-200 p-4">
-            <div className="text-sm font-semibold text-slate-900">Evidência</div>
-            <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2">
-              <Input
-                value={form.EVIDENCIA_TIPO === 'LINK' ? form.EVIDENCIA_REF : ''}
-                onChange={(e) => {
-                  updateForm('EVIDENCIA_TIPO', 'LINK');
-                  updateForm('EVIDENCIA_REF', e.target.value);
-                }}
-                placeholder="Link (cole aqui)"
-              />
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    uploadInputRef.current?.click();
-                  }}
-                >
-                  Upload PDF
-                </Button>
-                <input
-                  ref={uploadInputRef}
-                  type="file"
-                  accept=".pdf"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (e.target) e.target.value = '';
-                    if (!file) return;
-                    updateForm('EVIDENCIA_TIPO', 'UPLOAD');
-                    updateForm('EVIDENCIA_REF', `${file.name} (${file.size} bytes)`);
-                  }}
-                />
-              </div>
-            </div>
-            {form.EVIDENCIA_REF && (
-              <div className="mt-2 text-xs text-slate-500">Ref: {form.EVIDENCIA_REF}</div>
-            )}
-          </div>
-
-          <Input value={form.OBS} onChange={(e) => updateForm('OBS', e.target.value)} placeholder="Observação" />
-
-          <label className="flex items-center gap-2 text-sm text-slate-600">
-            <input
-              type="checkbox"
-              checked={form.VERIFIED}
-              onChange={(e) => {
-                const checked = e.target.checked;
-                updateForm('VERIFIED', checked);
-                updateForm('VERIFIED_BY', checked ? 'Usuário Atual' : '');
-                updateForm('VERIFIED_AT', checked ? new Date().toISOString() : '');
-              }}
-              className="rounded border-slate-300 text-blue-600 focus:ring-blue-200"
-            />
-            Verificado
-          </label>
-
-          <div className="flex items-center gap-2">
-            <Button type="submit">{editingKey ? 'Salvar alterações' : 'Adicionar documento'}</Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                setDrawerOpen(false);
-                resetForm();
-              }}
-            >
-              Cancelar
-            </Button>
-          </div>
-        </form>
-      </Modal>
     </div>
   );
 }

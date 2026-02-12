@@ -1,49 +1,120 @@
-// apps/portal-rh/src/HRPortalApp.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Sidebar from './layout/Sidebar';
 import DashboardPage from './features/dashboard/DashboardPage';
 import EmployeesPage from './features/employees/EmployeesPage';
 import CreateEmployeePage from './features/employees/CreateEmployeePage';
-import api from './services/api';
+import DocsPage from './features/docs/DocsPage';
+import MobilityPage from './features/mobility/MobilityPage';
+import FinancePage from './features/finance/FinancePage';
+import EquipmentPage from './features/equipment/EquipmentPage';
+import ModulePlaceholderPage from './features/common/ModulePlaceholderPage';
+import NotFoundPage from './features/common/NotFoundPage';
+import { ROUTE_PATHS, resolvePathByKey } from './navigation/routes.js';
+
+const ROUTE_COMPONENTS = {
+  [ROUTE_PATHS.dashboard]: () => <DashboardRoute />,
+  [ROUTE_PATHS.employees]: () => <EmployeesPage />,
+  '/employees': () => <EmployeesPage />,
+  '/colaboradores/novo': () => <CreateEmployeeRoute />,
+  [ROUTE_PATHS.docs]: () => <DocsRoute />,
+  [ROUTE_PATHS.mobility]: () => <MobilityPage />,
+  [ROUTE_PATHS.equipment]: () => <EquipmentPage />,
+  [ROUTE_PATHS.finance]: () => <FinancePage />,
+  '/financial-requests': () => <FinancePage />,
+  [ROUTE_PATHS.rdo]: () => <ModulePlaceholderPage title="RDO" />,
+  '/daily-reports': () => <ModulePlaceholderPage title="RDO" />,
+  [ROUTE_PATHS.os]: () => <ModulePlaceholderPage title="OS" />,
+  '/service-orders': () => <ModulePlaceholderPage title="OS" />,
+  [ROUTE_PATHS.hotel]: () => <ModulePlaceholderPage title="Hotelaria" />
+};
+
+function trimTrailingSlash(pathname) {
+  if (!pathname || pathname === '/') return ROUTE_PATHS.dashboard;
+  return pathname.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname;
+}
+
+export function getPathname(locationString = '') {
+  if (!locationString) return ROUTE_PATHS.dashboard;
+  const [pathname] = locationString.split('?');
+  return trimTrailingSlash(pathname);
+}
+
+export function getSearch(locationString = '') {
+  if (!locationString) return '';
+  const [, ...rest] = locationString.split('?');
+  return rest.length ? `?${rest.join('?')}` : '';
+}
+
+function getCurrentLocation() {
+  return `${trimTrailingSlash(window.location.pathname)}${window.location.search || ''}`;
+}
+
+function usePortalRouter() {
+  const [location, setLocation] = useState(getCurrentLocation());
+
+  useEffect(() => {
+    const onPopState = () => setLocation(getCurrentLocation());
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  const navigate = useCallback((nextLocation) => {
+    const pathname = getPathname(nextLocation);
+    const search = getSearch(nextLocation);
+    const normalized = `${pathname}${search}`;
+    const current = `${trimTrailingSlash(window.location.pathname)}${window.location.search || ''}`;
+    if (normalized !== current) {
+      window.history.pushState({}, '', normalized);
+    }
+    setLocation(normalized);
+  }, []);
+
+  return { location, navigate };
+}
+
+export const NavigationContext = React.createContext({
+  location: ROUTE_PATHS.dashboard,
+  path: ROUTE_PATHS.dashboard,
+  search: '',
+  navigate: () => {}
+});
+
+function DashboardRoute() {
+  const { navigate } = React.useContext(NavigationContext);
+  return <DashboardPage onNavigate={(key, params) => navigate(resolvePathByKey(key, params))} />;
+}
+
+function CreateEmployeeRoute() {
+  const { navigate } = React.useContext(NavigationContext);
+  return <CreateEmployeePage onCreateEmployee={() => navigate(ROUTE_PATHS.employees)} />;
+}
+
+function DocsRoute() {
+  const { navigate, search } = React.useContext(NavigationContext);
+  return <DocsPage search={search} onOpenEmployee={() => navigate(ROUTE_PATHS.employees)} />;
+}
 
 export default function HRPortalApp() {
-  const [activePage, setActivePage] = useState('dashboard');
-  const [employees, setEmployees] = useState([]);
+  const { location, navigate } = usePortalRouter();
+  const path = getPathname(location);
+  const search = getSearch(location);
 
-  // Função para carregar os dados do banco
-  const loadEmployees = async () => {
-    try {
-      const data = await api.employees.list();
-      setEmployees(data.employees || data); // Aceita array direto ou objeto com chave
-    } catch (err) {
-      console.error("Erro ao carregar dados:", err);
-    }
-  };
+  const activePath = useMemo(() => {
+    if (path === '/employees') return ROUTE_PATHS.employees;
+    if (path === '/daily-reports') return ROUTE_PATHS.rdo;
+    if (path === '/service-orders') return ROUTE_PATHS.os;
+    if (path === '/financial-requests') return ROUTE_PATHS.finance;
+    return path;
+  }, [path]);
 
-  useEffect(() => { loadEmployees(); }, []);
-
-  const renderPage = () => {
-    switch (activePage) {
-      case 'dashboard':
-        return <DashboardPage employees={employees} />;
-      case 'employees':
-        return <EmployeesPage employees={employees} onRefresh={loadEmployees} />;
-      case 'employeeCreate':
-        return <CreateEmployeePage onCreateEmployee={() => {
-          loadEmployees(); // Atualiza a lista após criar
-          setActivePage('employees'); // Volta para a listagem
-        }} />;
-      default:
-        return <DashboardPage employees={employees} />;
-    }
-  };
+  const CurrentPage = ROUTE_COMPONENTS[path] || null;
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <Sidebar active={activePage} onNavigate={setActivePage} />
-      <main className="flex-1 p-8">
-        {renderPage()}
-      </main>
-    </div>
+    <NavigationContext.Provider value={{ location, path, search, navigate }}>
+      <div className="flex min-h-screen bg-slate-50">
+        <Sidebar activePath={activePath} onNavigate={navigate} />
+        <main className="flex-1 p-8">{CurrentPage ? <CurrentPage /> : <NotFoundPage onNavigate={navigate} />}</main>
+      </div>
+    </NavigationContext.Provider>
   );
 }

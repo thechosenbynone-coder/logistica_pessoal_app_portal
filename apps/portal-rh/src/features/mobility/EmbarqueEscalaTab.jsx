@@ -65,9 +65,9 @@ export default function EmbarqueEscalaTab({ employee }) {
     const handleUpdate = () => {
       setDocumentacoes(loadStoredDocumentacoes());
     };
-    window.addEventListener('portal_rh_xlsx_updated', handleUpdate);
+    window.addEventListener('portal_rh_data_updated', handleUpdate);
     return () => {
-      window.removeEventListener('portal_rh_xlsx_updated', handleUpdate);
+      window.removeEventListener('portal_rh_data_updated', handleUpdate);
     };
   }, []);
 
