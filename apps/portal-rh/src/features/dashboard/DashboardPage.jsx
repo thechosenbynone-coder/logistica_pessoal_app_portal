@@ -91,7 +91,7 @@ export default function DashboardPage({ onNavigate }) {
         title: 'RDO pendente',
         value: metrics?.dailyReportsPending,
         icon: ClipboardList,
-        go: () => onNavigate?.('rdo', { status: 'pending' })
+        go: () => onNavigate?.('work', { status: 'pending' })
       }
     ],
     [metrics, onNavigate]
