@@ -3,7 +3,7 @@ import React from 'react';
 /**
  * Loading spinner component.
  */
-export function LoadingSpinner({ size = 'md', className = '' }) {
+export default function LoadingSpinner({ size = 'md', className = '' }) {
     const sizeClasses = {
         sm: 'w-4 h-4',
         md: 'w-8 h-8',

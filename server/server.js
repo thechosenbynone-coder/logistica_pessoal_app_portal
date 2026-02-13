@@ -2,18 +2,28 @@ import express from 'express';
 import cors from 'cors';
 import pg from 'pg';
 import 'dotenv/config';
+import bcrypt from 'bcryptjs';
+import { migrate } from './src/migrate.js';
+import { authOptional, guardEmployeeScope, requireEmployeeAuth, signEmployeeToken } from './src/auth.js';
 
 const { Pool } = pg;
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3001;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
 });
 
-app.use(cors());
+const corsOrigin = process.env.CORS_ORIGIN || '*';
+if (corsOrigin === '*') {
+  app.use(cors());
+} else {
+  const origins = corsOrigin.split(',').map((item) => item.trim()).filter(Boolean);
+  app.use(cors({ origin: origins }));
+}
 app.use(express.json());
+app.use(authOptional);
 
 app.use((req, _res, next) => {
   console.log(`[REQUEST] ${req.method} ${req.url}`);
@@ -45,6 +55,85 @@ const createInsertQuery = (table, data) => {
   return { text: `INSERT INTO ${table} (${cols}) VALUES (${placeholders}) RETURNING *`, values };
 };
 
+
+
+const createInsertOnConflictClientIdQuery = (table, data) => {
+  const keys = Object.keys(data);
+  const values = Object.values(data);
+  const cols = keys.map((k) => `"${k}"`).join(', ');
+  const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+  return {
+    text: `INSERT INTO ${table} (${cols}) VALUES (${placeholders}) ON CONFLICT (client_id) DO NOTHING RETURNING *`,
+    values,
+  };
+};
+
+const insertIdempotentByClientId = async (table, data) => {
+  if (data.client_id) {
+    try {
+      const insertResult = await pool.query(createInsertOnConflictClientIdQuery(table, data));
+      if (insertResult.rows[0]) {
+        return { row: insertResult.rows[0], created: true };
+      }
+
+      const existingResult = await pool.query(
+        `SELECT * FROM ${table} WHERE client_id = $1 ORDER BY id DESC LIMIT 1`,
+        [data.client_id]
+      );
+      if (existingResult.rows[0]) {
+        return { row: existingResult.rows[0], created: false };
+      }
+    } catch (error) {
+      if (error?.code === '42P01') {
+        const schemaError = new Error(`Tabela ausente para idempotência: ${table}`);
+        schemaError.code = 'TABLE_MISSING';
+        throw schemaError;
+      }
+
+      if (error?.code === '42703') {
+        const sanitizedData = { ...data };
+        delete sanitizedData.client_id;
+        delete sanitizedData.client_filled_at;
+        const fallbackInsertWithoutClientColumns = await pool.query(createInsertQuery(table, sanitizedData));
+        return { row: fallbackInsertWithoutClientColumns.rows[0], created: true };
+      }
+
+      if (error?.code !== '42P10') throw error;
+
+      const existingResult = await pool.query(
+        `SELECT * FROM ${table} WHERE client_id = $1 ORDER BY id DESC LIMIT 1`,
+        [data.client_id]
+      );
+      if (existingResult.rows[0]) {
+        return { row: existingResult.rows[0], created: false };
+      }
+
+      try {
+        const fallbackInsertOnConstraintMissing = await pool.query(createInsertQuery(table, data));
+        return { row: fallbackInsertOnConstraintMissing.rows[0], created: true };
+      } catch (fallbackError) {
+        if (fallbackError?.code !== '42703') throw fallbackError;
+        const sanitizedData = { ...data };
+        delete sanitizedData.client_id;
+        delete sanitizedData.client_filled_at;
+        const fallbackInsertWithoutClientColumns = await pool.query(createInsertQuery(table, sanitizedData));
+        return { row: fallbackInsertWithoutClientColumns.rows[0], created: true };
+      }
+    }
+  }
+
+  try {
+    const fallbackInsert = await pool.query(createInsertQuery(table, data));
+    return { row: fallbackInsert.rows[0], created: true };
+  } catch (fallbackError) {
+    if (fallbackError?.code !== '42703') throw fallbackError;
+    const sanitizedData = { ...data };
+    delete sanitizedData.client_id;
+    delete sanitizedData.client_filled_at;
+    const fallbackInsertWithoutClientColumns = await pool.query(createInsertQuery(table, sanitizedData));
+    return { row: fallbackInsertWithoutClientColumns.rows[0], created: true };
+  }
+};
 const normalizeCPF = (cpf) => String(cpf || '').replace(/\D/g, '');
 
 const parseOptionalInteger = (value, fieldName) => {
@@ -69,10 +158,10 @@ const parseOptionalBoolean = (value, fieldName) => {
 
 const parseRequiredInteger = (value, fieldName) => {
   const parsed = Number(value);
-  if (!Number.isFinite(parsed)) {
-    return { error: `${fieldName} deve ser um número válido` };
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return { error: `${fieldName} deve ser um inteiro positivo válido` };
   }
-  return { value: Math.trunc(parsed) };
+  return { value: parsed };
 };
 
 const isValidDateString = (value) => {
@@ -80,6 +169,33 @@ const isValidDateString = (value) => {
   const date = new Date(value);
   return !Number.isNaN(date.getTime());
 };
+
+const parseEmployeeIdParam = (req, res) => {
+  const parsed = parseRequiredInteger(req.params.id, 'employeeId');
+  if (parsed?.error) {
+    res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'employeeId inválido' });
+    return null;
+  }
+  return parsed.value;
+};
+
+const passthrough = (_req, _res, next) => next();
+const shouldRequireEmployeeAuth = process.env.REQUIRE_EMPLOYEE_AUTH === 'true';
+const employeeParamsAuth = shouldRequireEmployeeAuth
+  ? [requireEmployeeAuth, guardEmployeeScope('params')]
+  : [passthrough];
+const employeeBodyAuth = shouldRequireEmployeeAuth
+  ? [requireEmployeeAuth, guardEmployeeScope('body')]
+  : [passthrough];
+
+
+const requireAdminKeyIfConfigured = (req, res, next) => {
+  if (!process.env.ADMIN_KEY) return next();
+  const headerKey = req.header('x-admin-key');
+  if (headerKey && headerKey === process.env.ADMIN_KEY) return next();
+  return res.status(401).json({ errorCode: 'UNAUTHORIZED', message: 'x-admin-key inválido ou ausente' });
+};
+
 
 async function ensureDocumentationSchema() {
   try {
@@ -307,6 +423,60 @@ async function ensureEpiDeliveriesSchema() {
   }
 }
 
+
+async function ensureServiceOrdersSchema() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS service_orders (
+        id SERIAL PRIMARY KEY,
+        os_number TEXT,
+        description TEXT,
+        vessel_id INTEGER,
+        status TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    await pool.query(`DO $$ BEGIN ALTER TABLE service_orders ADD COLUMN employee_id INTEGER; EXCEPTION WHEN duplicate_column THEN END $$;`);
+    await pool.query(`DO $$ BEGIN ALTER TABLE service_orders ADD COLUMN title TEXT; EXCEPTION WHEN duplicate_column THEN END $$;`);
+    await pool.query(`DO $$ BEGIN ALTER TABLE service_orders ADD COLUMN priority TEXT; EXCEPTION WHEN duplicate_column THEN END $$;`);
+    await pool.query(`DO $$ BEGIN ALTER TABLE service_orders ADD COLUMN opened_at DATE; EXCEPTION WHEN duplicate_column THEN END $$;`);
+    await pool.query(`DO $$ BEGIN ALTER TABLE service_orders ADD COLUMN approval_status TEXT; EXCEPTION WHEN duplicate_column THEN END $$;`);
+    await pool.query(`DO $$ BEGIN ALTER TABLE service_orders ADD COLUMN created_at TIMESTAMPTZ DEFAULT NOW(); EXCEPTION WHEN duplicate_column THEN END $$;`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_service_orders_employee_id ON service_orders(employee_id)`);
+
+    console.log('[BOOT] service_orders schema pronto');
+  } catch (error) {
+    console.error('[BOOT] falha ao ajustar schema de service_orders:', error?.stack || error);
+    throw error;
+  }
+}
+
+
+async function ensureClientSyncSchema() {
+  try {
+    await pool.query(`DO $$ BEGIN ALTER TABLE daily_reports ADD COLUMN client_id TEXT; EXCEPTION WHEN duplicate_column THEN END $$;`);
+    await pool.query(`DO $$ BEGIN ALTER TABLE daily_reports ADD COLUMN client_filled_at TIMESTAMPTZ; EXCEPTION WHEN duplicate_column THEN END $$;`);
+    await pool.query(`DO $$ BEGIN ALTER TABLE service_orders ADD COLUMN client_id TEXT; EXCEPTION WHEN duplicate_column THEN END $$;`);
+    await pool.query(`DO $$ BEGIN ALTER TABLE service_orders ADD COLUMN client_filled_at TIMESTAMPTZ; EXCEPTION WHEN duplicate_column THEN END $$;`);
+    await pool.query(`DO $$ BEGIN ALTER TABLE financial_requests ADD COLUMN client_id TEXT; EXCEPTION WHEN duplicate_column THEN END $$;`);
+    await pool.query(`DO $$ BEGIN ALTER TABLE financial_requests ADD COLUMN client_filled_at TIMESTAMPTZ; EXCEPTION WHEN duplicate_column THEN END $$;`);
+
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_reports_client_id_unique ON daily_reports(client_id)`);
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_service_orders_client_id_unique ON service_orders(client_id)`);
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_financial_requests_client_id_unique ON financial_requests(client_id)`);
+
+    console.log('[BOOT] client sync schema pronto');
+  } catch (error) {
+    if (error?.code === '42P01') {
+      console.log('[BOOT] client sync schema parcialmente aplicado (tabelas ausentes)');
+      return;
+    }
+    console.error('[BOOT] falha ao ajustar schema de client sync:', error?.stack || error);
+    throw error;
+  }
+}
+
 app.get('/api/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
@@ -322,6 +492,93 @@ app.get('/health', async (_req, res) => {
     res.json({ status: 'ok', database: 'connected' });
   } catch (error) {
     handleServerError(res, error, 'health-check');
+  }
+});
+
+
+/* =========================
+   AUTH
+========================= */
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const employeeIdParsed = parseRequiredInteger(req.body?.employee_id, 'employee_id');
+    const pin = String(req.body?.pin || '').trim();
+
+    if (employeeIdParsed?.error || !pin || pin.length < 4 || pin.length > 12) {
+      return res.status(401).json({ errorCode: 'INVALID_CREDENTIALS', message: 'Credenciais inválidas' });
+    }
+
+    const result = await pool.query(
+      `SELECT id, name, cpf, role, email, phone, base, created_at, access_pin_hash
+       FROM employees
+       WHERE id = $1`,
+      [employeeIdParsed.value]
+    );
+
+    const employee = result.rows[0];
+    if (!employee) {
+      return res.status(401).json({ errorCode: 'INVALID_CREDENTIALS', message: 'Credenciais inválidas' });
+    }
+
+    if (!employee.access_pin_hash) {
+      return res.status(403).json({ errorCode: 'PIN_NOT_SET', message: 'PIN não configurado para este colaborador' });
+    }
+
+    const isValid = await bcrypt.compare(pin, employee.access_pin_hash);
+    if (!isValid) {
+      return res.status(401).json({ errorCode: 'INVALID_CREDENTIALS', message: 'Credenciais inválidas' });
+    }
+
+    const token = signEmployeeToken(employee.id);
+    return res.json({
+      token,
+      employee: {
+        id: employee.id,
+        name: employee.name,
+        cpf: employee.cpf,
+        role: employee.role,
+        email: employee.email,
+        phone: employee.phone,
+        base: employee.base,
+        created_at: employee.created_at,
+      },
+    });
+  } catch (error) {
+    handleServerError(res, error, 'auth-login');
+  }
+});
+
+app.post('/api/admin/employees/:id/pin', async (req, res) => {
+  try {
+    if (req.auth?.role !== 'admin') {
+      return res.status(401).json({ errorCode: 'UNAUTHORIZED', message: 'Acesso admin obrigatório' });
+    }
+
+    const employeeId = parseEmployeeIdParam(req, res);
+    if (!employeeId) return;
+
+    const pin = String(req.body?.pin || '').trim();
+    if (!pin || pin.length < 4 || pin.length > 12 || !/^\d+$/.test(pin)) {
+      return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'PIN inválido (use 4-12 dígitos)' });
+    }
+
+    const hash = await bcrypt.hash(pin, 10);
+    const result = await pool.query(
+      `UPDATE employees
+       SET access_pin_hash = $1,
+           access_pin_updated_at = NOW()
+       WHERE id = $2
+       RETURNING id`,
+      [hash, employeeId]
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ errorCode: 'NOT_FOUND', message: 'Colaborador não encontrado' });
+    }
+
+    return res.json({ ok: true });
+  } catch (error) {
+    handleServerError(res, error, 'admin-set-pin');
   }
 });
 
@@ -341,7 +598,26 @@ app.get('/api/employees', async (_req, res) => {
   }
 });
 
-app.post('/api/employees', async (req, res) => {
+app.get('/api/employees/:id', ...employeeParamsAuth, async (req, res) => {
+  try {
+    const employeeId = parseEmployeeIdParam(req, res);
+    if (!employeeId) return;
+    const result = await pool.query(
+      `SELECT id, name, cpf, role, email, phone, base, created_at
+       FROM employees
+       WHERE id = $1`,
+      [employeeId]
+    );
+    if (!result.rows[0]) {
+      return res.status(404).json({ errorCode: 'NOT_FOUND', message: 'Colaborador não encontrado' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    handleServerError(res, error, 'employees-get-by-id');
+  }
+});
+
+app.post('/api/employees', requireAdminKeyIfConfigured, async (req, res) => {
   try {
     const data = pickData(req.body, ['name', 'cpf', 'role', 'email', 'phone', 'base']);
     if (!data.name)
@@ -439,7 +715,7 @@ app.get('/api/document-types', async (_req, res) => {
   }
 });
 
-app.post('/api/document-types', async (req, res) => {
+app.post('/api/document-types', requireAdminKeyIfConfigured, async (req, res) => {
   try {
     const data = pickData(req.body, ['code', 'name', 'category', 'requires_expiration']);
     if (!data.code || !data.name)
@@ -484,9 +760,10 @@ app.get('/api/documents', async (_req, res) => {
   }
 });
 
-app.get('/api/employees/:id/documents', async (req, res) => {
+app.get('/api/employees/:id/documents', ...employeeParamsAuth, async (req, res) => {
   try {
-    const employeeId = Number(req.params.id);
+    const employeeId = parseEmployeeIdParam(req, res);
+    if (!employeeId) return;
     const result = await pool.query(
       `SELECT d.*, dt.code AS document_code, dt.name AS document_name
        FROM documents d
@@ -497,11 +774,12 @@ app.get('/api/employees/:id/documents', async (req, res) => {
     );
     res.json(result.rows);
   } catch (error) {
+    if (error?.code === '42P01') return res.json([]);
     handleServerError(res, error, 'documents-by-employee');
   }
 });
 
-app.post('/api/documents', async (req, res) => {
+app.post('/api/documents', requireAdminKeyIfConfigured, async (req, res) => {
   try {
     const data = pickData(req.body, [
       'employee_id',
@@ -654,20 +932,22 @@ app.get('/api/deployments', async (_req, res) => {
   }
 });
 
-app.get('/api/employees/:id/deployments', async (req, res) => {
+app.get('/api/employees/:id/deployments', ...employeeParamsAuth, async (req, res) => {
   try {
-    const employeeId = Number(req.params.id);
+    const employeeId = parseEmployeeIdParam(req, res);
+    if (!employeeId) return;
     const result = await pool.query(
       'SELECT * FROM deployments WHERE employee_id = $1 ORDER BY id ASC',
       [employeeId]
     );
     res.json(result.rows);
   } catch (error) {
+    if (error?.code === '42P01') return res.json([]);
     handleServerError(res, error, 'deployments-by-employee');
   }
 });
 
-app.post('/api/deployments', async (req, res) => {
+app.post('/api/deployments', requireAdminKeyIfConfigured, async (req, res) => {
   try {
     const data = pickData(req.body, [
       'employee_id',
@@ -704,7 +984,7 @@ app.get('/api/epi/catalog', async (_req, res) => {
   }
 });
 
-app.post('/api/epi/catalog', async (req, res) => {
+app.post('/api/epi/catalog', requireAdminKeyIfConfigured, async (req, res) => {
   try {
     const data = pickData(req.body, [
       'name',
@@ -758,20 +1038,22 @@ app.get('/api/epi/deliveries', async (_req, res) => {
   }
 });
 
-app.get('/api/employees/:id/epi-deliveries', async (req, res) => {
+app.get('/api/employees/:id/epi-deliveries', ...employeeParamsAuth, async (req, res) => {
   try {
-    const employeeId = Number(req.params.id);
+    const employeeId = parseEmployeeIdParam(req, res);
+    if (!employeeId) return;
     const result = await pool.query(
       'SELECT * FROM epi_deliveries WHERE employee_id = $1 ORDER BY id ASC',
       [employeeId]
     );
     res.json(result.rows);
   } catch (error) {
+    if (error?.code === '42P01') return res.json([]);
     handleServerError(res, error, 'epi-deliveries-by-employee');
   }
 });
 
-app.post('/api/epi/deliveries', async (req, res) => {
+app.post('/api/epi/deliveries', requireAdminKeyIfConfigured, async (req, res) => {
   try {
     const data = pickData(req.body, [
       'employee_id',
@@ -805,7 +1087,22 @@ app.get('/api/daily-reports', async (_req, res) => {
   }
 });
 
-app.post('/api/daily-reports', async (req, res) => {
+app.get('/api/employees/:id/daily-reports', ...employeeParamsAuth, async (req, res) => {
+  try {
+    const employeeId = parseEmployeeIdParam(req, res);
+    if (!employeeId) return;
+    const result = await pool.query(
+      'SELECT * FROM daily_reports WHERE employee_id = $1 ORDER BY id DESC',
+      [employeeId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    if (error?.code === '42P01') return res.json([]);
+    handleServerError(res, error, 'daily-reports-by-employee');
+  }
+});
+
+app.post('/api/daily-reports', ...employeeBodyAuth, async (req, res) => {
   try {
     const data = pickData(req.body, [
       'employee_id',
@@ -814,6 +1111,8 @@ app.post('/api/daily-reports', async (req, res) => {
       'hours_worked',
       'approval_status',
       'approved_by',
+      'client_id',
+      'client_filled_at',
     ]);
     if (!data.employee_id || !data.description) {
       return res.status(400).json({
@@ -821,9 +1120,12 @@ app.post('/api/daily-reports', async (req, res) => {
         message: 'employee_id e description são obrigatórios',
       });
     }
-    const result = await pool.query(createInsertQuery('daily_reports', data));
-    res.status(201).json(result.rows[0]);
+    const result = await insertIdempotentByClientId('daily_reports', data);
+    res.status(result.created ? 201 : 200).json(result.row);
   } catch (error) {
+    if (error?.code === 'TABLE_MISSING') {
+      return res.status(500).json({ errorCode: 'SCHEMA_ERROR', message: error.message });
+    }
     handleServerError(res, error, 'daily-reports-create');
   }
 });
@@ -840,18 +1142,51 @@ app.get('/api/service-orders', async (_req, res) => {
   }
 });
 
-app.post('/api/service-orders', async (req, res) => {
+app.get('/api/employees/:id/service-orders', ...employeeParamsAuth, async (req, res) => {
   try {
-    const data = pickData(req.body, ['os_number', 'description', 'vessel_id', 'status']);
-    if (!data.os_number || !data.description) {
+    const employeeId = parseEmployeeIdParam(req, res);
+    if (!employeeId) return;
+    const result = await pool.query(
+      'SELECT * FROM service_orders WHERE employee_id = $1 ORDER BY id DESC',
+      [employeeId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    if (error?.code === '42P01') return res.json([]);
+    handleServerError(res, error, 'service-orders-by-employee');
+  }
+});
+
+app.post('/api/service-orders', ...employeeBodyAuth, async (req, res) => {
+  try {
+    const data = pickData(req.body, [
+      'employee_id',
+      'os_number',
+      'title',
+      'description',
+      'priority',
+      'opened_at',
+      'approval_status',
+      'vessel_id',
+      'status',
+      'client_id',
+      'client_filled_at',
+    ]);
+    if (!data.description) {
       return res.status(400).json({
         errorCode: 'VALIDATION_ERROR',
-        message: 'os_number e description são obrigatórios',
+        message: 'description é obrigatório',
       });
     }
-    const result = await pool.query(createInsertQuery('service_orders', data));
-    res.status(201).json(result.rows[0]);
+    if (!data.os_number) {
+      data.os_number = `OS-${Date.now()}`;
+    }
+    const result = await insertIdempotentByClientId('service_orders', data);
+    res.status(result.created ? 201 : 200).json(result.row);
   } catch (error) {
+    if (error?.code === 'TABLE_MISSING') {
+      return res.status(500).json({ errorCode: 'SCHEMA_ERROR', message: error.message });
+    }
     handleServerError(res, error, 'service-orders-create');
   }
 });
@@ -876,18 +1211,36 @@ app.get('/api/financial-requests', async (req, res) => {
   }
 });
 
-app.post('/api/financial-requests', async (req, res) => {
+app.get('/api/employees/:id/financial-requests', ...employeeParamsAuth, async (req, res) => {
   try {
-    const data = pickData(req.body, ['employee_id', 'type', 'amount', 'description', 'status']);
+    const employeeId = parseEmployeeIdParam(req, res);
+    if (!employeeId) return;
+    const result = await pool.query(
+      'SELECT * FROM financial_requests WHERE employee_id = $1 ORDER BY id DESC',
+      [employeeId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    if (error?.code === '42P01') return res.json([]);
+    handleServerError(res, error, 'financial-requests-by-employee');
+  }
+});
+
+app.post('/api/financial-requests', ...employeeBodyAuth, async (req, res) => {
+  try {
+    const data = pickData(req.body, ['employee_id', 'type', 'amount', 'description', 'status', 'client_id', 'client_filled_at']);
     if (!data.employee_id || !data.type || data.amount === undefined) {
       return res.status(400).json({
         errorCode: 'VALIDATION_ERROR',
         message: 'employee_id, type e amount são obrigatórios',
       });
     }
-    const result = await pool.query(createInsertQuery('financial_requests', data));
-    res.status(201).json(result.rows[0]);
+    const result = await insertIdempotentByClientId('financial_requests', data);
+    res.status(result.created ? 201 : 200).json(result.row);
   } catch (error) {
+    if (error?.code === 'TABLE_MISSING') {
+      return res.status(500).json({ errorCode: 'SCHEMA_ERROR', message: error.message });
+    }
     handleServerError(res, error, 'financial-requests-create');
   }
 });
@@ -896,18 +1249,23 @@ app.post('/api/financial-requests', async (req, res) => {
    STUBS (pra não quebrar telas antigas)
 ========================= */
 app.get('/api/checkins', (_req, res) => res.json([]));
-app.post('/api/checkins', (_req, res) => res.status(201).json({ ok: true }));
+app.post('/api/checkins', ...employeeBodyAuth, (_req, res) => res.status(201).json({ ok: true }));
 
 app.get('/api/profile', (_req, res) => res.json({}));
 
 app.get('/', (_req, res) => res.send('API Logística Offshore - Online 🚀'));
 
 const bootstrap = async () => {
+  await migrate(pool);
   await ensureDocumentationSchema();
   await ensureEpiCatalogSchema();
   await ensureEpiDeliveriesSchema();
-  app.listen(port, () => {
-    console.log(`API rodando na porta ${port}`);
+  if (process.env.USE_BOOTSTRAP_SCHEMA === 'true') {
+    await ensureServiceOrdersSchema();
+    await ensureClientSyncSchema();
+  }
+  app.listen(port, '0.0.0.0', () => {
+    console.log(`🚀 API rodando em http://localhost:${port}`);
   });
 };
 
