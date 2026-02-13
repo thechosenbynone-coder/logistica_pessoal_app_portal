@@ -1,5 +1,5 @@
 export { ErrorBoundary } from './ErrorBoundary';
-export { LoadingSpinner, LoadingPage } from './LoadingSpinner';
+export { default as LoadingSpinner, LoadingPage } from './LoadingSpinner.jsx';
 export { EmptyState } from './EmptyState';
 export { BottomNav } from './BottomNav';
 export { SignaturePad } from './SignaturePad';
