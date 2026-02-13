@@ -28,6 +28,7 @@ const HOME_VIEW = 'home';
 
 export default function EmployeeLogisticsApp() {
   const [activeView, setActiveView] = useState(HOME_VIEW);
+  const [workInitialSection, setWorkInitialSection] = useState('os');
   const [employeeId, setEmployeeId] = useLocalStorageState('employeeId', '');
   const [employeeInput, setEmployeeInput] = useState(employeeId || '');
   const [pinInput, setPinInput] = useState('');
@@ -42,14 +43,14 @@ export default function EmployeeLogisticsApp() {
   const [advances, setAdvances] = useLocalStorageState('el_advances', mockAdvances);
   const [equipment, setEquipment] = useLocalStorageState('el_equipment', mockEquipment);
 
-  const { employee, loading, screenError, dailyReportsApi, serviceOrdersApi } = useEmployeeData({ api, employeeId, mockEmployee });
-
-  const { isOnline } = useOutboxSync({ api, employeeId, refreshLists: async () => {} });
+  const { employee, loading, screenError, dailyReportsApi, serviceOrdersApi, refreshLists } = useEmployeeData({ api, employeeId, mockEmployee });
+  const { isOnline } = useOutboxSync({ api, employeeId, refreshLists });
 
   useEffect(() => {
     setEmployeeInput(employeeId || '');
   }, [employeeId]);
 
+  // TODO: substituir por endpoint consolidado de KPIs quando disponível no backend.
   const osCounter = useMemo(() => (serviceOrdersApi?.length || 0) + (workOrders?.length || 0), [serviceOrdersApi, workOrders]);
   const rdoCounter = useMemo(() => (dailyReportsApi?.length || 0) + (dailyReports?.length || 0), [dailyReportsApi, dailyReports]);
 
@@ -74,6 +75,7 @@ export default function EmployeeLogisticsApp() {
       setToken(result?.token || '');
       const loggedEmployeeId = String(result?.employee?.id || parsedId);
       setEmployeeId(loggedEmployeeId);
+      await refreshLists(loggedEmployeeId);
       setActiveView(HOME_VIEW);
       setPinInput('');
     } catch {
@@ -103,6 +105,11 @@ export default function EmployeeLogisticsApp() {
     }
   };
 
+  const openWorkSection = (section) => {
+    setWorkInitialSection(section);
+    setActiveView('work');
+  };
+
   const pageTitle = {
     home: 'Início',
     trip: 'Próximo Embarque',
@@ -129,7 +136,7 @@ export default function EmployeeLogisticsApp() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="sticky top-0 z-20 bg-white border-b px-4 py-3 flex items-center justify-between">
+      <header className="sticky top-0 z-20 bg-white/95 border-b px-4 py-3 flex items-center justify-between backdrop-blur">
         <div className="flex items-center gap-2">
           {activeView !== HOME_VIEW ? (
             <button onClick={() => setActiveView(HOME_VIEW)} className="rounded-lg p-1.5 hover:bg-slate-100" aria-label="Voltar para Home">
@@ -156,11 +163,16 @@ export default function EmployeeLogisticsApp() {
 
         {activeView === HOME_VIEW && (
           <HomePage
-            employeeName={employee?.name}
+            employee={employee || mockEmployee}
             nextTrip={{ ...mockCurrentTrip, status: 'Confirmado' }}
             osCount={osCounter}
             rdoCount={rdoCounter}
-            onNavigate={setActiveView}
+            onOpenTrip={() => setActiveView('trip')}
+            onOpenOs={() => openWorkSection('os')}
+            onOpenRdo={() => openWorkSection('rdo')}
+            onOpenEpis={() => setActiveView('epis')}
+            onOpenFinance={() => setActiveView('finance')}
+            onOpenProfile={() => setActiveView('profile')}
             onCheckInOut={handleCheckInOut}
           />
         )}
@@ -177,6 +189,7 @@ export default function EmployeeLogisticsApp() {
             setSyncLog={setSyncLog}
             isOnBase={isOnBase}
             setIsOnBase={setIsOnBase}
+            initialSection={workInitialSection}
           />
         )}
 
