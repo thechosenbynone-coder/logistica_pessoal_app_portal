@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Bell, ChevronLeft, LogOut, Wifi, WifiOff } from 'lucide-react';
 import { LoadingSpinner } from './components';
 import { useEmployeeData, useLocalStorageState, useOutboxSync } from './hooks';
@@ -9,7 +9,7 @@ import { FinanceTab } from './features/finance';
 import { ProfileTab } from './features/profile';
 import { EquipmentView } from './features/equipment';
 import { HistoryView } from './features/history';
-import api, { clearAuth, setToken } from './services/api';
+import api, { clearAuth } from './services/api';
 import {
   mockAdvances,
   mockBoarding,
@@ -29,11 +29,7 @@ const HOME_VIEW = 'home';
 export default function EmployeeLogisticsApp() {
   const [activeView, setActiveView] = useState(HOME_VIEW);
   const [workInitialSection, setWorkInitialSection] = useState('os');
-  const [employeeId, setEmployeeId] = useLocalStorageState('employeeId', '');
-  const [employeeInput, setEmployeeInput] = useState(employeeId || '');
-  const [pinInput, setPinInput] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState('');
+  const [employeeId, setEmployeeId] = useLocalStorageState('employeeId', '1');
 
   const [workOrders, setWorkOrders] = useLocalStorageState('el_workOrders', createInitialWorkOrders());
   const [dailyReports, setDailyReports] = useLocalStorageState('el_dailyReports', []);
@@ -46,51 +42,13 @@ export default function EmployeeLogisticsApp() {
   const { employee, loading, screenError, dailyReportsApi, serviceOrdersApi, refreshLists } = useEmployeeData({ api, employeeId, mockEmployee });
   const { isOnline } = useOutboxSync({ api, employeeId, refreshLists });
 
-  useEffect(() => {
-    setEmployeeInput(employeeId || '');
-  }, [employeeId]);
-
   // TODO: substituir por endpoint consolidado de KPIs quando disponível no backend.
   const osCounter = useMemo(() => (serviceOrdersApi?.length || 0) + (workOrders?.length || 0), [serviceOrdersApi, workOrders]);
   const rdoCounter = useMemo(() => (dailyReportsApi?.length || 0) + (dailyReports?.length || 0), [dailyReportsApi, dailyReports]);
 
-  const handleLogin = async () => {
-    const next = employeeInput.trim();
-    const parsedId = Number(next);
-    if (!Number.isInteger(parsedId) || parsedId <= 0) {
-      alert('Informe um ID numérico válido');
-      return;
-    }
-
-    const pin = pinInput.trim();
-    if (!pin || pin.length < 4 || pin.length > 12) {
-      alert('Informe um PIN válido (4 a 12 caracteres).');
-      return;
-    }
-
-    setAuthLoading(true);
-    setAuthError('');
-    try {
-      const result = await api.auth.login({ employee_id: parsedId, pin });
-      setToken(result?.token || '');
-      const loggedEmployeeId = String(result?.employee?.id || parsedId);
-      setEmployeeId(loggedEmployeeId);
-      await refreshLists(loggedEmployeeId);
-      setActiveView(HOME_VIEW);
-      setPinInput('');
-    } catch {
-      setAuthError('Falha no login. Verifique seu ID/PIN.');
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
   const handleLogout = () => {
     clearAuth();
-    setEmployeeId('');
-    setEmployeeInput('');
-    setPinInput('');
-    setAuthError('');
+    setEmployeeId('1');
     window.location.reload();
   };
 
@@ -119,20 +77,6 @@ export default function EmployeeLogisticsApp() {
     epis: 'EPIs',
     history: 'Histórico',
   }[activeView] || 'Início';
-
-  if (!employeeId) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl p-6 shadow-md w-full max-w-sm space-y-3">
-          <h1 className="text-xl font-bold">Login</h1>
-          <input className="w-full border rounded-lg px-3 py-2" value={employeeInput} onChange={(e) => setEmployeeInput(e.target.value)} placeholder="ID do colaborador" />
-          <input className="w-full border rounded-lg px-3 py-2" type="password" value={pinInput} onChange={(e) => setPinInput(e.target.value)} placeholder="PIN" />
-          {authError ? <p className="text-sm text-red-600">{authError}</p> : null}
-          <button onClick={handleLogin} disabled={authLoading} className="w-full bg-blue-600 text-white py-2 rounded-lg disabled:opacity-50">{authLoading ? 'Entrando...' : 'Entrar'}</button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-slate-50">
