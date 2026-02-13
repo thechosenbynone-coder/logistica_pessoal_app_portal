@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
     Briefcase,
     Clock,
@@ -30,12 +30,20 @@ export function WorkTab({
     setSyncLog,
     isOnBase,
     setIsOnBase,
+    initialSection = 'os',
 }) {
-    const [workSection, setWorkSection] = useState('os');
+    const [workSection, setWorkSection] = useState(initialSection);
     const [workScreen, setWorkScreen] = useState({ view: 'list', id: null });
     const [showIncidentModal, setShowIncidentModal] = useState(false);
     const [incidentDraft, setIncidentDraft] = useState({ title: '', severity: 'media', description: '', photos: [] });
     const [incidentTargetOsId, setIncidentTargetOsId] = useState(null);
+
+    useEffect(() => {
+        if (['os', 'rdo', 'timesheet', 'sync'].includes(initialSection)) {
+            setWorkSection(initialSection);
+        }
+    }, [initialSection]);
+
     const [rdoDraft, setRdoDraft] = useState({
         date: todayISO(),
         shiftStart: '',
