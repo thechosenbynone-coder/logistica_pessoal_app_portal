@@ -108,3 +108,18 @@ CREATE TABLE IF NOT EXISTS documents (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_employee_document_type_unique
   ON documents (employee_id, document_type_id);
 ```
+
+
+## Gerador de PIN em lote
+
+Gera PINs para colaboradores existentes, salva apenas o hash (`bcrypt`) no banco e exporta um CSV para distribuição manual.
+
+```bash
+cd server
+npm install
+DATABASE_URL="..." npm run set-pins-bulk -- --length 4 --output ./pins_export.csv
+DATABASE_URL="..." npm run set-pins-bulk -- --ids "1,2,3" --output ./pins_1_2_3.csv
+DATABASE_URL="..." npm run set-pins-bulk -- --force --length 6 --output ./pins_force.csv
+```
+
+> Segurança: não versione arquivos de exportação de PIN (ex.: `pins_export*.csv`).
