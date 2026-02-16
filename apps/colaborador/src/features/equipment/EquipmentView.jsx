@@ -59,7 +59,7 @@ export function EquipmentView({ equipment, onToggleStatus, onBack }) {
                     <p className="text-2xl font-bold text-yellow-700">
                         {equipment.filter((e) => e.status === 'pendente').length}
                     </p>
-                    <p className="text-xs text-yellow-600">Pendentes</p>
+                    <p className="text-xs text-yellow-600">A revisar</p>
                 </div>
                 <div className="bg-gray-50 rounded-lg p-3 text-center">
                     <p className="text-2xl font-bold text-gray-700">

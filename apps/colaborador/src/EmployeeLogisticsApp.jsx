@@ -83,8 +83,13 @@ export default function EmployeeLogisticsApp() {
       <header className="sticky top-0 z-20 bg-white/95 border-b px-4 py-3 flex items-center justify-between backdrop-blur">
         <div className="flex items-center gap-2">
           {activeView !== HOME_VIEW ? (
-            <button onClick={() => setActiveView(HOME_VIEW)} className="rounded-lg p-1.5 hover:bg-slate-100" aria-label="Voltar para Home">
-              <ChevronLeft className="w-5 h-5 text-slate-600" />
+            <button
+              onClick={() => setActiveView(HOME_VIEW)}
+              className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+              aria-label="Voltar para Home"
+            >
+              <ChevronLeft className="w-4 h-4 text-slate-600" />
+              Voltar
             </button>
           ) : null}
           <div>
@@ -117,6 +122,7 @@ export default function EmployeeLogisticsApp() {
             onOpenEpis={() => setActiveView('epis')}
             onOpenFinance={() => setActiveView('finance')}
             onOpenProfile={() => setActiveView('profile')}
+            onOpenHistory={() => setActiveView('history')}
             onCheckInOut={handleCheckInOut}
           />
         )}
