@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const baseURL = import.meta.env.VITE_API_URL || '/api';
+const baseURL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '/api';
 
 const isProd =
   (typeof import.meta !== 'undefined' &&
@@ -136,6 +136,33 @@ const apiService = {
   financialRequests: {
     list: async () => (await api.get('/financial-requests')).data,
     create: async (data) => (await api.post('/financial-requests', data)).data,
+  },
+  embarkations: {
+    getCurrent: async (employeeId) => (await api.get(`/employees/${employeeId}/embarkations/current`)).data,
+    getNext: async (employeeId) => (await api.get(`/employees/${employeeId}/embarkations/next`)).data,
+    createProgram: async (payload) => (await api.post('/admin/embarkations', payload)).data,
+  },
+  journey: {
+    get: async (embarkationId, employeeId) =>
+      normalizeListResponse((await api.get(`/embarkations/${embarkationId}/journey?employeeId=${employeeId}`)).data),
+    update: async (embarkationId, payload) =>
+      normalizeListResponse((await api.put(`/embarkations/${embarkationId}/journey`, payload)).data),
+  },
+  trainings: {
+    listByEmployee: async (employeeId, status = 'scheduled') =>
+      normalizeListResponse((await api.get(`/employees/${employeeId}/trainings?status=${status}`)).data),
+    createProgram: async (payload) => (await api.post('/admin/trainings', payload)).data,
+  },
+  employeeRequests: {
+    listByEmployee: async (employeeId, type = '') =>
+      normalizeListResponse((await api.get(`/employees/${employeeId}/requests${type ? `?type=${type}` : ''}`)).data),
+  },
+  notifications: {
+    listByEmployee: async (employeeId, since) =>
+      normalizeListResponse((await api.get(`/employees/${employeeId}/notifications${since ? `?since=${encodeURIComponent(since)}` : ''}`)).data),
+  },
+  adminDocuments: {
+    create: async (payload) => (await api.post('/admin/documents', payload)).data,
   },
 };
 

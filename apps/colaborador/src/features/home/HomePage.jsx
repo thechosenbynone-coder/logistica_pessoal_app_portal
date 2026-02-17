@@ -19,6 +19,8 @@ function CompactBadge({ label, value, tone = 'default' }) {
 
 export function HomePage({
   nextTrip,
+  upcomingTrip,
+  trainingsScheduled,
   pendingApprovalCount,
   rejectedCount,
   onOpenTrip,
@@ -44,14 +46,23 @@ export function HomePage({
         </div>
 
         <div className="space-y-1 text-sm text-slate-700">
-          <p className="font-semibold text-slate-900">{nextTrip?.destination || 'Destino não informado'}</p>
-          <p>{nextTrip?.location || 'Local não informado'}</p>
-          <p>
-            {nextTrip?.embarkDate ? formatDateBR(nextTrip.embarkDate) : 'Sem data'}
-            {' • '}
-            {nextTrip?.disembarkDate ? formatDateBR(nextTrip.disembarkDate) : 'Sem retorno'}
-          </p>
-          <p className="text-xs text-blue-700">Status: {nextTrip?.status || 'Aguardando confirmação'}</p>
+          {nextTrip ? (
+            <>
+              <p className="font-semibold text-slate-900">{nextTrip.destination || 'Destino não informado'}</p>
+              <p>{nextTrip.location || 'Local não informado'}</p>
+              <p>
+                {nextTrip.embarkDate ? formatDateBR(nextTrip.embarkDate) : 'Sem data'}
+                {' • '}
+                {nextTrip.disembarkDate ? formatDateBR(nextTrip.disembarkDate) : 'Sem retorno'}
+              </p>
+              <p className="text-xs text-blue-700">Status: {nextTrip.status || 'Aguardando confirmação'}</p>
+            </>
+          ) : (
+            <>
+              <p className="font-semibold text-slate-900">Nenhum embarque atual programado</p>
+              <p className="text-xs text-slate-500">Assim que o RH programar, os detalhes aparecerão aqui.</p>
+            </>
+          )}
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2">
@@ -63,12 +74,29 @@ export function HomePage({
           </button>
           <button
             onClick={onOpenTripStatus}
+            disabled={!nextTrip}
             className="inline-flex items-center justify-center gap-1 rounded-xl bg-blue-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
           >
             Atualizar status <RefreshCw className="h-4 w-4" />
           </button>
         </div>
       </section>
+
+      {upcomingTrip ? (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs uppercase tracking-wide text-slate-500">Próximo embarque</p>
+          <p className="mt-1 text-sm font-semibold text-slate-800">{upcomingTrip.destination}</p>
+          <p className="text-sm text-slate-600">{formatDateBR(upcomingTrip.embarkDate)} • {upcomingTrip.location}</p>
+        </section>
+      ) : null}
+
+      {trainingsScheduled?.length > 0 ? (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs uppercase tracking-wide text-slate-500">Treinamentos programados</p>
+          <p className="mt-1 text-sm font-semibold text-slate-800">{trainingsScheduled[0].title}</p>
+          <p className="text-sm text-slate-600">{formatDateBR(trainingsScheduled[0].date)} • {trainingsScheduled[0].location}</p>
+        </section>
+      ) : null}
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">

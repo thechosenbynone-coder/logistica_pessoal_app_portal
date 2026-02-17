@@ -57,6 +57,10 @@ export function TripTab({
   };
 
   const saveStatus = () => {
+    if (!trip?.id) {
+      setShowStatusModal(false);
+      return;
+    }
     const updated = steps.map((step) => ({ ...step, status: draftStatuses[step.key] || 'pending' }));
     onUpdateJourney?.(updated);
     setShowStatusModal(false);
@@ -64,6 +68,13 @@ export function TripTab({
 
   return (
     <div className="space-y-4 pb-20">
+      {!trip && (
+        <section className="rounded-xl bg-white p-4 shadow-md">
+          <h3 className="font-bold text-gray-800">Meu embarque</h3>
+          <p className="mt-2 text-sm text-slate-600">Nenhum embarque atual programado pelo RH.</p>
+        </section>
+      )}
+
       <section className="rounded-xl bg-white p-4 shadow-md">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="font-bold text-gray-800">Resumo do embarque</h3>
@@ -78,7 +89,7 @@ export function TripTab({
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
             <p className="text-xs text-gray-500">Data de embarque</p>
-            <p className="font-semibold text-gray-800">{trip?.embarkDate ? formatDateBR(trip.embarkDate) : formatDateBR(boarding.date)}</p>
+            <p className="font-semibold text-gray-800">{trip?.embarkDate ? formatDateBR(trip.embarkDate) : (boarding?.date ? formatDateBR(boarding.date) : 'Sem data')}</p>
           </div>
           <div>
             <p className="text-xs text-gray-500">Data de retorno</p>
@@ -129,13 +140,13 @@ export function TripTab({
           </div>
           <div className="border-t pt-4">
             <p className="mb-1 text-xs text-gray-500">LOCAL DE EMBARQUE</p>
-            <p className="font-semibold text-gray-800">{boarding.location}</p>
+            <p className="font-semibold text-gray-800">{boarding?.location || 'Local não informado'}</p>
             <p className="mt-1 text-sm text-gray-600">{boarding.terminal}</p>
           </div>
           <div className="flex items-start gap-2 rounded-lg border border-yellow-200 bg-yellow-50 p-3">
             <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-yellow-600" />
             <div>
-              <p className="text-sm font-semibold text-yellow-800">Apresente-se às {boarding.checkInTime}</p>
+            <p className="text-sm font-semibold text-yellow-800">Apresente-se às {boarding?.checkInTime || '--:--'}</p>
               <p className="mt-1 text-xs text-yellow-700">Tenha em mãos: RG, ASO válido e este app aberto</p>
             </div>
           </div>
@@ -145,7 +156,11 @@ export function TripTab({
       <section className="rounded-xl bg-white p-4 shadow-md">
         <h3 className="mb-3 font-bold text-gray-800">Minha jornada</h3>
         <div className="space-y-2">
-          {steps.map((step) => {
+          {steps.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-slate-200 p-3 text-sm text-slate-500">
+              Cronograma não disponível para este embarque.
+            </div>
+          ) : steps.map((step) => {
             const status = draftStatuses[step.key] || 'pending';
             return (
               <div key={step.key} className="flex items-center justify-between rounded-lg border border-slate-200 p-3">

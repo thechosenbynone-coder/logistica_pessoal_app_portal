@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Bell, ChevronLeft, Settings, Wifi, WifiOff } from 'lucide-react';
 import { FabRadialMenu, LoadingSpinner } from './components';
-import { useEmployeeData, useLocalStorageState, useOutboxSync } from './hooks';
+import { useEmployeeData, useEmployeeSyncData, useLocalStorageState, useNotifications, useOutboxSync } from './hooks';
 import { HomePage } from './features/home';
 import { TripTab } from './features/trip';
 import { WorkTab } from './features/work';
@@ -13,15 +13,12 @@ import api, { clearAuth } from './services/api';
 import {
   mockAdvances,
   mockBoarding,
-  mockCurrentTrip,
   mockEmergencyContacts,
   mockEmbarkHistory,
   mockEmployee,
   mockEquipment,
   mockExpenses,
-  mockPersonalDocuments,
   mockReimbursements,
-  mockTimeline,
   createInitialWorkOrders,
 } from './data/mockData';
 
@@ -37,15 +34,6 @@ function normalizeApprovalStatus(item) {
   if (['pending', 'pendente', 'received', 'ready', 'in_progress', 'scheduled'].includes(value)) return 'pending';
 
   return 'pending';
-}
-
-function mapTimelineToJourney(timeline = []) {
-  return (Array.isArray(timeline) ? timeline : []).map((item, index) => ({
-    key: item.key || `timeline_${index}`,
-    label: item.event,
-    detail: [item.date, item.time].filter(Boolean).join(' • '),
-    status: normalizeApprovalStatus({ status: item.status }) === 'approved' ? 'confirmed' : 'pending',
-  }));
 }
 
 export default function EmployeeLogisticsApp() {
@@ -67,26 +55,40 @@ export default function EmployeeLogisticsApp() {
   const [expenses, setExpenses] = useLocalStorageState('el_expenses', mockExpenses);
   const [advances, setAdvances] = useLocalStorageState('el_advances', mockAdvances);
   const [equipment, setEquipment] = useLocalStorageState('el_equipment', mockEquipment);
-  const [journeySteps, setJourneySteps] = useLocalStorageState(
-    `el_tripJourneySteps_${employeeId}`,
-    mapTimelineToJourney(mockTimeline)
-  );
+  const [journeySteps, setJourneySteps] = useLocalStorageState(`el_tripJourneySteps_${employeeId}`, []);
 
   const { employee, loading, screenError, dailyReportsApi, serviceOrdersApi, refreshLists } = useEmployeeData({ api, employeeId, mockEmployee });
+  const {
+    loading: syncLoading,
+    error: syncError,
+    currentEmbarkation,
+    nextEmbarkation,
+    journey,
+    trainingsScheduled,
+    documents: documentsApi,
+    requests: requestsApi,
+    updateJourney,
+  } = useEmployeeSyncData({ api, employeeId });
   const { isOnline } = useOutboxSync({ api, employeeId, refreshLists });
+  const { unreadCount, toast } = useNotifications({ api, employeeId });
+
+  React.useEffect(() => {
+    if (journey?.length) setJourneySteps(journey);
+  }, [journey, setJourneySteps]);
 
   const mergedWork = useMemo(() => [...(serviceOrdersApi || []), ...(workOrders || [])], [serviceOrdersApi, workOrders]);
   const mergedRdo = useMemo(() => [...(dailyReportsApi || []), ...(dailyReports || [])], [dailyReportsApi, dailyReports]);
+  const mergedRequests = useMemo(() => [...(requestsApi || [])], [requestsApi]);
 
   const { pendingApprovalCount, rejectedCount } = useMemo(() => {
-    const all = [...mergedWork, ...mergedRdo];
+    const all = [...mergedWork, ...mergedRdo, ...mergedRequests];
     return all.reduce((acc, item) => {
       const normalized = normalizeApprovalStatus(item);
       if (normalized === 'pending') acc.pendingApprovalCount += 1;
       if (normalized === 'rejected') acc.rejectedCount += 1;
       return acc;
     }, { pendingApprovalCount: 0, rejectedCount: 0 });
-  }, [mergedWork, mergedRdo]);
+  }, [mergedWork, mergedRdo, mergedRequests]);
 
   const handleLogout = () => {
     clearAuth();
@@ -175,21 +177,36 @@ export default function EmployeeLogisticsApp() {
             <button onClick={() => setActiveView('profile')} className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100" aria-label="Configurações">
               <Settings className="h-5 w-5" />
             </button>
-            <button className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100" aria-label="Notificações">
+            <button className="relative rounded-lg p-1.5 text-slate-600 hover:bg-slate-100" aria-label="Notificações">
               <Bell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </button>
           </div>
         </div>
       </header>
 
       <main className="space-y-4 p-4 pb-24">
-        {loading && <LoadingSpinner />}
+        {(loading || syncLoading) && <LoadingSpinner />}
         {screenError && <div className="rounded-lg bg-yellow-50 p-3 text-sm text-yellow-700">{screenError}</div>}
+        {syncError && <div className="rounded-lg bg-yellow-50 p-3 text-sm text-yellow-700">{syncError}</div>}
+        {toast && <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-700">{toast}</div>}
 
         {activeView === HOME_VIEW && (
           <HomePage
             employee={currentEmployee}
-            nextTrip={{ ...mockCurrentTrip, status: 'Confirmado' }}
+            nextTrip={currentEmbarkation ? {
+              destination: currentEmbarkation.destination,
+              location: currentEmbarkation.location,
+              embarkDate: currentEmbarkation.embarkDate,
+              disembarkDate: currentEmbarkation.disembarkDate,
+              status: currentEmbarkation.status,
+            } : null}
+            upcomingTrip={nextEmbarkation}
+            trainingsScheduled={trainingsScheduled}
             pendingApprovalCount={pendingApprovalCount}
             rejectedCount={rejectedCount}
             onOpenTrip={openTripDetails}
@@ -199,11 +216,23 @@ export default function EmployeeLogisticsApp() {
 
         {activeView === 'trip' && (
           <TripTab
-            trip={{ ...mockCurrentTrip, status: 'Confirmado' }}
+            trip={currentEmbarkation ? {
+              ...currentEmbarkation,
+              status: currentEmbarkation.status || 'confirmed',
+            } : null}
             employee={currentEmployee}
-            boarding={mockBoarding}
+            boarding={currentEmbarkation ? {
+              ...mockBoarding,
+              location: currentEmbarkation.location || mockBoarding.location,
+              date: currentEmbarkation.embarkDate || mockBoarding.date,
+            } : mockBoarding}
             journeySteps={journeySteps}
-            onUpdateJourney={setJourneySteps}
+            onUpdateJourney={async (steps) => {
+              setJourneySteps(steps);
+              if (currentEmbarkation?.id) {
+                await updateJourney(steps);
+              }
+            }}
             openStatusFlow={tripStatusIntent || tripStatusTick > 0}
             onStatusFlowConsumed={() => {
               setTripStatusIntent(false);
@@ -243,7 +272,7 @@ export default function EmployeeLogisticsApp() {
         {activeView === 'profile' && (
           <ProfileTab
             employee={currentEmployee}
-            personalDocuments={mockPersonalDocuments}
+            personalDocuments={documentsApi || []}
             emergencyContacts={mockEmergencyContacts}
             onNavigateToEquipment={() => setActiveView('epis')}
             onNavigateToHistory={() => setActiveView('history')}
