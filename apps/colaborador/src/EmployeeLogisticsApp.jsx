@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Bell, ChevronLeft, Plus, Settings, Wifi, WifiOff, X } from 'lucide-react';
-import { LoadingSpinner } from './components';
+import React, { useMemo, useState } from 'react';
+import { Bell, ChevronLeft, Settings, Wifi, WifiOff } from 'lucide-react';
+import { FabRadialMenu, LoadingSpinner } from './components';
 import { useEmployeeData, useLocalStorageState, useOutboxSync } from './hooks';
 import { HomePage } from './features/home';
 import { TripTab } from './features/trip';
@@ -9,7 +9,7 @@ import { FinanceTab } from './features/finance';
 import { ProfileTab } from './features/profile';
 import { EquipmentView } from './features/equipment';
 import { HistoryView } from './features/history';
-import api from './services/api';
+import api, { clearAuth } from './services/api';
 import {
   mockAdvances,
   mockBoarding,
@@ -31,77 +31,21 @@ function normalizeApprovalStatus(item) {
   const raw = item?.approval_status || item?.approvalStatus || item?.status;
   if (!raw) return 'pending';
   const value = String(raw).toLowerCase();
-  if (['rejected', 'reprovado', 'reject'].includes(value)) return 'rejected';
-  if (['approved', 'aprovado', 'done', 'completed', 'concluded', 'synced'].includes(value)) return 'approved';
-  if (['pending', 'pendente', 'received', 'in_progress', 'ready'].includes(value)) return 'pending';
+
+  if (['rejected', 'rejeitado', 'reprovado', 'reject'].includes(value)) return 'rejected';
+  if (['approved', 'aprovado', 'synced', 'concluded', 'completed', 'done', 'paid'].includes(value)) return 'approved';
+  if (['pending', 'pendente', 'received', 'ready', 'in_progress', 'scheduled'].includes(value)) return 'pending';
+
   return 'pending';
 }
 
-function FloatingActionMenu({ open, onOpenChange, onAction }) {
-  useEffect(() => {
-    if (!open) return undefined;
-    const onEsc = (event) => {
-      if (event.key === 'Escape') onOpenChange(false);
-    };
-    window.addEventListener('keydown', onEsc);
-    return () => window.removeEventListener('keydown', onEsc);
-  }, [open, onOpenChange]);
-
-  return (
-    <>
-      {open && <button type="button" aria-label="Fechar menu rápido" className="fixed inset-0 z-30 bg-black/30" onClick={() => onOpenChange(false)} />}
-
-      <div className="fixed bottom-5 left-1/2 z-40 -translate-x-1/2">
-        <div className="relative flex items-center justify-center">
-          {open ? (
-            <>
-              <button
-                type="button"
-                aria-label="Criar RDO"
-                className="absolute -left-32 -top-16 rounded-full bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-lg ring-1 ring-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                onClick={() => onAction('create_rdo')}
-              >
-                Criar RDO
-              </button>
-              <button
-                type="button"
-                aria-label="Criar OS"
-                className="absolute -left-16 -top-28 rounded-full bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-lg ring-1 ring-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                onClick={() => onAction('create_os')}
-              >
-                Criar OS
-              </button>
-              <button
-                type="button"
-                aria-label="Nova solicitação ao RH"
-                className="absolute left-0 -top-32 rounded-full bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-lg ring-1 ring-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                onClick={() => onAction('create_request')}
-              >
-                Solicitação RH
-              </button>
-              <button
-                type="button"
-                aria-label="EPIs"
-                className="absolute left-20 -top-22 rounded-full bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-lg ring-1 ring-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                onClick={() => onAction('epis')}
-              >
-                EPIs
-              </button>
-            </>
-          ) : null}
-
-          <button
-            type="button"
-            aria-label={open ? 'Fechar menu rápido' : 'Abrir menu rápido'}
-            onClick={() => onOpenChange(!open)}
-            className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
-          >
-            {open ? <X className="h-6 w-6" /> : <Plus className="h-7 w-7" />}
-          </button>
-        </div>
-      </div>
-    </>
-  );
+function mapTimelineToJourney(timeline = []) {
+  return (Array.isArray(timeline) ? timeline : []).map((item, index) => ({
+    key: item.key || `timeline_${index}`,
+    label: item.event,
+    detail: [item.date, item.time].filter(Boolean).join(' • '),
+    status: normalizeApprovalStatus({ status: item.status }) === 'approved' ? 'confirmed' : 'pending',
+  }));
 }
 
 export default function EmployeeLogisticsApp() {
@@ -111,9 +55,10 @@ export default function EmployeeLogisticsApp() {
   const [workIntentTick, setWorkIntentTick] = useState(0);
   const [financeInitialIntent, setFinanceInitialIntent] = useState(null);
   const [financeIntentTick, setFinanceIntentTick] = useState(0);
-  const [tripStatusFlowTick, setTripStatusFlowTick] = useState(0);
+  const [tripStatusIntent, setTripStatusIntent] = useState(false);
+  const [tripStatusTick, setTripStatusTick] = useState(0);
   const [fabOpen, setFabOpen] = useState(false);
-  const [employeeId] = useLocalStorageState('employeeId', '1');
+  const [employeeId, setEmployeeId] = useLocalStorageState('employeeId', '1');
 
   const [workOrders, setWorkOrders] = useLocalStorageState('el_workOrders', createInitialWorkOrders());
   const [dailyReports, setDailyReports] = useLocalStorageState('el_dailyReports', []);
@@ -122,34 +67,33 @@ export default function EmployeeLogisticsApp() {
   const [expenses, setExpenses] = useLocalStorageState('el_expenses', mockExpenses);
   const [advances, setAdvances] = useLocalStorageState('el_advances', mockAdvances);
   const [equipment, setEquipment] = useLocalStorageState('el_equipment', mockEquipment);
+  const [journeySteps, setJourneySteps] = useLocalStorageState(
+    `el_tripJourneySteps_${employeeId}`,
+    mapTimelineToJourney(mockTimeline)
+  );
 
   const { employee, loading, screenError, dailyReportsApi, serviceOrdersApi, refreshLists } = useEmployeeData({ api, employeeId, mockEmployee });
   const { isOnline } = useOutboxSync({ api, employeeId, refreshLists });
 
-  const combinedOs = useMemo(() => [...(serviceOrdersApi || []), ...(workOrders || [])], [serviceOrdersApi, workOrders]);
-  const combinedRdo = useMemo(() => [...(dailyReportsApi || []), ...(dailyReports || [])], [dailyReportsApi, dailyReports]);
+  const mergedWork = useMemo(() => [...(serviceOrdersApi || []), ...(workOrders || [])], [serviceOrdersApi, workOrders]);
+  const mergedRdo = useMemo(() => [...(dailyReportsApi || []), ...(dailyReports || [])], [dailyReportsApi, dailyReports]);
 
-  const approvalSummary = useMemo(() => {
-    const all = [...combinedOs, ...combinedRdo];
+  const { pendingApprovalCount, rejectedCount } = useMemo(() => {
+    const all = [...mergedWork, ...mergedRdo];
     return all.reduce((acc, item) => {
-      const status = normalizeApprovalStatus(item);
-      if (status === 'rejected') acc.rejected += 1;
-      if (status === 'pending') acc.pending += 1;
+      const normalized = normalizeApprovalStatus(item);
+      if (normalized === 'pending') acc.pendingApprovalCount += 1;
+      if (normalized === 'rejected') acc.rejectedCount += 1;
       return acc;
-    }, { pending: 0, rejected: 0 });
-  }, [combinedOs, combinedRdo]);
+    }, { pendingApprovalCount: 0, rejectedCount: 0 });
+  }, [mergedWork, mergedRdo]);
 
-  const pageTitle = {
-    home: 'Início',
-    trip: 'Meu embarque',
-    work: 'OS e RDO',
-    finance: 'Financeiro',
-    profile: 'Perfil',
-    epis: 'EPIs',
-    history: 'Histórico',
-  }[activeView] || 'Início';
-
-  const currentEmployee = employee || mockEmployee;
+  const handleLogout = () => {
+    clearAuth();
+    setEmployeeId('1');
+    window.localStorage.removeItem('employeeId');
+    window.location.reload();
+  };
 
   const openWork = (section = 'os', intent = null) => {
     setWorkInitialSection(section);
@@ -164,18 +108,37 @@ export default function EmployeeLogisticsApp() {
     setActiveView('finance');
   };
 
-  const openTripStatusFlow = () => {
-    setTripStatusFlowTick((prev) => prev + 1);
+  const openTripDetails = () => {
+    setTripStatusIntent(false);
+    setActiveView('trip');
+  };
+
+  const openTripStatus = () => {
+    setTripStatusIntent(true);
+    setTripStatusTick((prev) => prev + 1);
     setActiveView('trip');
   };
 
   const handleFabAction = (action) => {
     setFabOpen(false);
+
     if (action === 'create_rdo') openWork('rdo', 'create_rdo');
     if (action === 'create_os') openWork('os', 'create_os');
-    if (action === 'create_request') openFinance('create_request');
+    if (action === 'rh_request') openFinance('create_request');
     if (action === 'epis') setActiveView('epis');
   };
+
+  const pageTitle = {
+    home: 'Início',
+    trip: 'Meu embarque',
+    work: 'OS e RDO',
+    finance: 'Financeiro',
+    profile: 'Perfil',
+    epis: 'EPIs',
+    history: 'Histórico',
+  }[activeView] || 'Início';
+
+  const currentEmployee = employee || mockEmployee;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -219,29 +182,32 @@ export default function EmployeeLogisticsApp() {
         </div>
       </header>
 
-      <main className="space-y-4 p-4">
+      <main className="space-y-4 p-4 pb-24">
         {loading && <LoadingSpinner />}
         {screenError && <div className="rounded-lg bg-yellow-50 p-3 text-sm text-yellow-700">{screenError}</div>}
 
         {activeView === HOME_VIEW && (
           <HomePage
             employee={currentEmployee}
-            tripSummary={{ ...mockCurrentTrip, statusLabel: 'Confirmado' }}
-            approvalSummary={approvalSummary}
-            onOpenTrip={openTripStatusFlow}
-            onOpenWork={() => openWork('os', null)}
+            nextTrip={{ ...mockCurrentTrip, status: 'Confirmado' }}
+            pendingApprovalCount={pendingApprovalCount}
+            rejectedCount={rejectedCount}
+            onOpenTrip={openTripDetails}
+            onOpenTripStatus={openTripStatus}
           />
         )}
 
         {activeView === 'trip' && (
           <TripTab
+            trip={{ ...mockCurrentTrip, status: 'Confirmado' }}
             employee={currentEmployee}
-            boarding={{ ...mockBoarding, disembarkDate: mockCurrentTrip.disembarkDate }}
-            fallbackTimeline={mockTimeline}
-            statusFlowTrigger={tripStatusFlowTick}
-            onStatusUpdate={async (payload) => {
-              // TODO: conectar endpoint de atualização de jornada quando disponível no backend.
-              setSyncLog((prev) => [{ id: `trip-${Date.now()}`, message: `Status atualizado (${payload.steps.length} etapas)`, ts: new Date().toISOString() }, ...prev]);
+            boarding={mockBoarding}
+            journeySteps={journeySteps}
+            onUpdateJourney={setJourneySteps}
+            openStatusFlow={tripStatusIntent || tripStatusTick > 0}
+            onStatusFlowConsumed={() => {
+              setTripStatusIntent(false);
+              setTripStatusTick(0);
             }}
           />
         )}
@@ -281,6 +247,7 @@ export default function EmployeeLogisticsApp() {
             emergencyContacts={mockEmergencyContacts}
             onNavigateToEquipment={() => setActiveView('epis')}
             onNavigateToHistory={() => setActiveView('history')}
+            onLogout={handleLogout}
           />
         )}
 
@@ -301,7 +268,7 @@ export default function EmployeeLogisticsApp() {
         {activeView === 'history' && <HistoryView embarkHistory={mockEmbarkHistory} onBack={() => setActiveView('profile')} />}
       </main>
 
-      <FloatingActionMenu open={fabOpen} onOpenChange={setFabOpen} onAction={handleFabAction} />
+      <FabRadialMenu open={fabOpen} onOpenChange={setFabOpen} onAction={handleFabAction} />
     </div>
   );
 }
