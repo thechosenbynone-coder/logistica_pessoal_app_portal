@@ -31,6 +31,8 @@ export function WorkTab({
     isOnBase,
     setIsOnBase,
     initialSection = 'os',
+    initialIntent = null,
+    intentTick = 0,
 }) {
     const [workSection, setWorkSection] = useState(initialSection);
     const [workScreen, setWorkScreen] = useState({ view: 'list', id: null });
@@ -43,6 +45,38 @@ export function WorkTab({
             setWorkSection(initialSection);
         }
     }, [initialSection]);
+
+    useEffect(() => {
+        if (initialIntent === 'create_rdo') {
+            setWorkSection('rdo');
+            setWorkScreen({ view: 'list', id: null });
+        }
+
+        if (initialIntent === 'create_os') {
+            const newOsId = uid('os');
+            const now = new Date().toISOString();
+            setWorkOrders((prev) => [{
+                id: newOsId,
+                code: `OS-${new Date().getFullYear()}-${String(Math.floor(1000 + Math.random() * 8999))}`,
+                title: 'Nova OS (rascunho)',
+                origin: 'Portal',
+                destination: 'A definir',
+                location: 'A definir',
+                assignedAt: now,
+                dueDate: todayISO(),
+                status: 'RECEIVED',
+                safetyChecklist: [],
+                executionChecklist: [],
+                time: { startedAt: null, endedAt: null, currentPauseStart: null, pauses: [] },
+                evidences: [],
+                incidents: [],
+                signatures: { worker: null, workerSignedAt: null, supervisor: null, supervisorSignedAt: null },
+                sync: { status: 'PENDING', lastAttemptAt: null, syncedAt: null },
+            }, ...prev]);
+            setWorkSection('os');
+            setWorkScreen({ view: 'detail', id: newOsId });
+        }
+    }, [initialIntent, intentTick, setWorkOrders]);
 
     const [rdoDraft, setRdoDraft] = useState({
         date: todayISO(),

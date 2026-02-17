@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Wallet, Plus, CheckCircle, Clock, X, Camera } from 'lucide-react';
 import { formatDateBR, formatMoney } from '../../utils';
 import { fileToDataUrl } from '../../utils/file';
@@ -13,6 +13,8 @@ export function FinanceTab({
     reimbursements,
     onAddExpense,
     onRequestAdvance,
+    initialIntent = null,
+    intentTick = 0,
 }) {
     const [activeSection, setActiveSection] = useState('expenses');
     const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -20,6 +22,13 @@ export function FinanceTab({
     const [newExpense, setNewExpense] = useState({ type: '', value: '', date: '', description: '' });
     const [newAdvance, setNewAdvance] = useState({ value: '', justification: '' });
     const [receiptPreview, setReceiptPreview] = useState(null);
+
+    useEffect(() => {
+        if (initialIntent === 'create_request') {
+            setActiveSection('expenses');
+            setShowExpenseModal(true);
+        }
+    }, [initialIntent, intentTick]);
 
     const getStatusBadge = (status) => {
         switch (status) {
