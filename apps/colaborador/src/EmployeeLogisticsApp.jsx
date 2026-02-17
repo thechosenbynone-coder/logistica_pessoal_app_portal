@@ -223,7 +223,7 @@ export default function EmployeeLogisticsApp() {
   const currentEmployee = employee || mockEmployee;
 
   return (
-    <div className="min-h-screen bg-slate-100 flex justify-center">
+    <div className="min-h-[100dvh] bg-slate-100 flex justify-center">
       <div className="relative w-full max-w-[430px] h-[100dvh] bg-white overflow-hidden">
         <div className="flex h-full flex-col">
           <header className="sticky top-0 z-20 border-b bg-white/95 px-4 py-3 backdrop-blur">
@@ -292,7 +292,7 @@ export default function EmployeeLogisticsApp() {
             </div>
           </header>
 
-          <main className="flex-1 overflow-y-auto space-y-4 p-4 pb-[120px]">
+          <main className="flex-1 overflow-y-auto space-y-4 p-4 pb-[calc(7rem+env(safe-area-inset-bottom))]">
             {(loading || syncLoading) && <LoadingSpinner />}
             {screenError && (
               <div className="rounded-lg bg-yellow-50 p-3 text-sm text-yellow-700">
@@ -419,6 +419,8 @@ export default function EmployeeLogisticsApp() {
               <NotificationsView items={notifications} onMarkAllRead={(ids) => markRead(ids)} />
             )}
           </main>
+
+          <FabRadialMenu open={fabOpen} onOpenChange={setFabOpen} onAction={handleFabAction} />
         </div>
 
         {requestModal.open && (
@@ -453,7 +455,6 @@ export default function EmployeeLogisticsApp() {
           </div>
         )}
 
-        <FabRadialMenu open={fabOpen} onOpenChange={setFabOpen} onAction={handleFabAction} />
       </div>
     </div>
   );
