@@ -31,6 +31,9 @@ export function WorkTab({
     isOnBase,
     setIsOnBase,
     initialSection = 'os',
+    initialIntent = null,
+    intentTick = 0,
+    onCreateRequest,
 }) {
     const [workSection, setWorkSection] = useState(initialSection);
     const [workScreen, setWorkScreen] = useState({ view: 'list', id: null });
@@ -43,6 +46,18 @@ export function WorkTab({
             setWorkSection(initialSection);
         }
     }, [initialSection]);
+
+    useEffect(() => {
+        if (initialIntent === 'create_rdo') {
+            setWorkSection('rdo');
+            setWorkScreen({ view: 'list', id: null });
+        }
+
+        if (initialIntent === 'create_os') {
+            setWorkSection('os');
+            setWorkScreen({ view: 'list', id: null });
+        }
+    }, [initialIntent, intentTick]);
 
     const [rdoDraft, setRdoDraft] = useState({
         date: todayISO(),
@@ -209,7 +224,7 @@ export function WorkTab({
         setRdoDraft((prev) => ({ ...prev, photos: prev.photos.filter((p) => p.id !== photoId) }));
     }, []);
 
-    const submitRdo = useCallback(() => {
+    const submitRdo = useCallback(async () => {
         if (!rdoDraft.shiftStart || !rdoDraft.shiftEnd || !rdoDraft.activities) {
             alert('Preencha todas as informações obrigatórias');
             return;
@@ -221,6 +236,7 @@ export function WorkTab({
             sync: { status: 'READY', lastAttemptAt: null, syncedAt: null },
         };
         setDailyReports((prev) => [...prev, rdo]);
+        await onCreateRequest?.('rdo', rdo);
         setRdoDraft({
             date: todayISO(),
             shiftStart: '',
@@ -234,7 +250,15 @@ export function WorkTab({
         });
         setWorkScreen({ view: 'list', id: null });
         alert('RDO registrado com sucesso!');
-    }, [rdoDraft, setDailyReports]);
+    }, [rdoDraft, setDailyReports, onCreateRequest]);
+
+    const requestOs = useCallback(async () => {
+        const title = window.prompt('Título da solicitação de OS:');
+        if (!title) return;
+        const description = window.prompt('Descrição da solicitação de OS:') || '';
+        await onCreateRequest?.('os', { title, description, createdAt: new Date().toISOString() });
+        alert('Solicitação de OS enviada para o RH.');
+    }, [onCreateRequest]);
 
     // Sync
     const syncNow = useCallback(() => {
@@ -307,6 +331,9 @@ export function WorkTab({
             {/* Content */}
             {workSection === 'os' && (
                 <>
+                    <button onClick={requestOs} className="w-full rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100">
+                        Solicitar nova OS
+                    </button>
                     {workScreen.view === 'list' && (
                         <WorkOrdersList
                             workOrders={workOrders}

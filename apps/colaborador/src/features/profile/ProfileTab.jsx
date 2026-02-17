@@ -9,7 +9,7 @@ import {
     Download,
     Package,
     History,
-    ChevronRight,
+    ChevronRight
 } from 'lucide-react';
 
 /**
@@ -46,7 +46,7 @@ export function ProfileTab({
     personalDocuments,
     emergencyContacts,
     onNavigateToEquipment,
-    onNavigateToHistory,
+    onNavigateToHistory
 }) {
     const handleCall = (phone) => {
         window.location.href = `tel:${phone}`;
@@ -92,6 +92,8 @@ export function ProfileTab({
                         <ChevronRight className="w-4 h-4 text-gray-400" />
                     </button>
                 </div>
+
+
             </div>
 
             {/* Personal Documents */}

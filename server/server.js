@@ -5,6 +5,7 @@ import 'dotenv/config';
 import bcrypt from 'bcryptjs';
 import { migrate } from './src/migrate.js';
 import { authOptional, guardEmployeeScope, requireEmployeeAuth, signEmployeeToken } from './src/auth.js';
+import { registerIntegrationRoutes } from './src/integrationRoutes.js';
 
 const { Pool } = pg;
 const app = express();
@@ -24,6 +25,7 @@ if (corsOrigin === '*') {
 }
 app.use(express.json());
 app.use(authOptional);
+registerIntegrationRoutes(app);
 
 app.use((req, _res, next) => {
   console.log(`[REQUEST] ${req.method} ${req.url}`);

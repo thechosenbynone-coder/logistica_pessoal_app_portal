@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Wallet, Plus, CheckCircle, Clock, X, Camera } from 'lucide-react';
 import { formatDateBR, formatMoney } from '../../utils';
 import { fileToDataUrl } from '../../utils/file';
@@ -13,6 +13,9 @@ export function FinanceTab({
     reimbursements,
     onAddExpense,
     onRequestAdvance,
+    onCreateRequest,
+    initialIntent = null,
+    intentTick = 0,
 }) {
     const [activeSection, setActiveSection] = useState('expenses');
     const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -20,6 +23,13 @@ export function FinanceTab({
     const [newExpense, setNewExpense] = useState({ type: '', value: '', date: '', description: '' });
     const [newAdvance, setNewAdvance] = useState({ value: '', justification: '' });
     const [receiptPreview, setReceiptPreview] = useState(null);
+
+    useEffect(() => {
+        if (initialIntent === 'create_request') {
+            setActiveSection('expenses');
+            setShowExpenseModal(true);
+        }
+    }, [initialIntent, intentTick]);
 
     const getStatusBadge = (status) => {
         switch (status) {
@@ -38,7 +48,7 @@ export function FinanceTab({
         }
     };
 
-    const handleAddExpense = () => {
+    const handleAddExpense = async () => {
         if (!newExpense.type || !newExpense.value || !newExpense.date) {
             alert('Preencha todos os campos obrigatórios');
             return;
@@ -53,12 +63,18 @@ export function FinanceTab({
             status: 'pending',
             trip: 'P-74 Jan/2026',
         });
+        await onCreateRequest?.('finance', {
+            type: newExpense.type,
+            value: parseFloat(newExpense.value),
+            date: newExpense.date,
+            description: newExpense.description,
+        });
         setNewExpense({ type: '', value: '', date: '', description: '' });
         setReceiptPreview(null);
         setShowExpenseModal(false);
     };
 
-    const handleRequestAdvance = () => {
+    const handleRequestAdvance = async () => {
         if (!newAdvance.value || !newAdvance.justification) {
             alert('Preencha todos os campos');
             return;
@@ -71,6 +87,11 @@ export function FinanceTab({
             trip: 'P-74 Jan/2026',
             justification: newAdvance.justification,
             used: 0,
+        });
+        await onCreateRequest?.('finance', {
+            type: 'Adiantamento',
+            value: parseFloat(newAdvance.value),
+            justification: newAdvance.justification,
         });
         setNewAdvance({ value: '', justification: '' });
         setShowAdvanceModal(false);

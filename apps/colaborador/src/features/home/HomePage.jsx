@@ -1,96 +1,140 @@
 import React, { useMemo } from 'react';
-import { ArrowRight, Briefcase, CalendarDays, ClipboardList, FileText, Shield, User, Wallet } from 'lucide-react';
+import { ArrowRight, Briefcase, ChevronRight, FileText, GraduationCap, Package, PlaneTakeoff, RefreshCw, Wallet } from 'lucide-react';
 import { formatDateBR } from '../../utils';
 
-function StatusChip({ status }) {
-  const tone = status === 'Confirmado' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700';
-  return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>{status}</span>;
+function formatShortDate(input) {
+  if (!input) return '--/--/--';
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return '--/--/--';
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${dd}/${mm}/${yy}`;
 }
 
-function ActionCard({ title, description, onClick, icon: Icon, badge, count, large = false }) {
+function CompactBadge({ label, value, tone = 'default' }) {
+  const toneClass = {
+    default: 'bg-slate-100 text-slate-700',
+    warning: 'bg-amber-100 text-amber-800',
+    danger: 'bg-rose-100 text-rose-700',
+  }[tone];
+
   return (
-    <button
-      onClick={onClick}
-      className={`w-full rounded-2xl border border-slate-200 bg-white text-left shadow-sm transition hover:shadow-md ${large ? 'p-5' : 'p-4'}`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="text-xs text-slate-500">{description}</p>
-          <h3 className={`font-semibold text-slate-800 ${large ? 'text-xl mt-1' : 'text-base mt-0.5'}`}>{title}</h3>
-          {typeof count === 'number' ? <p className="mt-2 text-2xl font-bold text-slate-900">{count}</p> : null}
-          {badge ? <span className="mt-2 inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">{badge}</span> : null}
-        </div>
-        <div className="rounded-xl bg-slate-100 p-2">
-          <Icon className="h-5 w-5 text-slate-700" />
-        </div>
-      </div>
-      <div className="mt-3 flex items-center text-sm font-medium text-blue-600">
-        Acessar <ArrowRight className="ml-1 h-4 w-4" />
-      </div>
+    <div className={`rounded-lg px-2.5 py-2 text-center ${toneClass}`}>
+      <p className="text-[11px] font-medium">{label}</p>
+      <p className="mt-0.5 text-lg font-bold">{value}</p>
+    </div>
+  );
+}
+
+function QuickAction({ icon: Icon, label, onClick }) {
+  return (
+    <button onClick={onClick} className="rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm hover:bg-slate-50">
+      <Icon className="h-5 w-5 text-blue-600" />
+      <p className="mt-2 text-sm font-medium text-slate-700">{label}</p>
     </button>
   );
 }
 
-export function HomePage({ employee, nextTrip, osCount, rdoCount, onOpenTrip, onOpenOs, onOpenRdo, onOpenEpis, onOpenFinance, onOpenProfile, onCheckInOut }) {
-  const firstName = useMemo(() => employee?.name?.trim()?.split(' ')?.[0] || 'Carlos', [employee]);
-  const todayLabel = useMemo(() => {
-    const parts = new Intl.DateTimeFormat('pt-BR', {
-      weekday: 'long',
-      day: '2-digit',
-      month: 'long',
-    }).format(new Date());
-    return parts.toUpperCase();
-  }, []);
+export function HomePage({
+  nextTrip,
+  upcomingTrip,
+  trainingsScheduled,
+  pendingApprovalCount,
+  rejectedCount,
+  onOpenTrip,
+  onOpenNextTrip,
+  onOpenTripStatus,
+  onOpenDocs,
+  onOpenTrainings,
+  onOpenEpis,
+  onOpenFinance,
+  onOpenHistory,
+  employee,
+}) {
+  const firstName = useMemo(() => employee?.name?.trim()?.split(' ')?.[0] || 'Colaborador', [employee]);
+  const nextTripText = upcomingTrip
+    ? `Próximo embarque: ${upcomingTrip.vessel || upcomingTrip.destination || '-'} - ${formatShortDate(upcomingTrip.embarkDate)} a ${formatShortDate(upcomingTrip.disembarkDate)}`
+    : '';
 
   return (
-    <div className="space-y-4 pb-4">
+    <div className="space-y-4 pb-20">
       <section className="rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 p-5 text-white shadow">
-        <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="text-xs font-medium tracking-wide text-blue-100">COCKPIT</p>
+        <h1 className="mt-1 text-2xl font-bold">Olá, {firstName}</h1>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-medium tracking-wide text-blue-100">{todayLabel}</p>
-            <h1 className="mt-1 text-2xl font-bold">Olá, {firstName}</h1>
+            <p className="text-xs uppercase tracking-wide text-slate-500">Card vital</p>
+            <h2 className="text-lg font-semibold text-slate-900">Meu embarque</h2>
           </div>
-          <img
-            src={employee?.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(firstName)}&background=0D47A1&color=fff&size=96`}
-            alt={`Avatar de ${firstName}`}
-            className="h-12 w-12 rounded-full border-2 border-white/70 object-cover"
-          />
+          <PlaneTakeoff className="h-5 w-5 text-blue-600" />
+        </div>
+
+        <div className="space-y-1 text-sm text-slate-700">
+          {nextTrip ? (
+            <>
+              <p className="font-semibold text-slate-900">{nextTrip.destination || 'Destino não informado'}</p>
+              <p>{nextTrip.location || 'Local não informado'}</p>
+              <p>{nextTrip.embarkDate ? formatDateBR(nextTrip.embarkDate) : 'Sem data'} • {nextTrip.disembarkDate ? formatDateBR(nextTrip.disembarkDate) : 'Sem retorno'}</p>
+              <p className="text-xs text-blue-700">Status: {nextTrip.status || 'Aguardando confirmação'}</p>
+            </>
+          ) : (
+            <>
+              <p className="font-semibold text-slate-900">Nenhum embarque atual programado</p>
+              <p className="text-xs text-slate-500">Assim que o RH programar, os detalhes aparecerão aqui.</p>
+            </>
+          )}
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button onClick={onOpenTrip} className="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+            Ver detalhes <ArrowRight className="h-4 w-4" />
+          </button>
+          <button
+            onClick={onOpenTripStatus}
+            disabled={!nextTrip}
+            className="inline-flex items-center justify-center gap-1 rounded-xl bg-blue-600 px-3 py-2.5 text-sm font-semibold text-white enabled:hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+          >
+            Atualizar status <RefreshCw className="h-4 w-4" />
+          </button>
         </div>
       </section>
 
-      <button onClick={onOpenTrip} className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm">
+      {upcomingTrip ? (
+        <button onClick={onOpenNextTrip || onOpenTrip} className="flex w-full items-center justify-between rounded-xl border border-blue-200 bg-blue-50 p-3 text-left shadow-sm">
+          <p className="text-sm font-medium text-slate-700">{nextTripText}</p>
+          <ChevronRight className="h-5 w-5 text-blue-600" />
+        </button>
+      ) : null}
+
+      {trainingsScheduled?.length > 0 ? (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs uppercase tracking-wide text-slate-500">Treinamentos programados</p>
+          <p className="mt-1 text-sm font-semibold text-slate-800">{trainingsScheduled[0].title}</p>
+          <p className="text-sm text-slate-600">{formatDateBR(trainingsScheduled[0].date)} • {trainingsScheduled[0].location}</p>
+        </section>
+      ) : null}
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-semibold text-slate-800">Próximo Embarque</h2>
-          <StatusChip status={nextTrip?.status || 'Confirmado'} />
+          <h2 className="text-lg font-semibold text-slate-900">OS &amp; RDO</h2>
+          <Briefcase className="h-5 w-5 text-slate-600" />
         </div>
-        <p className="text-lg font-semibold text-slate-900">{nextTrip?.destination || 'Embarque não definido'}</p>
-        <p className="mt-1 text-sm text-slate-600">{nextTrip?.location || 'Local não informado'}</p>
-        <div className="mt-3 flex items-center gap-2 text-sm text-slate-600">
-          <CalendarDays className="h-4 w-4" /> {nextTrip?.embarkDate ? formatDateBR(nextTrip.embarkDate) : 'Sem data'}
+        <div className="grid grid-cols-2 gap-2.5">
+          <CompactBadge label="Aguardando aprovação" value={pendingApprovalCount || 0} tone="warning" />
+          <CompactBadge label="Rejeitados" value={rejectedCount || 0} tone="danger" />
         </div>
-        <p className="mt-3 text-sm font-semibold text-blue-700">{nextTrip?.daysRemaining ?? 0} dias restantes</p>
-      </button>
-
-      <ActionCard
-        large
-        title="Check-in / Check-out"
-        description="Registrar ponto agora"
-        onClick={onCheckInOut}
-        icon={ClipboardList}
-      />
-
-      <section className="grid grid-cols-2 gap-3">
-        <ActionCard title="Ordens de Serviço" description="OS em andamento" onClick={onOpenOs} icon={Briefcase} count={osCount} badge={`${osCount} Ativas`} />
-        <ActionCard title="Relatórios (RDO)" description="Registros do dia" onClick={onOpenRdo} icon={FileText} count={rdoCount} />
       </section>
 
-      <section className="space-y-2">
-        <h2 className="px-1 text-sm font-semibold uppercase tracking-wide text-slate-500">Acesso Rápido</h2>
-        <div className="grid grid-cols-3 gap-3">
-          <ActionCard title="EPIs" description="Itens" onClick={onOpenEpis} icon={Shield} />
-          <ActionCard title="Financeiro" description="Solicitações" onClick={onOpenFinance} icon={Wallet} />
-          <ActionCard title="Perfil" description="Dados" onClick={onOpenProfile} icon={User} />
-        </div>
+      <section className="grid grid-cols-2 gap-2.5">
+        <QuickAction icon={FileText} label="Documentações" onClick={onOpenDocs} />
+        <QuickAction icon={GraduationCap} label="Treinamentos" onClick={onOpenTrainings} />
+        <QuickAction icon={Package} label="EPIs" onClick={onOpenEpis} />
+        <QuickAction icon={Wallet} label="Financeiro/Solicitações" onClick={onOpenFinance} />
+        <QuickAction icon={Briefcase} label="Histórico" onClick={onOpenHistory} />
       </section>
     </div>
   );
