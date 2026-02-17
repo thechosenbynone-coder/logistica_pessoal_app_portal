@@ -7,18 +7,25 @@
     "dev": "vite --port 5173 --host",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "echo \"(optional) add eslint\""
+    "lint": "echo \"(optional) add eslint\"",
+    "cap:add:android": "npm run build && node scripts/cap-add-android.mjs",
+    "cap:sync:android": "npm run build && npx cap sync android",
+    "cap:open:android": "npx cap open android",
+    "cap:run:android": "npm run build && npx cap sync android && npx cap run android"
   },
   "dependencies": {
     "lucide-react": "^0.542.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "@capacitor/core": "^7.4.3",
+    "@capacitor/android": "^7.4.3"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.10",
-    "vite": "^5.4.8"
+    "vite": "^5.4.8",
+    "@capacitor/cli": "^7.4.3"
   }
 }

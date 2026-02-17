@@ -24,7 +24,7 @@ export default function LoadingSpinner({ size = 'md', className = '' }) {
  */
 export function LoadingPage({ message = 'Carregando...' }) {
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
+        <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-slate-50">
             <LoadingSpinner size="lg" />
             <p className="mt-4 text-gray-600">{message}</p>
         </div>
