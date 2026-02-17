@@ -138,28 +138,58 @@ const apiService = {
     create: async (data) => (await api.post('/financial-requests', data)).data,
   },
   embarkations: {
-    getCurrent: async (employeeId) => (await api.get(`/employees/${employeeId}/embarkations/current`)).data,
-    getNext: async (employeeId) => (await api.get(`/employees/${employeeId}/embarkations/next`)).data,
+    getCurrent: async (employeeId) =>
+      (await api.get(`/employees/${employeeId}/embarkations/current`)).data,
+    getNext: async (employeeId) =>
+      (await api.get(`/employees/${employeeId}/embarkations/next`)).data,
     createProgram: async (payload) => (await api.post('/admin/embarkations', payload)).data,
   },
   journey: {
     get: async (embarkationId, employeeId) =>
-      normalizeListResponse((await api.get(`/embarkations/${embarkationId}/journey?employeeId=${employeeId}`)).data),
+      normalizeListResponse(
+        (await api.get(`/embarkations/${embarkationId}/journey?employeeId=${employeeId}`)).data
+      ),
     update: async (embarkationId, payload) =>
-      normalizeListResponse((await api.put(`/embarkations/${embarkationId}/journey`, payload)).data),
+      normalizeListResponse(
+        (await api.put(`/embarkations/${embarkationId}/journey`, payload)).data
+      ),
   },
   trainings: {
     listByEmployee: async (employeeId, status = 'scheduled') =>
-      normalizeListResponse((await api.get(`/employees/${employeeId}/trainings?status=${status}`)).data),
+      normalizeListResponse(
+        (await api.get(`/employees/${employeeId}/trainings?status=${status}`)).data
+      ),
     createProgram: async (payload) => (await api.post('/admin/trainings', payload)).data,
   },
   employeeRequests: {
     listByEmployee: async (employeeId, type = '') =>
-      normalizeListResponse((await api.get(`/employees/${employeeId}/requests${type ? `?type=${type}` : ''}`)).data),
+      normalizeListResponse(
+        (await api.get(`/employees/${employeeId}/requests${type ? `?type=${type}` : ''}`)).data
+      ),
   },
   notifications: {
     listByEmployee: async (employeeId, since) =>
-      normalizeListResponse((await api.get(`/employees/${employeeId}/notifications${since ? `?since=${encodeURIComponent(since)}` : ''}`)).data),
+      normalizeListResponse(
+        (
+          await api.get(
+            `/employees/${employeeId}/notifications${since ? `?since=${encodeURIComponent(since)}` : ''}`
+          )
+        ).data
+      ),
+  },
+
+  adminRequests: {
+    list: async (filters = {}) => {
+      const params = new URLSearchParams();
+      if (filters?.type) params.set('type', filters.type);
+      if (filters?.status) params.set('status', filters.status);
+      if (filters?.employeeId) params.set('employeeId', String(filters.employeeId));
+      const query = params.toString();
+      return normalizeListResponse(
+        (await api.get(`/admin/requests${query ? `?${query}` : ''}`)).data
+      );
+    },
+    update: async (id, payload) => (await api.put(`/admin/requests/${id}`, payload)).data,
   },
   adminDocuments: {
     create: async (payload) => (await api.post('/admin/documents', payload)).data,

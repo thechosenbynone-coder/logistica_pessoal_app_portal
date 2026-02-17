@@ -7,6 +7,7 @@ import DocsPage from './features/docs/DocsPage';
 import MobilityPage from './features/mobility/MobilityPage';
 import FinancePage from './features/finance/FinancePage';
 import EquipmentPage from './features/equipment/EquipmentPage';
+import RequestsPage from './features/requests/RequestsPage.jsx';
 import ModulePlaceholderPage from './features/common/ModulePlaceholderPage';
 import NotFoundPage from './features/common/NotFoundPage';
 import { ROUTE_PATHS, resolvePathByKey } from './navigation/routes.js';
@@ -25,7 +26,8 @@ const ROUTE_COMPONENTS = {
   '/daily-reports': () => <ModulePlaceholderPage title="Relatórios Diários" />,
   '/os': () => <ModulePlaceholderPage title="Relatórios Diários" />,
   '/service-orders': () => <ModulePlaceholderPage title="Relatórios Diários" />,
-  [ROUTE_PATHS.hotel]: () => <ModulePlaceholderPage title="Hotelaria" />
+  [ROUTE_PATHS.hotel]: () => <ModulePlaceholderPage title="Hotelaria" />,
+  [ROUTE_PATHS.requests]: () => <RequestsPage />,
 };
 
 function trimTrailingSlash(pathname) {
@@ -76,7 +78,7 @@ export const NavigationContext = React.createContext({
   location: ROUTE_PATHS.dashboard,
   path: ROUTE_PATHS.dashboard,
   search: '',
-  navigate: () => {}
+  navigate: () => {},
 });
 
 function DashboardRoute() {
@@ -114,7 +116,9 @@ export default function HRPortalApp() {
     <NavigationContext.Provider value={{ location, path, search, navigate }}>
       <div className="flex min-h-screen bg-slate-50">
         <Sidebar activePath={activePath} onNavigate={navigate} />
-        <main className="flex-1 p-8">{CurrentPage ? <CurrentPage /> : <NotFoundPage onNavigate={navigate} />}</main>
+        <main className="flex-1 p-8">
+          {CurrentPage ? <CurrentPage /> : <NotFoundPage onNavigate={navigate} />}
+        </main>
       </div>
     </NavigationContext.Provider>
   );
