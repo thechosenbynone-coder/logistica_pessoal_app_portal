@@ -6,20 +6,25 @@ export const ROUTE_PATHS = {
   rdo: '/rdo',
   finance: '/financeiro',
   equipment: '/epi',
-  hotel: '/hotelaria'
+  hotel: '/hotelaria',
+  requests: '/solicitacoes',
 };
 
 const KEY_TO_PATH = {
   ...ROUTE_PATHS,
   work: ROUTE_PATHS.rdo,
-  employeeCreate: '/colaboradores/novo'
+  employeeCreate: '/colaboradores/novo',
 };
 
 function buildSearch(params) {
   if (!params || typeof params !== 'object') return '';
-  const entries = Object.entries(params).filter(([, value]) => value !== undefined && value !== null && `${value}` !== '');
+  const entries = Object.entries(params).filter(
+    ([, value]) => value !== undefined && value !== null && `${value}` !== ''
+  );
   if (!entries.length) return '';
-  const search = new URLSearchParams(entries.map(([key, value]) => [key, String(value)])).toString();
+  const search = new URLSearchParams(
+    entries.map(([key, value]) => [key, String(value)])
+  ).toString();
   return search ? `?${search}` : '';
 }
 

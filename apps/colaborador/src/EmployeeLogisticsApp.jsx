@@ -1,7 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Bell, ChevronLeft, Settings, Wifi, WifiOff, X } from 'lucide-react';
 import { FabRadialMenu, LoadingSpinner } from './components';
-import { useEmployeeData, useEmployeeSyncData, useLocalStorageState, useNotifications, useOutboxSync } from './hooks';
+import {
+  useEmployeeData,
+  useEmployeeSyncData,
+  useLocalStorageState,
+  useNotifications,
+  useOutboxSync,
+} from './hooks';
 import { HomePage } from './features/home';
 import { TripTab } from './features/trip';
 import { WorkTab } from './features/work';
@@ -10,6 +16,7 @@ import { ProfileTab } from './features/profile';
 import { EquipmentView } from './features/equipment';
 import { HistoryView } from './features/history';
 import { DocumentsView } from './features/documents';
+import { NotificationsView } from './features/notifications';
 import api, { clearAuth } from './services/api';
 import {
   mockAdvances,
@@ -30,13 +37,24 @@ function normalizeApprovalStatus(item) {
   const value = String(raw).toLowerCase();
 
   if (['rejected', 'rejeitado', 'reprovado', 'reject'].includes(value)) return 'rejected';
-  if (['approved', 'aprovado', 'synced', 'concluded', 'completed', 'done', 'paid'].includes(value)) return 'approved';
-  if (['pending', 'pendente', 'received', 'ready', 'in_progress', 'scheduled'].includes(value)) return 'pending';
+  if (['approved', 'aprovado', 'synced', 'concluded', 'completed', 'done', 'paid'].includes(value))
+    return 'approved';
+  if (['pending', 'pendente', 'received', 'ready', 'in_progress', 'scheduled'].includes(value))
+    return 'pending';
   return 'pending';
 }
 
 function buildBoardingData(trip) {
-  if (!trip) return { date: '', time: '', location: '', flight: '', seat: '', terminal: '', checkInTime: '' };
+  if (!trip)
+    return {
+      date: '',
+      time: '',
+      location: '',
+      flight: '',
+      seat: '',
+      terminal: '',
+      checkInTime: '',
+    };
   return {
     date: trip.embarkDate || '',
     time: trip.embarkTime || '',
@@ -63,16 +81,23 @@ export default function EmployeeLogisticsApp() {
   const [requestModal, setRequestModal] = useState({ open: false, type: null, title: '' });
   const [requestDescription, setRequestDescription] = useState('');
 
-  const [workOrders, setWorkOrders] = useLocalStorageState('el_workOrders', createInitialWorkOrders());
+  const [workOrders, setWorkOrders] = useLocalStorageState(
+    'el_workOrders',
+    createInitialWorkOrders()
+  );
   const [dailyReports, setDailyReports] = useLocalStorageState('el_dailyReports', []);
   const [syncLog, setSyncLog] = useLocalStorageState('el_syncLog', []);
   const [isOnBase, setIsOnBase] = useLocalStorageState('el_isOnBase', false);
   const [expenses, setExpenses] = useLocalStorageState('el_expenses', mockExpenses);
   const [advances, setAdvances] = useLocalStorageState('el_advances', mockAdvances);
   const [equipment, setEquipment] = useLocalStorageState('el_equipment', mockEquipment);
-  const [journeySteps, setJourneySteps] = useLocalStorageState(`el_tripJourneySteps_${employeeId}`, []);
+  const [journeySteps, setJourneySteps] = useLocalStorageState(
+    `el_tripJourneySteps_${employeeId}`,
+    []
+  );
 
-  const { employee, loading, screenError, dailyReportsApi, serviceOrdersApi, refreshLists } = useEmployeeData({ api, employeeId, mockEmployee });
+  const { employee, loading, screenError, dailyReportsApi, serviceOrdersApi, refreshLists } =
+    useEmployeeData({ api, employeeId, mockEmployee });
   const {
     loading: syncLoading,
     error: syncError,
@@ -86,25 +111,39 @@ export default function EmployeeLogisticsApp() {
     updateJourney,
   } = useEmployeeSyncData({ api, employeeId });
   const { isOnline } = useOutboxSync({ api, employeeId, refreshLists });
-  const { unreadCount, toast } = useNotifications({ api, employeeId });
+  const {
+    items: notifications,
+    unreadCount,
+    toast,
+    markRead,
+  } = useNotifications({ api, employeeId });
 
   useEffect(() => {
     if (journey?.length) setJourneySteps(journey);
     else if (!currentEmbarkation) setJourneySteps([]);
   }, [journey, currentEmbarkation, setJourneySteps]);
 
-  const mergedWork = useMemo(() => [...(serviceOrdersApi || []), ...(workOrders || [])], [serviceOrdersApi, workOrders]);
-  const mergedRdo = useMemo(() => [...(dailyReportsApi || []), ...(dailyReports || [])], [dailyReportsApi, dailyReports]);
+  const mergedWork = useMemo(
+    () => [...(serviceOrdersApi || []), ...(workOrders || [])],
+    [serviceOrdersApi, workOrders]
+  );
+  const mergedRdo = useMemo(
+    () => [...(dailyReportsApi || []), ...(dailyReports || [])],
+    [dailyReportsApi, dailyReports]
+  );
   const mergedRequests = useMemo(() => [...(requestsApi || [])], [requestsApi]);
 
   const { pendingApprovalCount, rejectedCount } = useMemo(() => {
     const all = [...mergedWork, ...mergedRdo, ...mergedRequests];
-    return all.reduce((acc, item) => {
-      const normalized = normalizeApprovalStatus(item);
-      if (normalized === 'pending') acc.pendingApprovalCount += 1;
-      if (normalized === 'rejected') acc.rejectedCount += 1;
-      return acc;
-    }, { pendingApprovalCount: 0, rejectedCount: 0 });
+    return all.reduce(
+      (acc, item) => {
+        const normalized = normalizeApprovalStatus(item);
+        if (normalized === 'pending') acc.pendingApprovalCount += 1;
+        if (normalized === 'rejected') acc.rejectedCount += 1;
+        return acc;
+      },
+      { pendingApprovalCount: 0, rejectedCount: 0 }
+    );
   }, [mergedWork, mergedRdo, mergedRequests]);
 
   const handleLogout = () => {
@@ -146,7 +185,15 @@ export default function EmployeeLogisticsApp() {
     const employeeNum = Number(employeeId);
     await api.requests.create(type, { employeeId: employeeNum, payload });
     await refreshSync();
-    setSyncLog((prev) => [{ id: `req-${Date.now()}`, ts: new Date().toISOString(), message: `Solicitação ${type.toUpperCase()} enviada`, status: 'SUCCESS' }, ...prev]);
+    setSyncLog((prev) => [
+      {
+        id: `req-${Date.now()}`,
+        ts: new Date().toISOString(),
+        message: `Solicitação ${type.toUpperCase()} enviada`,
+        status: 'SUCCESS',
+      },
+      ...prev,
+    ]);
   };
 
   const handleFabAction = (action) => {
@@ -154,20 +201,24 @@ export default function EmployeeLogisticsApp() {
     if (action === 'create_rdo') openWork('rdo', 'create_rdo');
     if (action === 'create_os') openWork('os', 'create_os');
     if (action === 'finance_request') openFinance('create_request');
-    if (action === 'lodging_request') setRequestModal({ open: true, type: 'lodging', title: 'Solicitação de Hospedagem' });
-    if (action === 'epi_request') setRequestModal({ open: true, type: 'epi', title: 'Solicitação de EPI' });
+    if (action === 'lodging_request')
+      setRequestModal({ open: true, type: 'lodging', title: 'Solicitação de Hospedagem' });
+    if (action === 'epi_request')
+      setRequestModal({ open: true, type: 'epi', title: 'Solicitação de EPI' });
   };
 
-  const pageTitle = {
-    home: 'Início',
-    trip: 'Meu embarque',
-    work: 'OS e RDO',
-    finance: 'Financeiro',
-    profile: 'Perfil',
-    epis: 'EPIs',
-    history: 'Histórico',
-    docs: 'Documentações',
-  }[activeView] || 'Início';
+  const pageTitle =
+    {
+      home: 'Início',
+      trip: 'Meu embarque',
+      work: 'OS e RDO',
+      finance: 'Financeiro',
+      profile: 'Perfil',
+      epis: 'EPIs',
+      history: 'Histórico',
+      docs: 'Documentações',
+      notifications: 'Notificações',
+    }[activeView] || 'Início';
 
   const currentEmployee = employee || mockEmployee;
 
@@ -193,20 +244,35 @@ export default function EmployeeLogisticsApp() {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs ${isOnline ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`}>
-              {isOnline ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />} {isOnline ? 'Online' : 'Offline'}
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs ${isOnline ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`}
+            >
+              {isOnline ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}{' '}
+              {isOnline ? 'Online' : 'Offline'}
             </span>
             <button
               onClick={() => setActiveView('profile')}
               className="rounded-full border border-slate-200 p-1.5 hover:bg-slate-100"
               aria-label="Abrir perfil"
             >
-              <img src={currentEmployee.photo} alt="Avatar do colaborador" className="h-6 w-6 rounded-full object-cover" />
+              <img
+                src={currentEmployee.photo}
+                alt="Avatar do colaborador"
+                className="h-6 w-6 rounded-full object-cover"
+              />
             </button>
-            <button onClick={() => setActiveView('profile')} className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100" aria-label="Configurações">
+            <button
+              onClick={() => setActiveView('profile')}
+              className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100"
+              aria-label="Configurações"
+            >
               <Settings className="h-5 w-5" />
             </button>
-            <button className="relative rounded-lg p-1.5 text-slate-600 hover:bg-slate-100" aria-label="Notificações">
+            <button
+              onClick={() => setActiveView('notifications')}
+              className="relative rounded-lg p-1.5 text-slate-600 hover:bg-slate-100"
+              aria-label="Notificações"
+            >
               <Bell className="h-5 w-5" />
               {unreadCount > 0 && (
                 <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
@@ -214,15 +280,24 @@ export default function EmployeeLogisticsApp() {
                 </span>
               )}
             </button>
-            <button onClick={handleLogout} className="rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-700 hover:bg-slate-200">Sair</button>
+            <button
+              onClick={handleLogout}
+              className="rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-700 hover:bg-slate-200"
+            >
+              Sair
+            </button>
           </div>
         </div>
       </header>
 
       <main className="space-y-4 p-4 pb-24">
         {(loading || syncLoading) && <LoadingSpinner />}
-        {screenError && <div className="rounded-lg bg-yellow-50 p-3 text-sm text-yellow-700">{screenError}</div>}
-        {syncError && <div className="rounded-lg bg-yellow-50 p-3 text-sm text-yellow-700">{syncError}</div>}
+        {screenError && (
+          <div className="rounded-lg bg-yellow-50 p-3 text-sm text-yellow-700">{screenError}</div>
+        )}
+        {syncError && (
+          <div className="rounded-lg bg-yellow-50 p-3 text-sm text-yellow-700">{syncError}</div>
+        )}
         {toast && <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-700">{toast}</div>}
 
         {activeView === HOME_VIEW && (
@@ -295,10 +370,7 @@ export default function EmployeeLogisticsApp() {
         )}
 
         {activeView === 'docs' && (
-          <DocumentsView
-            documents={documentsApi || []}
-            trainings={trainingsScheduled || []}
-          />
+          <DocumentsView documents={documentsApi || []} trainings={trainingsScheduled || []} />
         )}
 
         {activeView === 'profile' && (
@@ -316,16 +388,24 @@ export default function EmployeeLogisticsApp() {
             equipment={equipment}
             onBack={() => setActiveView(HOME_VIEW)}
             onToggleStatus={(id) => {
-              setEquipment((prev) => prev.map((item) => (
-                item.id === id
-                  ? { ...item, status: item.status === 'embarcado' ? 'pendente' : 'embarcado' }
-                  : item
-              )));
+              setEquipment((prev) =>
+                prev.map((item) =>
+                  item.id === id
+                    ? { ...item, status: item.status === 'embarcado' ? 'pendente' : 'embarcado' }
+                    : item
+                )
+              );
             }}
           />
         )}
 
-        {activeView === 'history' && <HistoryView embarkHistory={mockEmbarkHistory} onBack={() => setActiveView('profile')} />}
+        {activeView === 'history' && (
+          <HistoryView embarkHistory={mockEmbarkHistory} onBack={() => setActiveView('profile')} />
+        )}
+
+        {activeView === 'notifications' && (
+          <NotificationsView items={notifications} onMarkAllRead={(ids) => markRead(ids)} />
+        )}
       </main>
 
       {requestModal.open && (
@@ -333,7 +413,10 @@ export default function EmployeeLogisticsApp() {
           <div className="w-full max-w-sm rounded-xl bg-white p-4 shadow-lg">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="font-semibold text-slate-800">{requestModal.title}</h3>
-              <button onClick={() => setRequestModal({ open: false, type: null, title: '' })} aria-label="Fechar solicitação">
+              <button
+                onClick={() => setRequestModal({ open: false, type: null, title: '' })}
+                aria-label="Fechar solicitação"
+              >
                 <X className="h-5 w-5 text-slate-500" />
               </button>
             </div>

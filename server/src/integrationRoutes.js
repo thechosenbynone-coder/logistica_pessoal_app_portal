@@ -1,6 +1,13 @@
-import { addNotification, composeJourney, newId, readStore, writeStore } from './integrationStore.js';
+import {
+  addNotification,
+  composeJourney,
+  newId,
+  readStore,
+  writeStore,
+} from './integrationStore.js';
 
 const REQUEST_TYPES = new Set(['os', 'rdo', 'finance', 'lodging', 'epi']);
+const REQUEST_STATUS = new Set(['approved', 'rejected', 'pending']);
 
 const byDateAsc = (a, b) => new Date(a.embarkDate).getTime() - new Date(b.embarkDate).getTime();
 
@@ -23,7 +30,12 @@ export function registerIntegrationRoutes(app) {
       .sort(byDateAsc);
 
     const today = new Date();
-    const current = assigned.find((emb) => new Date(emb.embarkDate) <= today && new Date(emb.disembarkDate) >= today) || assigned[0] || null;
+    const current =
+      assigned.find(
+        (emb) => new Date(emb.embarkDate) <= today && new Date(emb.disembarkDate) >= today
+      ) ||
+      assigned[0] ||
+      null;
     res.json(current);
   });
 
@@ -31,12 +43,13 @@ export function registerIntegrationRoutes(app) {
     const employeeId = Number(req.params.employeeId);
     const store = readStore();
     const today = new Date();
-    const nextEmb = store.embarkationAssignments
-      .filter((item) => Number(item.employeeId) === employeeId)
-      .map((item) => store.embarkations.find((e) => Number(e.id) === Number(item.embarkationId)))
-      .filter(Boolean)
-      .filter((emb) => new Date(emb.embarkDate) > today)
-      .sort(byDateAsc)[0] || null;
+    const nextEmb =
+      store.embarkationAssignments
+        .filter((item) => Number(item.employeeId) === employeeId)
+        .map((item) => store.embarkations.find((e) => Number(e.id) === Number(item.embarkationId)))
+        .filter(Boolean)
+        .filter((emb) => new Date(emb.embarkDate) > today)
+        .sort(byDateAsc)[0] || null;
     res.json(nextEmb);
   });
 
@@ -55,7 +68,10 @@ export function registerIntegrationRoutes(app) {
     if (!employeeId) return res.status(400).json({ message: 'employeeId obrigatório' });
 
     const store = readStore();
-    store.journeyStatus[`${employeeId}:${embarkationId}`] = steps.map((step) => ({ key: step.key, status: step.status || 'pending' }));
+    store.journeyStatus[`${employeeId}:${embarkationId}`] = steps.map((step) => ({
+      key: step.key,
+      status: step.status || 'pending',
+    }));
     writeStore(store);
     res.json(composeJourney(store, employeeId, embarkationId));
   });
@@ -69,7 +85,8 @@ export function registerIntegrationRoutes(app) {
       .map((item) => store.trainings.find((t) => Number(t.id) === Number(item.trainingId)))
       .filter(Boolean);
 
-    if (statusFilter) items = items.filter((item) => String(item.status || '').toLowerCase() === statusFilter);
+    if (statusFilter)
+      items = items.filter((item) => String(item.status || '').toLowerCase() === statusFilter);
     res.json(items);
   });
 
@@ -107,6 +124,76 @@ export function registerIntegrationRoutes(app) {
     let items = store.requests.filter((item) => Number(item.employeeId) === employeeId);
     if (typeFilter) items = items.filter((item) => String(item.type).toLowerCase() === typeFilter);
     res.json(items);
+  });
+
+  app.get('/api/admin/requests', (req, res) => {
+    const typeFilter = String(req.query.type || '').toLowerCase();
+    const statusFilter = String(req.query.status || '').toLowerCase();
+    const employeeIdFilter = String(req.query.employeeId || '').trim();
+    const store = readStore();
+
+    let items = [...store.requests];
+
+    if (typeFilter) {
+      items = items.filter((item) => String(item.type || '').toLowerCase() === typeFilter);
+    }
+
+    if (statusFilter) {
+      items = items.filter((item) => String(item.status || '').toLowerCase() === statusFilter);
+    }
+
+    if (employeeIdFilter) {
+      items = items.filter((item) => Number(item.employeeId) === Number(employeeIdFilter));
+    }
+
+    items.sort(
+      (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    );
+
+    res.json(items);
+  });
+
+  app.put('/api/admin/requests/:requestId', (req, res) => {
+    const requestId = Number(req.params.requestId);
+    const nextStatus = String(req.body?.status || '').toLowerCase();
+    const reviewNote = req.body?.note ? String(req.body.note).trim() : '';
+
+    if (!REQUEST_STATUS.has(nextStatus)) {
+      return res
+        .status(400)
+        .json({ message: 'status inválido. Use approved, rejected ou pending.' });
+    }
+
+    const store = readStore();
+    const targetIndex = store.requests.findIndex((item) => Number(item.id) === requestId);
+
+    if (targetIndex === -1) {
+      return res.status(404).json({ message: 'Solicitação não encontrada.' });
+    }
+
+    const current = store.requests[targetIndex];
+    const reviewedAt = ['approved', 'rejected'].includes(nextStatus)
+      ? new Date().toISOString()
+      : null;
+
+    const updated = {
+      ...current,
+      status: nextStatus,
+      reviewedAt,
+      reviewNote,
+    };
+
+    store.requests[targetIndex] = updated;
+
+    if (['approved', 'rejected'].includes(nextStatus)) {
+      const statusLabel = nextStatus === 'approved' ? 'APROVADA' : 'REJEITADA';
+      const baseMessage = `Sua solicitação (${String(updated.type || '').toUpperCase()}) foi ${statusLabel}`;
+      const message = reviewNote ? `${baseMessage}. Nota: ${reviewNote}` : baseMessage;
+      addNotification(store, updated.employeeId, 'REQUEST', 'Solicitação atualizada', message);
+    }
+
+    writeStore(store);
+    return res.json(updated);
   });
 
   app.get('/api/employees/:employeeId/notifications', (req, res) => {
@@ -154,8 +241,17 @@ export function registerIntegrationRoutes(app) {
     store.embarkations.push(embarkation);
     employeeIds.forEach((employeeId) => {
       store.embarkationAssignments.push({ employeeId, embarkationId: embarkation.id });
-      store.journeyStatus[`${employeeId}:${embarkation.id}`] = journeyTemplate.map((s) => ({ key: s.key, status: 'pending' }));
-      addNotification(store, employeeId, 'EMBARKATION', 'Embarque atualizado', `Novo embarque programado para ${embarkation.destination}`);
+      store.journeyStatus[`${employeeId}:${embarkation.id}`] = journeyTemplate.map((s) => ({
+        key: s.key,
+        status: 'pending',
+      }));
+      addNotification(
+        store,
+        employeeId,
+        'EMBARKATION',
+        'Embarque atualizado',
+        `Novo embarque programado para ${embarkation.destination}`
+      );
     });
     store.journeyTemplates[String(embarkation.id)] = journeyTemplate;
 
@@ -179,7 +275,13 @@ export function registerIntegrationRoutes(app) {
     store.trainings.push(training);
     employeeIds.forEach((employeeId) => {
       store.trainingAssignments.push({ employeeId, trainingId: training.id });
-      addNotification(store, employeeId, 'TRAINING', 'Novo treinamento', `${training.title} em ${training.date}`);
+      addNotification(
+        store,
+        employeeId,
+        'TRAINING',
+        'Novo treinamento',
+        `${training.title} em ${training.date}`
+      );
     });
     writeStore(store);
     res.status(201).json({ training, employeeIds });
@@ -199,7 +301,13 @@ export function registerIntegrationRoutes(app) {
       fileUrl: body.fileUrl,
     };
     store.documents.push(document);
-    addNotification(store, document.employeeId, 'DOCUMENT', 'Documento atualizado', `${document.title} disponível`);
+    addNotification(
+      store,
+      document.employeeId,
+      'DOCUMENT',
+      'Documento atualizado',
+      `${document.title} disponível`
+    );
     writeStore(store);
     res.status(201).json(document);
   });
