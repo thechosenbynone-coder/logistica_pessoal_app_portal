@@ -1,11 +1,12 @@
 import React, { useEffect, useRef } from 'react';
-import { Briefcase, FileText, Plus, Shield, Wallet, X } from 'lucide-react';
+import { BedDouble, Briefcase, FileText, Package, Plus, Wallet, X } from 'lucide-react';
 
 const ACTIONS = [
-  { key: 'create_rdo', label: 'Criar RDO', icon: FileText, pos: '-translate-x-24 -translate-y-16' },
-  { key: 'create_os', label: 'Criar OS', icon: Briefcase, pos: '-translate-x-10 -translate-y-28' },
-  { key: 'rh_request', label: 'Solicitação RH', icon: Wallet, pos: 'translate-x-8 -translate-y-24' },
-  { key: 'epis', label: 'EPIs', icon: Shield, pos: 'translate-x-20 -translate-y-14' },
+  { key: 'create_rdo', label: 'RDO', icon: FileText, pos: '-translate-x-24 -translate-y-16' },
+  { key: 'create_os', label: 'OS', icon: Briefcase, pos: '-translate-x-10 -translate-y-28' },
+  { key: 'finance_request', label: 'Financeiro', icon: Wallet, pos: 'translate-x-8 -translate-y-24' },
+  { key: 'lodging_request', label: 'Hospedagem', icon: BedDouble, pos: 'translate-x-[5.5rem] -translate-y-14' },
+  { key: 'epi_request', label: 'EPI', icon: Package, pos: 'translate-x-24 -translate-y-2' },
 ];
 
 export function FabRadialMenu({ open, onOpenChange, onAction }) {
@@ -26,7 +27,6 @@ export function FabRadialMenu({ open, onOpenChange, onAction }) {
 
     window.addEventListener('keydown', onEsc);
     window.addEventListener('mousedown', onClickOutside);
-
     return () => {
       window.removeEventListener('keydown', onEsc);
       window.removeEventListener('mousedown', onClickOutside);
@@ -39,12 +39,12 @@ export function FabRadialMenu({ open, onOpenChange, onAction }) {
         <button
           type="button"
           aria-label="Fechar menu de ações rápidas"
-          className="fixed inset-0 z-30 bg-black/30"
+          className="absolute inset-0 z-30 bg-black/30"
           onClick={() => onOpenChange(false)}
         />
       ) : null}
 
-      <div className="pointer-events-none fixed bottom-5 left-1/2 z-40 -translate-x-1/2">
+      <div className="pointer-events-none absolute bottom-5 left-1/2 z-40 -translate-x-1/2">
         <div ref={menuRef} className="relative pointer-events-auto flex items-center justify-center">
           {open
             ? ACTIONS.map(({ key, label, icon: Icon, pos }) => (

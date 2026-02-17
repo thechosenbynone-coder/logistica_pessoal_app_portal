@@ -33,6 +33,7 @@ export function WorkTab({
     initialSection = 'os',
     initialIntent = null,
     intentTick = 0,
+    onCreateRequest,
 }) {
     const [workSection, setWorkSection] = useState(initialSection);
     const [workScreen, setWorkScreen] = useState({ view: 'list', id: null });
@@ -53,30 +54,10 @@ export function WorkTab({
         }
 
         if (initialIntent === 'create_os') {
-            const newOsId = uid('os');
-            const now = new Date().toISOString();
-            setWorkOrders((prev) => [{
-                id: newOsId,
-                code: `OS-${new Date().getFullYear()}-${String(Math.floor(1000 + Math.random() * 8999))}`,
-                title: 'Nova OS (rascunho)',
-                origin: 'Portal',
-                destination: 'A definir',
-                location: 'A definir',
-                assignedAt: now,
-                dueDate: todayISO(),
-                status: 'RECEIVED',
-                safetyChecklist: [],
-                executionChecklist: [],
-                time: { startedAt: null, endedAt: null, currentPauseStart: null, pauses: [] },
-                evidences: [],
-                incidents: [],
-                signatures: { worker: null, workerSignedAt: null, supervisor: null, supervisorSignedAt: null },
-                sync: { status: 'PENDING', lastAttemptAt: null, syncedAt: null },
-            }, ...prev]);
             setWorkSection('os');
-            setWorkScreen({ view: 'detail', id: newOsId });
+            setWorkScreen({ view: 'list', id: null });
         }
-    }, [initialIntent, intentTick, setWorkOrders]);
+    }, [initialIntent, intentTick]);
 
     const [rdoDraft, setRdoDraft] = useState({
         date: todayISO(),
@@ -243,7 +224,7 @@ export function WorkTab({
         setRdoDraft((prev) => ({ ...prev, photos: prev.photos.filter((p) => p.id !== photoId) }));
     }, []);
 
-    const submitRdo = useCallback(() => {
+    const submitRdo = useCallback(async () => {
         if (!rdoDraft.shiftStart || !rdoDraft.shiftEnd || !rdoDraft.activities) {
             alert('Preencha todas as informações obrigatórias');
             return;
@@ -255,6 +236,7 @@ export function WorkTab({
             sync: { status: 'READY', lastAttemptAt: null, syncedAt: null },
         };
         setDailyReports((prev) => [...prev, rdo]);
+        await onCreateRequest?.('rdo', rdo);
         setRdoDraft({
             date: todayISO(),
             shiftStart: '',
@@ -268,7 +250,15 @@ export function WorkTab({
         });
         setWorkScreen({ view: 'list', id: null });
         alert('RDO registrado com sucesso!');
-    }, [rdoDraft, setDailyReports]);
+    }, [rdoDraft, setDailyReports, onCreateRequest]);
+
+    const requestOs = useCallback(async () => {
+        const title = window.prompt('Título da solicitação de OS:');
+        if (!title) return;
+        const description = window.prompt('Descrição da solicitação de OS:') || '';
+        await onCreateRequest?.('os', { title, description, createdAt: new Date().toISOString() });
+        alert('Solicitação de OS enviada para o RH.');
+    }, [onCreateRequest]);
 
     // Sync
     const syncNow = useCallback(() => {
@@ -341,6 +331,9 @@ export function WorkTab({
             {/* Content */}
             {workSection === 'os' && (
                 <>
+                    <button onClick={requestOs} className="w-full rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100">
+                        Solicitar nova OS
+                    </button>
                     {workScreen.view === 'list' && (
                         <WorkOrdersList
                             workOrders={workOrders}

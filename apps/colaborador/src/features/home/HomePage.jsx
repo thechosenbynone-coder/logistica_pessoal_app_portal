@@ -1,6 +1,16 @@
 import React, { useMemo } from 'react';
-import { ArrowRight, Briefcase, PlaneTakeoff, RefreshCw } from 'lucide-react';
+import { ArrowRight, Briefcase, ChevronRight, FileText, GraduationCap, Package, PlaneTakeoff, RefreshCw, Wallet } from 'lucide-react';
 import { formatDateBR } from '../../utils';
+
+function formatShortDate(input) {
+  if (!input) return '--/--/--';
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return '--/--/--';
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${dd}/${mm}/${yy}`;
+}
 
 function CompactBadge({ label, value, tone = 'default' }) {
   const toneClass = {
@@ -17,6 +27,15 @@ function CompactBadge({ label, value, tone = 'default' }) {
   );
 }
 
+function QuickAction({ icon: Icon, label, onClick }) {
+  return (
+    <button onClick={onClick} className="rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm hover:bg-slate-50">
+      <Icon className="h-5 w-5 text-blue-600" />
+      <p className="mt-2 text-sm font-medium text-slate-700">{label}</p>
+    </button>
+  );
+}
+
 export function HomePage({
   nextTrip,
   upcomingTrip,
@@ -24,10 +43,19 @@ export function HomePage({
   pendingApprovalCount,
   rejectedCount,
   onOpenTrip,
+  onOpenNextTrip,
   onOpenTripStatus,
+  onOpenDocs,
+  onOpenTrainings,
+  onOpenEpis,
+  onOpenFinance,
+  onOpenHistory,
   employee,
 }) {
   const firstName = useMemo(() => employee?.name?.trim()?.split(' ')?.[0] || 'Colaborador', [employee]);
+  const nextTripText = upcomingTrip
+    ? `Próximo embarque: ${upcomingTrip.vessel || upcomingTrip.destination || '-'} - ${formatShortDate(upcomingTrip.embarkDate)} a ${formatShortDate(upcomingTrip.disembarkDate)}`
+    : '';
 
   return (
     <div className="space-y-4 pb-20">
@@ -50,11 +78,7 @@ export function HomePage({
             <>
               <p className="font-semibold text-slate-900">{nextTrip.destination || 'Destino não informado'}</p>
               <p>{nextTrip.location || 'Local não informado'}</p>
-              <p>
-                {nextTrip.embarkDate ? formatDateBR(nextTrip.embarkDate) : 'Sem data'}
-                {' • '}
-                {nextTrip.disembarkDate ? formatDateBR(nextTrip.disembarkDate) : 'Sem retorno'}
-              </p>
+              <p>{nextTrip.embarkDate ? formatDateBR(nextTrip.embarkDate) : 'Sem data'} • {nextTrip.disembarkDate ? formatDateBR(nextTrip.disembarkDate) : 'Sem retorno'}</p>
               <p className="text-xs text-blue-700">Status: {nextTrip.status || 'Aguardando confirmação'}</p>
             </>
           ) : (
@@ -66,16 +90,13 @@ export function HomePage({
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2">
-          <button
-            onClick={onOpenTrip}
-            className="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-          >
+          <button onClick={onOpenTrip} className="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
             Ver detalhes <ArrowRight className="h-4 w-4" />
           </button>
           <button
             onClick={onOpenTripStatus}
             disabled={!nextTrip}
-            className="inline-flex items-center justify-center gap-1 rounded-xl bg-blue-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+            className="inline-flex items-center justify-center gap-1 rounded-xl bg-blue-600 px-3 py-2.5 text-sm font-semibold text-white enabled:hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
           >
             Atualizar status <RefreshCw className="h-4 w-4" />
           </button>
@@ -83,11 +104,10 @@ export function HomePage({
       </section>
 
       {upcomingTrip ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Próximo embarque</p>
-          <p className="mt-1 text-sm font-semibold text-slate-800">{upcomingTrip.destination}</p>
-          <p className="text-sm text-slate-600">{formatDateBR(upcomingTrip.embarkDate)} • {upcomingTrip.location}</p>
-        </section>
+        <button onClick={onOpenNextTrip || onOpenTrip} className="flex w-full items-center justify-between rounded-xl border border-blue-200 bg-blue-50 p-3 text-left shadow-sm">
+          <p className="text-sm font-medium text-slate-700">{nextTripText}</p>
+          <ChevronRight className="h-5 w-5 text-blue-600" />
+        </button>
       ) : null}
 
       {trainingsScheduled?.length > 0 ? (
@@ -103,11 +123,18 @@ export function HomePage({
           <h2 className="text-lg font-semibold text-slate-900">OS &amp; RDO</h2>
           <Briefcase className="h-5 w-5 text-slate-600" />
         </div>
-
         <div className="grid grid-cols-2 gap-2.5">
           <CompactBadge label="Aguardando aprovação" value={pendingApprovalCount || 0} tone="warning" />
           <CompactBadge label="Rejeitados" value={rejectedCount || 0} tone="danger" />
         </div>
+      </section>
+
+      <section className="grid grid-cols-2 gap-2.5">
+        <QuickAction icon={FileText} label="Documentações" onClick={onOpenDocs} />
+        <QuickAction icon={GraduationCap} label="Treinamentos" onClick={onOpenTrainings} />
+        <QuickAction icon={Package} label="EPIs" onClick={onOpenEpis} />
+        <QuickAction icon={Wallet} label="Financeiro/Solicitações" onClick={onOpenFinance} />
+        <QuickAction icon={Briefcase} label="Histórico" onClick={onOpenHistory} />
       </section>
     </div>
   );

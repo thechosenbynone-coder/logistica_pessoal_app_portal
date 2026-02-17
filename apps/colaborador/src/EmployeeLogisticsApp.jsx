@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Bell, ChevronLeft, Settings, Wifi, WifiOff } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Bell, ChevronLeft, Settings, Wifi, WifiOff, X } from 'lucide-react';
 import { FabRadialMenu, LoadingSpinner } from './components';
 import { useEmployeeData, useEmployeeSyncData, useLocalStorageState, useNotifications, useOutboxSync } from './hooks';
 import { HomePage } from './features/home';
@@ -9,10 +9,10 @@ import { FinanceTab } from './features/finance';
 import { ProfileTab } from './features/profile';
 import { EquipmentView } from './features/equipment';
 import { HistoryView } from './features/history';
+import { DocumentsView } from './features/documents';
 import api, { clearAuth } from './services/api';
 import {
   mockAdvances,
-  mockBoarding,
   mockEmergencyContacts,
   mockEmbarkHistory,
   mockEmployee,
@@ -32,12 +32,25 @@ function normalizeApprovalStatus(item) {
   if (['rejected', 'rejeitado', 'reprovado', 'reject'].includes(value)) return 'rejected';
   if (['approved', 'aprovado', 'synced', 'concluded', 'completed', 'done', 'paid'].includes(value)) return 'approved';
   if (['pending', 'pendente', 'received', 'ready', 'in_progress', 'scheduled'].includes(value)) return 'pending';
-
   return 'pending';
+}
+
+function buildBoardingData(trip) {
+  if (!trip) return { date: '', time: '', location: '', flight: '', seat: '', terminal: '', checkInTime: '' };
+  return {
+    date: trip.embarkDate || '',
+    time: trip.embarkTime || '',
+    location: trip.location || '',
+    flight: trip.vessel || trip.destination || '',
+    seat: trip.seat || '-',
+    terminal: trip.terminal || '-',
+    checkInTime: trip.checkInTime || '--:--',
+  };
 }
 
 export default function EmployeeLogisticsApp() {
   const [activeView, setActiveView] = useState(HOME_VIEW);
+  const [tripMode, setTripMode] = useState('current');
   const [workInitialSection, setWorkInitialSection] = useState('os');
   const [workInitialIntent, setWorkInitialIntent] = useState(null);
   const [workIntentTick, setWorkIntentTick] = useState(0);
@@ -47,6 +60,8 @@ export default function EmployeeLogisticsApp() {
   const [tripStatusTick, setTripStatusTick] = useState(0);
   const [fabOpen, setFabOpen] = useState(false);
   const [employeeId, setEmployeeId] = useLocalStorageState('employeeId', '1');
+  const [requestModal, setRequestModal] = useState({ open: false, type: null, title: '' });
+  const [requestDescription, setRequestDescription] = useState('');
 
   const [workOrders, setWorkOrders] = useLocalStorageState('el_workOrders', createInitialWorkOrders());
   const [dailyReports, setDailyReports] = useLocalStorageState('el_dailyReports', []);
@@ -67,14 +82,16 @@ export default function EmployeeLogisticsApp() {
     trainingsScheduled,
     documents: documentsApi,
     requests: requestsApi,
+    refresh: refreshSync,
     updateJourney,
   } = useEmployeeSyncData({ api, employeeId });
   const { isOnline } = useOutboxSync({ api, employeeId, refreshLists });
   const { unreadCount, toast } = useNotifications({ api, employeeId });
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (journey?.length) setJourneySteps(journey);
-  }, [journey, setJourneySteps]);
+    else if (!currentEmbarkation) setJourneySteps([]);
+  }, [journey, currentEmbarkation, setJourneySteps]);
 
   const mergedWork = useMemo(() => [...(serviceOrdersApi || []), ...(workOrders || [])], [serviceOrdersApi, workOrders]);
   const mergedRdo = useMemo(() => [...(dailyReportsApi || []), ...(dailyReports || [])], [dailyReportsApi, dailyReports]);
@@ -110,24 +127,35 @@ export default function EmployeeLogisticsApp() {
     setActiveView('finance');
   };
 
-  const openTripDetails = () => {
+  const openTripDetails = (mode = 'current') => {
+    setTripMode(mode);
     setTripStatusIntent(false);
     setActiveView('trip');
   };
 
   const openTripStatus = () => {
+    setTripMode('current');
     setTripStatusIntent(true);
     setTripStatusTick((prev) => prev + 1);
     setActiveView('trip');
   };
 
+  const selectedTrip = tripMode === 'next' ? nextEmbarkation : currentEmbarkation;
+
+  const createRequest = async (type, payload = {}) => {
+    const employeeNum = Number(employeeId);
+    await api.requests.create(type, { employeeId: employeeNum, payload });
+    await refreshSync();
+    setSyncLog((prev) => [{ id: `req-${Date.now()}`, ts: new Date().toISOString(), message: `Solicitação ${type.toUpperCase()} enviada`, status: 'SUCCESS' }, ...prev]);
+  };
+
   const handleFabAction = (action) => {
     setFabOpen(false);
-
     if (action === 'create_rdo') openWork('rdo', 'create_rdo');
     if (action === 'create_os') openWork('os', 'create_os');
-    if (action === 'rh_request') openFinance('create_request');
-    if (action === 'epis') setActiveView('epis');
+    if (action === 'finance_request') openFinance('create_request');
+    if (action === 'lodging_request') setRequestModal({ open: true, type: 'lodging', title: 'Solicitação de Hospedagem' });
+    if (action === 'epi_request') setRequestModal({ open: true, type: 'epi', title: 'Solicitação de EPI' });
   };
 
   const pageTitle = {
@@ -138,12 +166,13 @@ export default function EmployeeLogisticsApp() {
     profile: 'Perfil',
     epis: 'EPIs',
     history: 'Histórico',
+    docs: 'Documentações',
   }[activeView] || 'Início';
 
   const currentEmployee = employee || mockEmployee;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-full">
       <header className="sticky top-0 z-20 border-b bg-white/95 px-4 py-3 backdrop-blur">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -185,6 +214,7 @@ export default function EmployeeLogisticsApp() {
                 </span>
               )}
             </button>
+            <button onClick={handleLogout} className="rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-700 hover:bg-slate-200">Sair</button>
           </div>
         </div>
       </header>
@@ -198,42 +228,35 @@ export default function EmployeeLogisticsApp() {
         {activeView === HOME_VIEW && (
           <HomePage
             employee={currentEmployee}
-            nextTrip={currentEmbarkation ? {
-              destination: currentEmbarkation.destination,
-              location: currentEmbarkation.location,
-              embarkDate: currentEmbarkation.embarkDate,
-              disembarkDate: currentEmbarkation.disembarkDate,
-              status: currentEmbarkation.status,
-            } : null}
-            upcomingTrip={nextEmbarkation}
+            nextTrip={currentEmbarkation || null}
+            upcomingTrip={nextEmbarkation || null}
             trainingsScheduled={trainingsScheduled}
             pendingApprovalCount={pendingApprovalCount}
             rejectedCount={rejectedCount}
-            onOpenTrip={openTripDetails}
+            onOpenTrip={() => openTripDetails('current')}
+            onOpenNextTrip={() => openTripDetails('next')}
             onOpenTripStatus={openTripStatus}
+            onOpenDocs={() => setActiveView('docs')}
+            onOpenTrainings={() => setActiveView('docs')}
+            onOpenEpis={() => setActiveView('epis')}
+            onOpenFinance={() => setActiveView('finance')}
+            onOpenHistory={() => setActiveView('history')}
           />
         )}
 
         {activeView === 'trip' && (
           <TripTab
-            trip={currentEmbarkation ? {
-              ...currentEmbarkation,
-              status: currentEmbarkation.status || 'confirmed',
-            } : null}
+            trip={selectedTrip}
             employee={currentEmployee}
-            boarding={currentEmbarkation ? {
-              ...mockBoarding,
-              location: currentEmbarkation.location || mockBoarding.location,
-              date: currentEmbarkation.embarkDate || mockBoarding.date,
-            } : mockBoarding}
-            journeySteps={journeySteps}
+            boarding={buildBoardingData(selectedTrip)}
+            journeySteps={tripMode === 'current' ? journeySteps : []}
             onUpdateJourney={async (steps) => {
               setJourneySteps(steps);
-              if (currentEmbarkation?.id) {
+              if (tripMode === 'current' && currentEmbarkation?.id) {
                 await updateJourney(steps);
               }
             }}
-            openStatusFlow={tripStatusIntent || tripStatusTick > 0}
+            openStatusFlow={tripMode === 'current' && (tripStatusIntent || tripStatusTick > 0)}
             onStatusFlowConsumed={() => {
               setTripStatusIntent(false);
               setTripStatusTick(0);
@@ -254,6 +277,7 @@ export default function EmployeeLogisticsApp() {
             initialSection={workInitialSection}
             initialIntent={workInitialIntent}
             intentTick={workIntentTick}
+            onCreateRequest={createRequest}
           />
         )}
 
@@ -266,6 +290,14 @@ export default function EmployeeLogisticsApp() {
             onRequestAdvance={(item) => setAdvances((prev) => [item, ...prev])}
             initialIntent={financeInitialIntent}
             intentTick={financeIntentTick}
+            onCreateRequest={createRequest}
+          />
+        )}
+
+        {activeView === 'docs' && (
+          <DocumentsView
+            documents={documentsApi || []}
+            trainings={trainingsScheduled || []}
           />
         )}
 
@@ -276,7 +308,6 @@ export default function EmployeeLogisticsApp() {
             emergencyContacts={mockEmergencyContacts}
             onNavigateToEquipment={() => setActiveView('epis')}
             onNavigateToHistory={() => setActiveView('history')}
-            onLogout={handleLogout}
           />
         )}
 
@@ -296,6 +327,35 @@ export default function EmployeeLogisticsApp() {
 
         {activeView === 'history' && <HistoryView embarkHistory={mockEmbarkHistory} onBack={() => setActiveView('profile')} />}
       </main>
+
+      {requestModal.open && (
+        <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/40 p-3 sm:items-center">
+          <div className="w-full max-w-sm rounded-xl bg-white p-4 shadow-lg">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="font-semibold text-slate-800">{requestModal.title}</h3>
+              <button onClick={() => setRequestModal({ open: false, type: null, title: '' })} aria-label="Fechar solicitação">
+                <X className="h-5 w-5 text-slate-500" />
+              </button>
+            </div>
+            <textarea
+              value={requestDescription}
+              onChange={(e) => setRequestDescription(e.target.value)}
+              className="h-24 w-full rounded-lg border px-3 py-2 text-sm"
+              placeholder="Descreva sua solicitação"
+            />
+            <button
+              onClick={async () => {
+                await createRequest(requestModal.type, { description: requestDescription });
+                setRequestDescription('');
+                setRequestModal({ open: false, type: null, title: '' });
+              }}
+              className="mt-3 w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              Enviar solicitação
+            </button>
+          </div>
+        </div>
+      )}
 
       <FabRadialMenu open={fabOpen} onOpenChange={setFabOpen} onAction={handleFabAction} />
     </div>
