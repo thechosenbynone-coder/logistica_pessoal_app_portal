@@ -16,10 +16,19 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-const configuredCorsOrigins = `${process.env.CORS_ORIGINS || ''},${process.env.CORS_ORIGIN || ''}`
-  .split(',')
-  .map((item) => item.trim())
-  .filter(Boolean);
+const normalizeOrigin = (origin) => {
+  if (typeof origin !== 'string') return origin;
+  return origin.trim().replace(/\/+$/, '').toLowerCase();
+};
+
+const configuredCorsOrigins = [
+  ...new Set(
+    `${process.env.CORS_ORIGINS || ''},${process.env.CORS_ORIGIN || ''}`
+      .split(',')
+      .map((item) => normalizeOrigin(item))
+      .filter(Boolean)
+  ),
+];
 
 const allowVercelOrigins = process.env.CORS_ALLOW_VERCEL === 'true';
 const allowNullOrigin = process.env.CORS_ALLOW_NULL_ORIGIN === 'true';
@@ -31,27 +40,43 @@ const isAllowedOrigin = (origin) => {
     return true;
   }
 
-  if (origin === null || origin === '' || origin === 'null') {
+  const normalizedOrigin = normalizeOrigin(origin);
+
+  if (configuredCorsOrigins.includes('*')) {
+    return true;
+  }
+
+  if (
+    normalizedOrigin === null ||
+    normalizedOrigin === '' ||
+    normalizedOrigin === 'null'
+  ) {
     return allowNullOrigin;
   }
 
-  if (origin === 'capacitor://localhost' || origin === 'ionic://localhost') {
+  if (
+    normalizedOrigin === 'capacitor://localhost' ||
+    normalizedOrigin === 'ionic://localhost'
+  ) {
     return true;
   }
 
   if (!isProduction) {
-    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+    if (
+      normalizedOrigin.startsWith('http://localhost:') ||
+      normalizedOrigin.startsWith('http://127.0.0.1:')
+    ) {
       return true;
     }
   }
 
-  if (configuredCorsOrigins.includes(origin)) {
+  if (configuredCorsOrigins.includes(normalizedOrigin)) {
     return true;
   }
 
   if (allowVercelOrigins) {
     try {
-      const hostname = new URL(origin).hostname;
+      const hostname = new URL(normalizedOrigin).hostname;
       if (hostname.endsWith('.vercel.app')) return true;
     } catch (_error) {
       return false;
@@ -64,6 +89,17 @@ const isAllowedOrigin = (origin) => {
 const corsOptions = {
   origin: (origin, cb) => {
     if (isAllowedOrigin(origin)) return cb(null, true);
+
+    const normalizedOrigin = normalizeOrigin(origin);
+    console.error('[CORS] bloqueado', {
+      origin,
+      normalizedOrigin,
+      configuredCorsOrigins,
+      allowVercelOrigins,
+      allowNullOrigin,
+      nodeEnv: process.env.NODE_ENV,
+    });
+
     return cb(new Error('Origem não permitida por CORS'));
   },
   credentials: true,
