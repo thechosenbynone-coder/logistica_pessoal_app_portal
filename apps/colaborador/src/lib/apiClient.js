@@ -20,7 +20,8 @@ export function joinUrl(base = '', path = '') {
 }
 
 export function normalizeApiPath(base = '', path = '') {
-  const withLeadingSlash = path.startsWith('/') ? path : `/${path}`;
+  const safePath = typeof path === 'string' ? path : String(path || '');
+  const withLeadingSlash = safePath.startsWith('/') ? safePath : `/${safePath}`;
   const prefixedPath = hasApiPrefix(withLeadingSlash) ? withLeadingSlash : `/api${withLeadingSlash}`;
   const baseEndsWithApi = stripTrailingSlash(base).endsWith('/api');
 
