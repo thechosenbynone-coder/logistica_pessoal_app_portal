@@ -22,6 +22,13 @@ Na raiz do monorepo:
 npm install
 ```
 
+> Como este app usa `capacitor.config.ts`, o **TypeScript é obrigatório** para os comandos do Capacitor funcionarem.
+> Instalação rápida no workspace:
+>
+> ```bash
+> npm --workspace apps/colaborador install -D typescript @types/node
+> ```
+
 ## 2) Build web do app
 
 ```bash
@@ -74,4 +81,3 @@ npm --workspace apps/colaborador run cap:run:android
 - `cap:sync:android`: build + sync Android
 - `cap:open:android`: abre projeto Android no Android Studio
 - `cap:run:android`: build + sync + run Android
-
