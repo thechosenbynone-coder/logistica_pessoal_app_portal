@@ -23,7 +23,7 @@ const getDurationMs = (startTime) => {
 async function request(method, path, payload) {
   const start = Date.now();
   try {
-    const response = await apiFetch(`/api${path}`, {
+    const response = await apiFetch(path, {
       method,
       ...(payload !== undefined ? { body: payload } : {}),
     });

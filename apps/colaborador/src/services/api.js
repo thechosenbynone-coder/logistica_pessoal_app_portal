@@ -30,7 +30,7 @@ async function request(path, options = {}) {
 
   let response;
   try {
-    response = await apiFetch(`/api${path}`, {
+    response = await apiFetch(path, {
       headers: { ...authHeaders, ...(headers || {}) },
       ...fetchOptions,
       signal: controller.signal,

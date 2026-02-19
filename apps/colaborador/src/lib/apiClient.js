@@ -1,4 +1,8 @@
 const stripTrailingSlash = (value = '') => value.replace(/\/+$/, '');
+const stripLeadingSlash = (value = '') => value.replace(/^\/+/, '');
+const stripLeadingApiSegment = (value = '') => value.replace(/^\/api(?=\/|$)/, '');
+
+let didLogDevSamples = false;
 
 export function getApiBase() {
   const useProxyInDev = import.meta.env.DEV && import.meta.env.VITE_API_USE_PROXY === 'true';
@@ -8,17 +12,45 @@ export function getApiBase() {
   return rawBase ? stripTrailingSlash(rawBase) : '';
 }
 
+export function joinUrl(base = '', path = '') {
+  if (!base) return path || '';
+  if (!path) return base;
+  return `${stripTrailingSlash(base)}/${stripLeadingSlash(path)}`;
+}
+
+export function normalizeApiPath(base = '', path = '') {
+  const withLeadingSlash = path.startsWith('/') ? path : `/${path}`;
+  const prefixedPath = withLeadingSlash.startsWith('/api') ? withLeadingSlash : `/api${withLeadingSlash}`;
+  const baseEndsWithApi = stripTrailingSlash(base).endsWith('/api');
+
+  if (baseEndsWithApi && prefixedPath.startsWith('/api')) {
+    const withoutApiPrefix = stripLeadingApiSegment(prefixedPath) || '/';
+    return withoutApiPrefix;
+  }
+
+  return prefixedPath;
+}
+
 export function apiUrl(path = '') {
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const base = getApiBase();
-  return base ? `${base}${normalizedPath}` : normalizedPath;
+  const normalizedPath = normalizeApiPath(base, path);
+  return base ? joinUrl(base, normalizedPath) : normalizedPath;
 }
 
 export async function apiFetch(path, options = {}) {
   const { headers, body, ...restOptions } = options;
   const hasJsonBody = body && typeof body === 'object' && !(body instanceof FormData);
+  const url = apiUrl(path);
 
-  const response = await fetch(apiUrl(path), {
+  if (import.meta.env.DEV && !didLogDevSamples) {
+    didLogDevSamples = true;
+    console.log('[apiClient] URL samples:', {
+      dashboard: apiUrl('/dashboard/metrics'),
+      employees: apiUrl('/employees'),
+    });
+  }
+
+  const response = await fetch(url, {
     ...restOptions,
     headers: {
       ...(hasJsonBody ? { 'Content-Type': 'application/json' } : {}),
