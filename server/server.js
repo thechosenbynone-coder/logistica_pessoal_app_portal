@@ -16,25 +16,57 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://localhost',
-  'capacitor://localhost',
-];
-
-const extraOrigins = (process.env.CORS_ORIGIN || '')
+const configuredCorsOrigins = `${process.env.CORS_ORIGINS || ''},${process.env.CORS_ORIGIN || ''}`
   .split(',')
   .map((item) => item.trim())
   .filter(Boolean);
 
-const corsOptions = {
-  origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin) || extraOrigins.includes(origin)) {
-      return callback(null, true);
+const allowVercelOrigins = process.env.CORS_ALLOW_VERCEL === 'true';
+const allowNullOrigin = process.env.CORS_ALLOW_NULL_ORIGIN === 'true';
+const isProduction = process.env.NODE_ENV === 'production';
+
+const isAllowedOrigin = (origin) => {
+  if (origin === undefined) {
+    // server-to-server / same-origin requests sem header Origin
+    return true;
+  }
+
+  if (origin === null || origin === '' || origin === 'null') {
+    return allowNullOrigin;
+  }
+
+  if (origin === 'capacitor://localhost' || origin === 'ionic://localhost') {
+    return true;
+  }
+
+  if (!isProduction) {
+    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+      return true;
     }
-    return callback(new Error('Origem não permitida por CORS'));
+  }
+
+  if (configuredCorsOrigins.includes(origin)) {
+    return true;
+  }
+
+  if (allowVercelOrigins) {
+    try {
+      const hostname = new URL(origin).hostname;
+      if (hostname.endsWith('.vercel.app')) return true;
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  return false;
+};
+
+const corsOptions = {
+  origin: (origin, cb) => {
+    if (isAllowedOrigin(origin)) return cb(null, true);
+    return cb(new Error('Origem não permitida por CORS'));
   },
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 };
