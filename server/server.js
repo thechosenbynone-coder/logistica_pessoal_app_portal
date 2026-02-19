@@ -16,25 +16,93 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://localhost',
-  'capacitor://localhost',
+const normalizeOrigin = (origin) => {
+  if (typeof origin !== 'string') return origin;
+  return origin.trim().replace(/\/+$/, '').toLowerCase();
+};
+
+const configuredCorsOrigins = [
+  ...new Set(
+    `${process.env.CORS_ORIGINS || ''},${process.env.CORS_ORIGIN || ''}`
+      .split(',')
+      .map((item) => normalizeOrigin(item))
+      .filter(Boolean)
+  ),
 ];
 
-const extraOrigins = (process.env.CORS_ORIGIN || '')
-  .split(',')
-  .map((item) => item.trim())
-  .filter(Boolean);
+const allowVercelOrigins = process.env.CORS_ALLOW_VERCEL === 'true';
+const allowNullOrigin = process.env.CORS_ALLOW_NULL_ORIGIN === 'true';
+const isProduction = process.env.NODE_ENV === 'production';
+
+const isAllowedOrigin = (origin) => {
+  if (origin === undefined) {
+    // server-to-server / same-origin requests sem header Origin
+    return true;
+  }
+
+  const normalizedOrigin = normalizeOrigin(origin);
+
+  if (configuredCorsOrigins.includes('*')) {
+    return true;
+  }
+
+  if (
+    normalizedOrigin === null ||
+    normalizedOrigin === '' ||
+    normalizedOrigin === 'null'
+  ) {
+    return allowNullOrigin;
+  }
+
+  if (
+    normalizedOrigin === 'capacitor://localhost' ||
+    normalizedOrigin === 'ionic://localhost'
+  ) {
+    return true;
+  }
+
+  if (!isProduction) {
+    if (
+      normalizedOrigin.startsWith('http://localhost:') ||
+      normalizedOrigin.startsWith('http://127.0.0.1:')
+    ) {
+      return true;
+    }
+  }
+
+  if (configuredCorsOrigins.includes(normalizedOrigin)) {
+    return true;
+  }
+
+  if (allowVercelOrigins) {
+    try {
+      const hostname = new URL(normalizedOrigin).hostname;
+      if (hostname.endsWith('.vercel.app')) return true;
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  return false;
+};
 
 const corsOptions = {
-  origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin) || extraOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    return callback(new Error('Origem não permitida por CORS'));
+  origin: (origin, cb) => {
+    if (isAllowedOrigin(origin)) return cb(null, true);
+
+    const normalizedOrigin = normalizeOrigin(origin);
+    console.error('[CORS] bloqueado', {
+      origin,
+      normalizedOrigin,
+      configuredCorsOrigins,
+      allowVercelOrigins,
+      allowNullOrigin,
+      nodeEnv: process.env.NODE_ENV,
+    });
+
+    return cb(new Error('Origem não permitida por CORS'));
   },
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 };
