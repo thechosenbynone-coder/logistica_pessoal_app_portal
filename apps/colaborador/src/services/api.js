@@ -29,10 +29,11 @@ async function request(path, options = {}) {
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
   const endpoint = path.startsWith('/') ? path : `/${path}`;
+  const apiPath = endpoint.startsWith('/api') ? endpoint : `/api${endpoint}`;
 
   let response;
   try {
-    response = await apiFetch(endpoint, {
+    response = await apiFetch(apiPath, {
       headers: { ...authHeaders, ...(headers || {}) },
       ...fetchOptions,
       signal: controller.signal,
