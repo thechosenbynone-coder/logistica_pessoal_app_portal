@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const baseURL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '/api';
+import { apiFetch } from '../lib/apiClient';
 
 const isProd =
   (typeof import.meta !== 'undefined' &&
@@ -8,8 +6,6 @@ const isProd =
     typeof import.meta.env.PROD === 'boolean' &&
     import.meta.env.PROD) ||
   (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'production');
-
-const api = axios.create({ baseURL });
 
 function normalizeListResponse(data) {
   if (Array.isArray(data)) return data;
@@ -24,48 +20,39 @@ const getDurationMs = (startTime) => {
   return Number.isFinite(duration) && duration >= 0 ? duration : 0;
 };
 
-api.interceptors.request.use(
-  (config) => {
-    const method = (config?.method || 'GET').toUpperCase();
-
-    config.metadata = {
-      ...(config.metadata || {}),
-      startTime: Date.now(),
+async function request(method, path, payload) {
+  const start = Date.now();
+  try {
+    const response = await apiFetch(`/api${path}`, {
       method,
-    };
+      ...(payload !== undefined ? { body: payload } : {}),
+    });
 
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-api.interceptors.response.use(
-  (response) => {
-    const method =
-      response.config?.metadata?.method || (response.config?.method || 'GET').toUpperCase();
-    const url = response.config?.url || '';
-    const status = response.status;
-    const start = response.config?.metadata?.startTime ?? Date.now();
     const durationMs = getDurationMs(start);
-
     if (!isProd) {
-      console.log(`[API] ${method} ${url} ${status} (${durationMs}ms)`);
+      console.log(`[API] ${method} ${path} ${response.status} (${durationMs}ms)`);
     }
 
-    return response;
-  },
-  (error) => {
-    const method = error.config?.metadata?.method || (error.config?.method || 'GET').toUpperCase();
-    const url = error.config?.url || '';
-    const status = error.response?.status || 'ERR';
-    const start = error.config?.metadata?.startTime ?? Date.now();
+    if (response.status === 204) return null;
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) return response.json();
+    const text = await response.text();
+    return text || null;
+  } catch (error) {
     const durationMs = getDurationMs(start);
-
-    console.error(`[API] ${method} ${url} ${status} (${durationMs}ms)`);
-
-    return Promise.reject(error);
+    const status = error?.status || 'ERR';
+    console.error(`[API] ${method} ${path} ${status} (${durationMs}ms)`);
+    throw error;
   }
-);
+}
+
+const api = {
+  get: async (path) => ({ data: await request('GET', path) }),
+  post: async (path, data) => ({ data: await request('POST', path, data) }),
+  put: async (path, data) => ({ data: await request('PUT', path, data) }),
+  delete: async (path) => ({ data: await request('DELETE', path) }),
+  patch: async (path, data) => ({ data: await request('PATCH', path, data) }),
+};
 
 const apiService = {
   dashboard: {
@@ -140,8 +127,7 @@ const apiService = {
   embarkations: {
     getCurrent: async (employeeId) =>
       (await api.get(`/employees/${employeeId}/embarkations/current`)).data,
-    getNext: async (employeeId) =>
-      (await api.get(`/employees/${employeeId}/embarkations/next`)).data,
+    getNext: async (employeeId) => (await api.get(`/employees/${employeeId}/embarkations/next`)).data,
     createProgram: async (payload) => (await api.post('/admin/embarkations', payload)).data,
   },
   journey: {
@@ -150,15 +136,11 @@ const apiService = {
         (await api.get(`/embarkations/${embarkationId}/journey?employeeId=${employeeId}`)).data
       ),
     update: async (embarkationId, payload) =>
-      normalizeListResponse(
-        (await api.put(`/embarkations/${embarkationId}/journey`, payload)).data
-      ),
+      normalizeListResponse((await api.put(`/embarkations/${embarkationId}/journey`, payload)).data),
   },
   trainings: {
     listByEmployee: async (employeeId, status = 'scheduled') =>
-      normalizeListResponse(
-        (await api.get(`/employees/${employeeId}/trainings?status=${status}`)).data
-      ),
+      normalizeListResponse((await api.get(`/employees/${employeeId}/trainings?status=${status}`)).data),
     createProgram: async (payload) => (await api.post('/admin/trainings', payload)).data,
   },
   employeeRequests: {
@@ -177,7 +159,6 @@ const apiService = {
         ).data
       ),
   },
-
   adminRequests: {
     list: async (filters = {}) => {
       const params = new URLSearchParams();
@@ -185,9 +166,7 @@ const apiService = {
       if (filters?.status) params.set('status', filters.status);
       if (filters?.employeeId) params.set('employeeId', String(filters.employeeId));
       const query = params.toString();
-      return normalizeListResponse(
-        (await api.get(`/admin/requests${query ? `?${query}` : ''}`)).data
-      );
+      return normalizeListResponse((await api.get(`/admin/requests${query ? `?${query}` : ''}`)).data);
     },
     update: async (id, payload) => (await api.put(`/admin/requests/${id}`, payload)).data,
   },

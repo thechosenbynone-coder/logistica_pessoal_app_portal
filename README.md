@@ -59,6 +59,24 @@ npm run dev:portal        # http://localhost:5174
 npm run dev:api           # http://localhost:3001
 ```
 
+
+## Configuração de API dos frontends
+
+Defina `VITE_API_BASE_URL` em cada app frontend:
+
+- `apps/colaborador/.env`
+- `apps/portal-rh/.env`
+
+Exemplo:
+
+```bash
+VITE_API_BASE_URL=https://logistica-api-v1bk.onrender.com
+```
+
+- DEV sem CORS: `VITE_API_BASE_URL` apontando para o Render + `VITE_API_USE_PROXY=true` (força chamadas relativas `/api` e usa proxy do Vite).
+- DEV direto no Render: `VITE_API_BASE_URL` apontando para o Render e `VITE_API_USE_PROXY` vazio (pode exigir CORS).
+- Android/Capacitor: `VITE_API_BASE_URL` apontando para o Render e `VITE_API_USE_PROXY` vazio no momento do build.
+
 ## Scripts Disponíveis
 
 | Script | Descrição |

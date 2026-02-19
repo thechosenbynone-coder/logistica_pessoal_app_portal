@@ -14,6 +14,19 @@ Este app usa **Vite** e gera build em `dist/`.
   - Android SDK Build-Tools
   - Android Emulator
 
+
+## Configuração de API (DEV e Android/Capacitor)
+
+Crie um `.env` no app `apps/colaborador` com:
+
+```bash
+VITE_API_BASE_URL=https://logistica-api-v1bk.onrender.com
+```
+
+- DEV sem CORS: `VITE_API_BASE_URL` apontando para o Render + `VITE_API_USE_PROXY=true` (força chamadas relativas `/api` e usa proxy do Vite).
+- DEV direto no Render: `VITE_API_BASE_URL` apontando para o Render e `VITE_API_USE_PROXY` vazio (pode exigir CORS).
+- Em **Android/Capacitor**, mantenha `VITE_API_BASE_URL` apontando para o Render e `VITE_API_USE_PROXY` vazio no momento do build.
+
 ## 1) Instalar dependências
 
 Na raiz do monorepo:
