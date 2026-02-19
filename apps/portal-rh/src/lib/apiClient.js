@@ -1,6 +1,7 @@
 const stripTrailingSlash = (value = '') => value.replace(/\/+$/, '');
 const stripLeadingSlash = (value = '') => value.replace(/^\/+/, '');
 const stripLeadingApiSegment = (value = '') => value.replace(/^\/api(?=\/|$)/, '');
+const hasApiPrefix = (value = '') => /^\/api(?=\/|$)/.test(value);
 
 let didLogDevSamples = false;
 
@@ -20,10 +21,10 @@ export function joinUrl(base = '', path = '') {
 
 export function normalizeApiPath(base = '', path = '') {
   const withLeadingSlash = path.startsWith('/') ? path : `/${path}`;
-  const prefixedPath = withLeadingSlash.startsWith('/api') ? withLeadingSlash : `/api${withLeadingSlash}`;
+  const prefixedPath = hasApiPrefix(withLeadingSlash) ? withLeadingSlash : `/api${withLeadingSlash}`;
   const baseEndsWithApi = stripTrailingSlash(base).endsWith('/api');
 
-  if (baseEndsWithApi && prefixedPath.startsWith('/api')) {
+  if (baseEndsWithApi && hasApiPrefix(prefixedPath)) {
     const withoutApiPrefix = stripLeadingApiSegment(prefixedPath) || '/';
     return withoutApiPrefix;
   }
