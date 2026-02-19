@@ -1,13 +1,4 @@
-const RAW_API_BASE_URL =
-  (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').trim();
-
-const API_BASE_URL = (() => {
-  if (RAW_API_BASE_URL) return RAW_API_BASE_URL.replace(/\/$/, '');
-  if (import.meta.env.DEV) return 'http://localhost:3001/api';
-  throw new Error(
-    'VITE_API_BASE_URL (ou VITE_API_URL) não definido em produção para apps/colaborador. Configure VITE_API_BASE_URL no build/ambiente.'
-  );
-})();
+import { apiFetch } from '../lib/apiClient';
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 
@@ -39,8 +30,8 @@ async function request(path, options = {}) {
 
   let response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
-      headers: { 'Content-Type': 'application/json', ...authHeaders, ...(headers || {}) },
+    response = await apiFetch(`/api${path}`, {
+      headers: { ...authHeaders, ...(headers || {}) },
       ...fetchOptions,
       signal: controller.signal,
     });
@@ -50,16 +41,8 @@ async function request(path, options = {}) {
       timeoutError.status = 0;
       throw timeoutError;
     }
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-  }
 
-  if (!response.ok) {
-    const error = new Error(`API error ${response.status} on ${path}`);
-    error.status = response.status;
-
-    if ((response.status === 401 || response.status === 403) && path !== '/auth/login') {
+    if ((error?.status === 401 || error?.status === 403) && path !== '/auth/login') {
       clearAuth();
       if (typeof window !== 'undefined') {
         window.location.reload();
@@ -67,6 +50,8 @@ async function request(path, options = {}) {
     }
 
     throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   if (response.status === 204) return null;
@@ -88,7 +73,7 @@ const normalizeListResponse = (data) => {
 const api = {
   auth: {
     login: async (payload, options) =>
-      request('/auth/login', { method: 'POST', body: JSON.stringify(payload), ...options }),
+      request('/auth/login', { method: 'POST', body: payload, ...options }),
   },
   employees: {
     get: async (id, options) => request(`/employees/${id}`, options),
@@ -104,7 +89,7 @@ const api = {
       normalizeListResponse(
         await request(`/embarkations/${embarkationId}/journey`, {
           method: 'PUT',
-          body: JSON.stringify({ employeeId, steps }),
+          body: { employeeId, steps },
           ...options,
         })
       ),
@@ -155,23 +140,23 @@ const api = {
     listByEmployee: async (employeeId, options) =>
       normalizeListResponse(await request(`/employees/${employeeId}/daily-reports`, options)),
     create: async (payload, options) =>
-      request('/daily-reports', { method: 'POST', body: JSON.stringify(payload), ...options }),
+      request('/daily-reports', { method: 'POST', body: payload, ...options }),
   },
   serviceOrders: {
     listByEmployee: async (employeeId, options) =>
       normalizeListResponse(await request(`/employees/${employeeId}/service-orders`, options)),
     create: async (payload, options) =>
-      request('/service-orders', { method: 'POST', body: JSON.stringify(payload), ...options }),
+      request('/service-orders', { method: 'POST', body: payload, ...options }),
   },
   financialRequests: {
     listByEmployee: async (employeeId, options) =>
       normalizeListResponse(await request(`/employees/${employeeId}/financial-requests`, options)),
     create: async (payload, options) =>
-      request('/financial-requests', { method: 'POST', body: JSON.stringify(payload), ...options }),
+      request('/financial-requests', { method: 'POST', body: payload, ...options }),
   },
   requests: {
     create: async (type, payload, options) =>
-      request(`/requests/${type}`, { method: 'POST', body: JSON.stringify(payload), ...options }),
+      request(`/requests/${type}`, { method: 'POST', body: payload, ...options }),
     listByEmployee: async (employeeId, type = '', options) =>
       normalizeListResponse(await request(`/employees/${employeeId}/requests${type ? `?type=${encodeURIComponent(type)}` : ''}`, options)),
   },
@@ -181,13 +166,13 @@ const api = {
     markRead: async (employeeId, ids = [], options) =>
       request(`/employees/${employeeId}/notifications/read`, {
         method: 'POST',
-        body: JSON.stringify({ ids }),
+        body: { ids },
         ...options,
       }),
   },
   checkins: {
     create: async (payload, options) =>
-      request('/checkins', { method: 'POST', body: JSON.stringify(payload), ...options }),
+      request('/checkins', { method: 'POST', body: payload, ...options }),
   },
 };
 

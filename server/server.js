@@ -16,13 +16,31 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-const corsOrigin = process.env.CORS_ORIGIN || '*';
-if (corsOrigin === '*') {
-  app.use(cors());
-} else {
-  const origins = corsOrigin.split(',').map((item) => item.trim()).filter(Boolean);
-  app.use(cors({ origin: origins }));
-}
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost',
+  'capacitor://localhost',
+];
+
+const extraOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((item) => item.trim())
+  .filter(Boolean);
+
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin) || extraOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Origem não permitida por CORS'));
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json());
 app.use(authOptional);
 registerIntegrationRoutes(app);
@@ -482,7 +500,7 @@ async function ensureClientSyncSchema() {
 app.get('/api/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
-    res.json({ status: 'ok', database: 'connected' });
+    res.json({ ok: true, status: 'ok', database: 'connected' });
   } catch (error) {
     handleServerError(res, error, 'health-check');
   }
@@ -491,7 +509,7 @@ app.get('/api/health', async (_req, res) => {
 app.get('/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
-    res.json({ status: 'ok', database: 'connected' });
+    res.json({ ok: true, status: 'ok', database: 'connected' });
   } catch (error) {
     handleServerError(res, error, 'health-check');
   }
