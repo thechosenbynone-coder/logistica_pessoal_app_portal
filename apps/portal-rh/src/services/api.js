@@ -21,16 +21,17 @@ const getDurationMs = (startTime) => {
 };
 
 async function request(method, path, payload) {
+  const endpoint = path.startsWith('/') ? path : `/${path}`;
   const start = Date.now();
   try {
-    const response = await apiFetch(`/api${path}`, {
+    const response = await apiFetch(endpoint, {
       method,
       ...(payload !== undefined ? { body: payload } : {}),
     });
 
     const durationMs = getDurationMs(start);
     if (!isProd) {
-      console.log(`[API] ${method} ${path} ${response.status} (${durationMs}ms)`);
+      console.log(`[API] ${method} ${endpoint} ${response.status} (${durationMs}ms)`);
     }
 
     if (response.status === 204) return null;
@@ -41,7 +42,7 @@ async function request(method, path, payload) {
   } catch (error) {
     const durationMs = getDurationMs(start);
     const status = error?.status || 'ERR';
-    console.error(`[API] ${method} ${path} ${status} (${durationMs}ms)`);
+    console.error(`[API] ${method} ${endpoint} ${status} (${durationMs}ms)`);
     throw error;
   }
 }

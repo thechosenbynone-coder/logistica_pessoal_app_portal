@@ -28,9 +28,11 @@ async function request(path, options = {}) {
   const token = getToken();
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
+  const endpoint = path.startsWith('/') ? path : `/${path}`;
+
   let response;
   try {
-    response = await apiFetch(`/api${path}`, {
+    response = await apiFetch(endpoint, {
       headers: { ...authHeaders, ...(headers || {}) },
       ...fetchOptions,
       signal: controller.signal,
@@ -42,7 +44,7 @@ async function request(path, options = {}) {
       throw timeoutError;
     }
 
-    if ((error?.status === 401 || error?.status === 403) && path !== '/auth/login') {
+    if ((error?.status === 401 || error?.status === 403) && endpoint !== '/auth/login') {
       clearAuth();
       if (typeof window !== 'undefined') {
         window.location.reload();
