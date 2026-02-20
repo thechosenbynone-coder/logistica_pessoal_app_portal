@@ -1,3 +1,5 @@
+import express from 'express';
+import { PrismaClient } from '@prisma/client';
 import {
   addNotification,
   composeJourney,
@@ -6,309 +8,61 @@ import {
   writeStore,
 } from './integrationStore.js';
 
-const REQUEST_TYPES = new Set(['os', 'rdo', 'finance', 'lodging', 'epi']);
-const REQUEST_STATUS = new Set(['approved', 'rejected', 'pending']);
+const router = express.Router();
+const prisma = new PrismaClient(); // Conecta no Postgres (Neon)
 
-const byDateAsc = (a, b) => new Date(a.embarkDate).getTime() - new Date(b.embarkDate).getTime();
-
-export function registerIntegrationRoutes(app) {
-  app.get('/api/employees/:employeeId', (req, res, next) => {
-    const { employeeId } = req.params;
-    const store = readStore();
-    const employee = store.employees.find((item) => Number(item.id) === Number(employeeId));
-    if (!employee) return next();
-    return res.json(employee);
-  });
-
-  app.get('/api/employees/:employeeId/embarkations/current', (req, res) => {
-    const employeeId = Number(req.params.employeeId);
-    const store = readStore();
-    const assigned = store.embarkationAssignments
-      .filter((item) => Number(item.employeeId) === employeeId)
-      .map((item) => store.embarkations.find((e) => Number(e.id) === Number(item.embarkationId)))
-      .filter(Boolean)
-      .sort(byDateAsc);
-
-    const today = new Date();
-    const current =
-      assigned.find(
-        (emb) => new Date(emb.embarkDate) <= today && new Date(emb.disembarkDate) >= today
-      ) ||
-      assigned[0] ||
-      null;
-    res.json(current);
-  });
-
-  app.get('/api/employees/:employeeId/embarkations/next', (req, res) => {
-    const employeeId = Number(req.params.employeeId);
-    const store = readStore();
-    const today = new Date();
-    const nextEmb =
-      store.embarkationAssignments
-        .filter((item) => Number(item.employeeId) === employeeId)
-        .map((item) => store.embarkations.find((e) => Number(e.id) === Number(item.embarkationId)))
-        .filter(Boolean)
-        .filter((emb) => new Date(emb.embarkDate) > today)
-        .sort(byDateAsc)[0] || null;
-    res.json(nextEmb);
-  });
-
-  app.get('/api/embarkations/:embarkationId/journey', (req, res) => {
-    const embarkationId = Number(req.params.embarkationId);
-    const employeeId = Number(req.query.employeeId || req.query.employee_id || 1);
-    const store = readStore();
-    res.json(composeJourney(store, employeeId, embarkationId));
-  });
-
-  app.put('/api/embarkations/:embarkationId/journey', (req, res) => {
-    const embarkationId = Number(req.params.embarkationId);
-    const employeeId = Number(req.body?.employeeId);
-    const steps = Array.isArray(req.body?.steps) ? req.body.steps : [];
-
-    if (!employeeId) return res.status(400).json({ message: 'employeeId obrigatório' });
-
-    const store = readStore();
-    store.journeyStatus[`${employeeId}:${embarkationId}`] = steps.map((step) => ({
-      key: step.key,
-      status: step.status || 'pending',
-    }));
-    writeStore(store);
-    res.json(composeJourney(store, employeeId, embarkationId));
-  });
-
-  app.get('/api/employees/:employeeId/trainings', (req, res) => {
-    const employeeId = Number(req.params.employeeId);
-    const statusFilter = String(req.query.status || '').toLowerCase();
-    const store = readStore();
-    let items = store.trainingAssignments
-      .filter((item) => Number(item.employeeId) === employeeId)
-      .map((item) => store.trainings.find((t) => Number(t.id) === Number(item.trainingId)))
-      .filter(Boolean);
-
-    if (statusFilter)
-      items = items.filter((item) => String(item.status || '').toLowerCase() === statusFilter);
-    res.json(items);
-  });
-
-  app.get('/api/employees/:employeeId/documents', (req, res, next) => {
-    const employeeId = Number(req.params.employeeId);
-    const store = readStore();
-    const docs = store.documents.filter((item) => Number(item.employeeId) === employeeId);
-    if (!docs.length) return next();
-    return res.json(docs);
-  });
-
-  REQUEST_TYPES.forEach((type) => {
-    app.post(`/api/requests/${type}`, (req, res) => {
-      const employeeId = Number(req.body?.employeeId || req.body?.employee_id);
-      if (!employeeId) return res.status(400).json({ message: 'employeeId obrigatório' });
-      const store = readStore();
-      const requestItem = {
-        id: newId(store.requests),
-        employeeId,
-        type,
-        payload: req.body?.payload || req.body || {},
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-      };
-      store.requests.unshift(requestItem);
-      writeStore(store);
-      res.status(201).json(requestItem);
+// ==========================================
+// ROTA RDO: COLABORADOR (APP) -> SERVIDOR
+// ==========================================
+router.post('/sync/rdo', async (req, res) => {
+  try {
+    const { employeeId, date, description, status } = req.body;
+    
+    // Grava o RDO direto na tabela real
+    const newRdo = await prisma.serviceOrder.create({
+      data: {
+        employeeId: employeeId || 'cl_demo_user', 
+        type: 'RDO',
+        status: status || 'PENDING',
+        details: description,
+        date: new Date(date)
+      }
     });
-  });
 
-  app.get('/api/employees/:employeeId/requests', (req, res) => {
-    const employeeId = Number(req.params.employeeId);
-    const typeFilter = String(req.query.type || '').toLowerCase();
-    const store = readStore();
-    let items = store.requests.filter((item) => Number(item.employeeId) === employeeId);
-    if (typeFilter) items = items.filter((item) => String(item.type).toLowerCase() === typeFilter);
-    res.json(items);
-  });
+    res.json({ success: true, data: newRdo });
+  } catch (error) {
+    console.error("Erro ao salvar RDO no banco:", error);
+    res.status(500).json({ error: 'Erro ao processar RDO no servidor' });
+  }
+});
 
-  app.get('/api/admin/requests', (req, res) => {
-    const typeFilter = String(req.query.type || '').toLowerCase();
-    const statusFilter = String(req.query.status || '').toLowerCase();
-    const employeeIdFilter = String(req.query.employeeId || '').trim();
-    const store = readStore();
-
-    let items = [...store.requests];
-
-    if (typeFilter) {
-      items = items.filter((item) => String(item.type || '').toLowerCase() === typeFilter);
-    }
-
-    if (statusFilter) {
-      items = items.filter((item) => String(item.status || '').toLowerCase() === statusFilter);
-    }
-
-    if (employeeIdFilter) {
-      items = items.filter((item) => Number(item.employeeId) === Number(employeeIdFilter));
-    }
-
-    items.sort(
-      (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-    );
-
-    res.json(items);
-  });
-
-  app.put('/api/admin/requests/:requestId', (req, res) => {
-    const requestId = Number(req.params.requestId);
-    const nextStatus = String(req.body?.status || '').toLowerCase();
-    const reviewNote = req.body?.note ? String(req.body.note).trim() : '';
-
-    if (!REQUEST_STATUS.has(nextStatus)) {
-      return res
-        .status(400)
-        .json({ message: 'status inválido. Use approved, rejected ou pending.' });
-    }
-
-    const store = readStore();
-    const targetIndex = store.requests.findIndex((item) => Number(item.id) === requestId);
-
-    if (targetIndex === -1) {
-      return res.status(404).json({ message: 'Solicitação não encontrada.' });
-    }
-
-    const current = store.requests[targetIndex];
-    const reviewedAt = ['approved', 'rejected'].includes(nextStatus)
-      ? new Date().toISOString()
-      : null;
-
-    const updated = {
-      ...current,
-      status: nextStatus,
-      reviewedAt,
-      reviewNote,
-    };
-
-    store.requests[targetIndex] = updated;
-
-    if (['approved', 'rejected'].includes(nextStatus)) {
-      const statusLabel = nextStatus === 'approved' ? 'APROVADA' : 'REJEITADA';
-      const baseMessage = `Sua solicitação (${String(updated.type || '').toUpperCase()}) foi ${statusLabel}`;
-      const message = reviewNote ? `${baseMessage}. Nota: ${reviewNote}` : baseMessage;
-      addNotification(store, updated.employeeId, 'REQUEST', 'Solicitação atualizada', message);
-    }
-
-    writeStore(store);
-    return res.json(updated);
-  });
-
-  app.get('/api/employees/:employeeId/notifications', (req, res) => {
-    const employeeId = Number(req.params.employeeId);
-    const since = req.query.since ? new Date(String(req.query.since)) : null;
-    const store = readStore();
-    let items = store.notifications.filter((item) => Number(item.employeeId) === employeeId);
-    if (since && !Number.isNaN(since.getTime())) {
-      items = items.filter((item) => new Date(item.createdAt) > since);
-    }
-    res.json(items);
-  });
-
-  app.post('/api/employees/:employeeId/notifications/read', (req, res) => {
-    const employeeId = Number(req.params.employeeId);
-    const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(Number) : [];
-    const store = readStore();
-    const now = new Date().toISOString();
-    store.notifications = store.notifications.map((item) => {
-      if (Number(item.employeeId) !== employeeId) return item;
-      if (!ids.includes(Number(item.id))) return item;
-      return { ...item, readAt: now };
+// ==========================================
+// ROTA RDO: SERVIDOR -> PORTAL RH
+// ==========================================
+router.get('/work-orders/rdo', async (req, res) => {
+  try {
+    const rdos = await prisma.serviceOrder.findMany({
+      where: { type: 'RDO' },
+      orderBy: { createdAt: 'desc' },
+      include: { employee: true } // Traz os dados do funcionário, se existir
     });
-    writeStore(store);
-    res.json({ ok: true, updated: ids.length });
+    res.json(rdos);
+  } catch (error) {
+    console.error("Erro ao buscar RDOs:", error);
+    res.status(500).json({ error: 'Erro ao buscar RDOs' });
+  }
+});
+
+// Mantemos a rota base do store para não quebrar o resto do app na demo
+router.get('/sync/:employeeId', (req, res) => {
+  const store = readStore();
+  const journey = composeJourney(req.params.employeeId);
+  res.json({
+    timestamp: Date.now(),
+    journey,
+    notifications: store.notifications,
+    pendingActions: store.requests.filter(r => r.employeeId === req.params.employeeId && r.status === 'pending')
   });
+});
 
-  // Admin/demo routes for Portal RH as source-of-truth
-  app.post('/api/admin/embarkations', (req, res) => {
-    const store = readStore();
-    const body = req.body || {};
-    const embarkation = {
-      id: newId(store.embarkations),
-      destination: body.destination,
-      location: body.location,
-      embarkDate: body.embarkDate,
-      disembarkDate: body.disembarkDate,
-      status: body.status || 'scheduled',
-      vessel: body.vessel || null,
-    };
-
-    const employeeIds = Array.isArray(body.employeeIds) ? body.employeeIds.map(Number) : [];
-    const journeyTemplate = Array.isArray(body.journeyTemplate) ? body.journeyTemplate : [];
-
-    store.embarkations.push(embarkation);
-    employeeIds.forEach((employeeId) => {
-      store.embarkationAssignments.push({ employeeId, embarkationId: embarkation.id });
-      store.journeyStatus[`${employeeId}:${embarkation.id}`] = journeyTemplate.map((s) => ({
-        key: s.key,
-        status: 'pending',
-      }));
-      addNotification(
-        store,
-        employeeId,
-        'EMBARKATION',
-        'Embarque atualizado',
-        `Novo embarque programado para ${embarkation.destination}`
-      );
-    });
-    store.journeyTemplates[String(embarkation.id)] = journeyTemplate;
-
-    writeStore(store);
-    res.status(201).json({ embarkation, employeeIds, journeyTemplate });
-  });
-
-  app.post('/api/admin/trainings', (req, res) => {
-    const store = readStore();
-    const body = req.body || {};
-    const training = {
-      id: newId(store.trainings),
-      title: body.title,
-      date: body.date,
-      location: body.location,
-      status: body.status || 'scheduled',
-      notes: body.notes || '',
-      attachments: body.attachments || [],
-    };
-    const employeeIds = Array.isArray(body.employeeIds) ? body.employeeIds.map(Number) : [];
-    store.trainings.push(training);
-    employeeIds.forEach((employeeId) => {
-      store.trainingAssignments.push({ employeeId, trainingId: training.id });
-      addNotification(
-        store,
-        employeeId,
-        'TRAINING',
-        'Novo treinamento',
-        `${training.title} em ${training.date}`
-      );
-    });
-    writeStore(store);
-    res.status(201).json({ training, employeeIds });
-  });
-
-  app.post('/api/admin/documents', (req, res) => {
-    const store = readStore();
-    const body = req.body || {};
-    const document = {
-      id: newId(store.documents),
-      employeeId: Number(body.employeeId),
-      title: body.title,
-      category: body.category || 'certification',
-      issuer: body.issuer || '',
-      issueDate: body.issueDate || null,
-      expiryDate: body.expiryDate || null,
-      fileUrl: body.fileUrl,
-    };
-    store.documents.push(document);
-    addNotification(
-      store,
-      document.employeeId,
-      'DOCUMENT',
-      'Documento atualizado',
-      `${document.title} disponível`
-    );
-    writeStore(store);
-    res.status(201).json(document);
-  });
-}
+export default router;
