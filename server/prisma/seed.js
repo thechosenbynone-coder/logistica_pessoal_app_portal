@@ -3,245 +3,139 @@ import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
-// Arrays de dados realistas
-const nomes = ['João', 'Carlos', 'Pedro', 'Lucas', 'Rafael', 'Bruno', 'Diego', 'Felipe', 'Gustavo', 'Thiago', 'Rodrigo', 'Leandro', 'Marcio', 'Eduardo', 'Gabriel', 'Marcelo', 'Fernando', 'Alexandre', 'Ricardo', 'Vinicius', 'Daniel', 'Marcos', 'Antonio', 'Francisco', 'Paulo', 'Jose', 'Luiz', 'Sergio', 'Roberto', 'Claudio'];
-const sobrenomes = ['Silva', 'Santos', 'Oliveira', 'Souza', 'Pereira', 'Lima', 'Ferreira', 'Costa', 'Rodrigues', 'Almeida', 'Nascimento', 'Alves', 'Carvalho', 'Mendes', 'Ribeiro', 'Martins', 'Gonçalves', 'Barbosa', 'Rocha', 'Dias', 'Monteiro', 'Moraes', 'Cavalcanti', 'Moura', 'Cardoso', 'Freitas', 'Tavares', 'Vieira', 'Araujo', 'Neves'];
-const cargos = ['Pedreiro', 'Mestre de Obras', 'Engenheiro Civil', 'Eletricista', 'Encanador', 'Operador de Máquinas', 'Técnico de Segurança', 'Soldador', 'Caldeireiro', 'Pintor Industrial', 'Alpinista N1', 'Rádio Operador', 'Supervisor de Convés'];
+const nomes = ['João', 'Carlos', 'Pedro', 'Lucas', 'Rafael', 'Bruno', 'Diego', 'Felipe', 'Gustavo', 'Thiago'];
+const sobrenomes = ['Silva', 'Santos', 'Oliveira', 'Souza', 'Pereira', 'Lima', 'Ferreira', 'Costa'];
+const cargos = ['Pedreiro', 'Mestre de Obras', 'Engenheiro Civil', 'Eletricista', 'Técnico de Segurança'];
 const bases = ['Base Macaé', 'Base Rio das Ostras', 'Base Campos'];
-const docTypes = ['CBSP', 'HUET', 'NR-35', 'NR-33', 'ASO', 'Passaporte'];
 
-// Funções Utilitárias
-const random = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
-// Gerador de CPF válido (Matemática Módulo 11)
-function gerarCpfValido() {
-  const num = () => Math.floor(Math.random() * 10);
-  const n = Array.from({ length: 9 }, num);
-  
-  let d1 = n.reduce((total, number, index) => total + (number * (10 - index)), 0);
-  d1 = 11 - (d1 % 11);
-  if (d1 >= 10) d1 = 0;
-  
-  let d2 = n.reduce((total, number, index) => total + (number * (11 - index)), 0) + (d1 * 2);
-  d2 = 11 - (d2 % 11);
-  if (d2 >= 10) d2 = 0;
-  
-  return [...n, d1, d2].join('');
-}
+const cpfDigit = (digits, startWeight) => {
+  const total = digits.reduce((acc, number, index) => acc + number * (startWeight - index), 0);
+  const remainder = total % 11;
+  return remainder < 2 ? 0 : 11 - remainder;
+};
 
-async function main() {
-  console.log('🌱 Iniciando Seed Robusto (65+ Colaboradores, Alertas e RDOs)...');
-
-  // 1. Limpeza segura e nativa do ORM
-  try {
-    // Tabelas do ecossistema Dashboard/RH
-    await prisma.expense.deleteMany();
-    await prisma.timeSheet.deleteMany();
-    await prisma.userDocument.deleteMany();
-    await prisma.deployment.deleteMany();
-    await prisma.project.deleteMany();
-    await prisma.user.deleteMany();
-    
-    // Tabelas do ecossistema Colaborador (Mobile)
-    await prisma.dailyReport.deleteMany();
-    await prisma.financialRequest.deleteMany();
-    await prisma.serviceOrder.deleteMany();
-    await prisma.employee.deleteMany();
-  } catch (e) {
-    console.log('Aviso: O banco estava vazio ou em transição. Continuando...');
+const generateValidCpf = (usedCpfs) => {
+  while (true) {
+    const base = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10));
+    const d1 = cpfDigit(base, 10);
+    const d2 = cpfDigit([...base, d1], 11);
+    const cpf = `${base.join('')}${d1}${d2}`;
+    if (!usedCpfs.has(cpf)) {
+      usedCpfs.add(cpf);
+      return cpf;
+    }
   }
+};
 
+const randomDateWithin45Days = () => {
+  const date = new Date();
+  date.setDate(date.getDate() - Math.floor(Math.random() * 45));
+  return date;
+};
+
+export const runSeed = async () => {
+  const usedCpfs = new Set();
   const pinHash = await bcrypt.hash('1234', 10);
 
-  // 2. Criar Projetos / Plataformas (Para popular gráficos de pizza)
-  const p70 = await prisma.project.create({ data: { name: 'P-70 (Petrobras)' } });
-  const p75 = await prisma.project.create({ data: { name: 'P-75 (Petrobras)' } });
-  const arraial = await prisma.project.create({ data: { name: 'UMS Cidade de Arraial' } });
-  const baseOp = await prisma.project.create({ data: { name: 'Base Operacional Macaé' } });
-  const projetos = [p70, p75, arraial, baseOp];
+  await prisma.$transaction(async (tx) => {
+    await tx.dailyReport.deleteMany();
+    await tx.serviceOrder.deleteMany();
+    await tx.epiDelivery.deleteMany();
+    await tx.financialRequest.deleteMany();
+    await tx.deployment.deleteMany();
+    await tx.document.deleteMany();
+    await tx.employee.deleteMany();
+    await tx.documentType.deleteMany();
+    await tx.epiCatalog.deleteMany();
+    await tx.vessel.deleteMany();
 
-  const colaboradoresData = [];
-  
-  // 3. O DADO CANÁRIO (Homenagem - Jéssica)
-  colaboradoresData.push({
-    name: 'Jéssica Martins Tavares da Silva',
-    cpf: gerarCpfValido(),
-    email: 'jessica@demo.com',
-    role: 'Diretora de RH',
-    phone: `552197${Math.floor(1000000 + Math.random() * 9000000)}`,
-    base: 'Base Rio das Ostras',
-    registration: 'MAT-0001',
-    isCanary: true
+    await tx.documentType.createMany({
+      data: [
+        { code: 'ASO', name: 'ASO', category: 'Médico', requiresExpiration: true },
+        { code: 'CBSP', name: 'CBSP', category: 'Treinamento', requiresExpiration: true },
+        { code: 'HUET', name: 'HUET', category: 'Treinamento', requiresExpiration: true },
+        { code: 'NR-33', name: 'NR-33', category: 'NR', requiresExpiration: true },
+        { code: 'NR-35', name: 'NR-35', category: 'NR', requiresExpiration: true },
+        { code: 'NR-37', name: 'NR-37', category: 'NR', requiresExpiration: true },
+      ],
+      skipDuplicates: true,
+    });
   });
 
-  // 4. Gerar os demais 65 colaboradores realistas
-  for (let i = 2; i <= 66; i++) {
-    const nome = random(nomes);
-    const sobrenome1 = random(sobrenomes);
-    const sobrenome2 = random(sobrenomes);
-    
-    colaboradoresData.push({
-      name: `${nome} ${sobrenome1} ${sobrenome2}`,
-      cpf: gerarCpfValido(),
-      email: `colaborador${i}@demo.com`,
-      role: random(cargos),
+  const employeesPayload = [
+    {
+      name: 'Jéssica Martins Tavares da Silva',
+      role: 'Diretora de RH',
+      email: 'jessica@demo.com',
+      cpf: generateValidCpf(usedCpfs),
       phone: `552197${Math.floor(1000000 + Math.random() * 9000000)}`,
-      base: random(bases),
-      registration: `MAT-${1000 + i}`
+      base: pick(bases),
+      accessPinHash: pinHash,
+      accessPinUpdatedAt: new Date(),
+    },
+  ];
+
+  for (let index = 0; index < 64; index += 1) {
+    employeesPayload.push({
+      name: `${pick(nomes)} ${pick(sobrenomes)} ${pick(sobrenomes)}`,
+      role: pick(cargos),
+      email: `colaborador${index + 1}@demo.com`,
+      cpf: generateValidCpf(usedCpfs),
+      phone: `552197${Math.floor(1000000 + Math.random() * 9000000)}`,
+      base: pick(bases),
+      accessPinHash: pinHash,
+      accessPinUpdatedAt: new Date(),
     });
   }
 
-  console.log('👥 Inserindo colaboradores e forçando histórico de compliance...');
-  
-  const employeeIds = [];
-  let index = 0;
+  await prisma.employee.createMany({ data: employeesPayload });
 
-  for (const data of colaboradoresData) {
-    index++;
-    
-    // -> Criação do 'User' para o Dashboard de RH
-    const user = await prisma.user.create({
-      data: {
-        name: data.name,
-        email: data.email,
-        registration: data.registration,
-        role: data.role === 'Diretora de RH' ? 'HR' : 'COLLABORATOR',
-        jobTitle: data.role
-      }
+  const employees = await prisma.employee.findMany({ select: { id: true } });
+  const employeeIds = employees.map((employee) => employee.id);
+
+  const serviceOrders = Array.from({ length: 150 }, (_, index) => ({
+    employeeId: pick(employeeIds),
+    osNumber: `OS-${20000 + index}`,
+    title: `RDO ${index + 1} - Frente Offshore`,
+    description: 'Execução de atividade de campo e registro diário de obra em altura.',
+    priority: pick(['BAIXA', 'MEDIA', 'ALTA']),
+    openedAt: randomDateWithin45Days(),
+    approvalStatus: index % 4 === 0 ? 'PENDING' : 'APPROVED',
+    status: pick(['OPEN', 'IN_PROGRESS', 'CONCLUDED']),
+  }));
+
+  const dailyReports = Array.from({ length: 150 }, (_, index) => ({
+    employeeId: pick(employeeIds),
+    reportDate: randomDateWithin45Days(),
+    description: `RDO diário ${index + 1}`,
+    hoursWorked: 8,
+    approvalStatus: index % 3 === 0 ? 'Pendente' : 'Aprovado',
+    approvedBy: index % 3 === 0 ? null : 'RH',
+  }));
+
+  await prisma.serviceOrder.createMany({ data: serviceOrders });
+  await prisma.dailyReport.createMany({ data: dailyReports });
+
+  return {
+    ok: true,
+    employees: employeesPayload.length,
+    serviceOrders: serviceOrders.length,
+    dailyReports: dailyReports.length,
+  };
+};
+
+if (process.argv[1] && process.argv[1].endsWith('seed.js')) {
+  runSeed()
+    .then((result) => {
+      console.log('✅ Seed executado:', result);
+    })
+    .catch((error) => {
+      console.error('❌ Falha no seed:', error);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
     });
-
-    // -> Criação do 'Employee' para o Login no App Colaborador
-    const employee = await prisma.employee.create({
-      data: {
-        name: data.name,
-        cpf: data.cpf,
-        email: data.email,
-        role: data.role,
-        phone: data.phone,
-        base: data.base,
-        accessPinHash: pinHash,
-        accessPinUpdatedAt: new Date()
-      }
-    });
-    employeeIds.push(employee.id);
-
-    // ========================================================
-    // MOTOR DE COMPLIANCE: FORÇANDO OS ALERTAS DO SEU DASHBOARD
-    // ========================================================
-    const projeto = random(projetos);
-    const hoje = new Date();
-    
-    let casoEspecial = 'NORMAL';
-    if (index === 2) casoEspecial = 'VENCIDO';
-    if (index === 3) casoEspecial = 'VENCE_DURANTE';
-    if (index === 4) casoEspecial = 'RISCO_REEMBARQUE';
-    if (index === 5) casoEspecial = 'ALERTA_PROXIMO';
-
-    // Gestão da Viagem (Deployment)
-    if (casoEspecial === 'VENCE_DURANTE') {
-      const desembarque = new Date(hoje);
-      desembarque.setDate(hoje.getDate() + 14); // Viagem de 14 dias
-      
-      await prisma.deployment.create({
-        data: { userId: user.id, projectId: projeto.id, destination: projeto.name, embarkDate: hoje, disembarkDate: desembarque, status: 'ONBOARD' }
-      });
-      
-      const venceMeio = new Date(hoje);
-      venceMeio.setDate(hoje.getDate() + 7); // Documento venceu no 7º dia a bordo! (Alerta Vermelho)
-      await prisma.userDocument.create({
-        data: { userId: user.id, name: 'CBSP', issueDate: new Date('2019-01-01'), expiryDate: venceMeio, status: 'WARNING' }
-      });
-      
-    } else if (casoEspecial === 'RISCO_REEMBARQUE') {
-      const reembarque = new Date(hoje);
-      reembarque.setDate(hoje.getDate() + 10); // Próximo embarque marcado para daqui a 10 dias
-      
-      await prisma.deployment.create({
-        data: { userId: user.id, projectId: projeto.id, destination: projeto.name, embarkDate: reembarque, status: 'SCHEDULED' }
-      });
-      
-      const venceAmanha = new Date(hoje);
-      venceAmanha.setDate(hoje.getDate() + 1); // Documento vence amanhã, ele vai perder a escala!
-      await prisma.userDocument.create({
-        data: { userId: user.id, name: 'HUET', issueDate: new Date('2020-01-01'), expiryDate: venceAmanha, status: 'WARNING' }
-      });
-
-    } else {
-      // Embarques e escalas normais
-      const embarcado = Math.random() > 0.4;
-      const inicio = new Date(hoje);
-      inicio.setDate(hoje.getDate() - Math.floor(Math.random() * 20));
-      
-      await prisma.deployment.create({
-        data: {
-          userId: user.id, projectId: projeto.id, destination: projeto.name, embarkDate: inicio,
-          disembarkDate: embarcado ? new Date(inicio.getTime() + (14 * 24 * 60 * 60 * 1000)) : null,
-          status: embarcado ? 'ONBOARD' : 'SCHEDULED'
-        }
-      });
-    }
-
-    // Gerando o restante da documentação
-    const numDocs = Math.floor(Math.random() * 4) + 2; 
-    for (let d = 0; d < numDocs; d++) {
-      const tipo = random(docTypes);
-      let status = 'VALID';
-      let expiracao = new Date(hoje);
-      
-      if (casoEspecial === 'VENCIDO' && d === 0) {
-        expiracao.setDate(hoje.getDate() - 30); // Vencido a 1 mês
-        status = 'EXPIRED';
-      } else if (casoEspecial === 'ALERTA_PROXIMO' && d === 0) {
-        expiracao.setDate(hoje.getDate() + 15); // Vence em 15 dias (Amarelo)
-        status = 'WARNING';
-      } else {
-        expiracao.setDate(hoje.getDate() + 100 + Math.floor(Math.random() * 500)); // Tudo em dia
-      }
-
-      await prisma.userDocument.create({
-        data: { userId: user.id, name: tipo, issueDate: new Date('2021-01-01'), expiryDate: expiracao, status: status }
-      });
-    }
-  }
-
-  // ==========================================
-  // DISTRIBUIÇÃO GRÁFICA DE RDOs (SERVICE ORDERS)
-  // ==========================================
-  console.log('📝 Gerando 150 Service Orders (RDOs) espalhados no tempo...');
-  const prioridades = ['BAIXA', 'MEDIA', 'ALTA'];
-  const statuses = ['OPEN', 'IN_PROGRESS', 'CONCLUDED'];
-  
-  for (let i = 0; i < 150; i++) {
-    const randomEmployeeId = random(employeeIds);
-    // Distribui as O.S. perfeitamente ao longo dos últimos 45 dias
-    const diasAtras = Math.floor(Math.random() * 45);
-    const dataAbertura = new Date();
-    dataAbertura.setDate(dataAbertura.getDate() - diasAtras);
-    
-    await prisma.serviceOrder.create({
-      data: {
-        employeeId: randomEmployeeId,
-        osNumber: `OS-${20000 + i}`,
-        title: `RDO ${i + 1} - Frente Offshore`,
-        description: 'Execução de atividade de campo e registro diário de obra em altura.',
-        priority: random(prioridades),
-        status: random(statuses),
-        approvalStatus: i % 4 === 0 ? 'PENDING' : 'APPROVED',
-        openedAt: dataAbertura
-      }
-    });
-  }
-
-  console.log(`✅ Seed concluído com sucesso!`);
-  console.log(`✅ A Diretora Jéssica Tavares da Silva foi incluída com sucesso.`);
-  console.log(`✅ Motor de compliance injetou cenários de VENCE DURANTE, VENCIDO e RISCO REEMBARQUE.`);
 }
-
-main()
-  .catch((e) => {
-    console.error('❌ Falha no seed:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
