@@ -17,6 +17,7 @@ import { EquipmentView } from './features/equipment';
 import { HistoryView } from './features/history';
 import { DocumentsView } from './features/documents';
 import { NotificationsView } from './features/notifications';
+import { LoginScreen } from './features/auth/LoginScreen';
 import api, { clearAuth } from './services/api';
 import {
   mockAdvances,
@@ -119,26 +120,6 @@ export default function EmployeeLogisticsApp() {
   } = useNotifications({ api, employeeId });
 
   useEffect(() => {
-    let cancelled = false;
-
-    const loadRealEmployee = async () => {
-      try {
-        const me = await api.integration.me();
-        if (cancelled || !me?.id) return;
-        setEmployeeId(String(me.id));
-      } catch (error) {
-        console.error('Falha ao carregar colaborador real:', error);
-      }
-    };
-
-    loadRealEmployee();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [setEmployeeId]);
-
-  useEffect(() => {
     if (journey?.length) setJourneySteps(journey);
     else if (!currentEmbarkation) setJourneySteps([]);
   }, [journey, currentEmbarkation, setJourneySteps]);
@@ -169,9 +150,11 @@ export default function EmployeeLogisticsApp() {
   const handleLogout = () => {
     clearAuth();
     setEmployeeId('');
-    window.localStorage.removeItem('employeeId');
-    window.location.reload();
   };
+
+  if (!employeeId) {
+    return <LoginScreen onLoginSuccess={(id) => setEmployeeId(id)} />;
+  }
 
   const openWork = (section = 'os', intent = null) => {
     setWorkInitialSection(section);
