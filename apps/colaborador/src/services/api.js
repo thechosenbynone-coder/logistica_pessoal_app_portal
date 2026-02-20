@@ -201,6 +201,8 @@ const api = {
       request('/checkins', { method: 'POST', body: payload, ...options }),
   },
   integration: {
+    login: async (payload, options) =>
+      request('/integration/login', { method: 'POST', body: payload, ...options }),
     me: async (options) => request('/integration/me', options),
     syncRdo: async (payload, options) =>
       request('/integration/sync/rdo', { method: 'POST', body: payload, ...options }),

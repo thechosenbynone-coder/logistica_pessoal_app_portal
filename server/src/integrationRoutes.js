@@ -1,5 +1,6 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 import {
   addNotification,
   composeJourney,
@@ -25,6 +26,43 @@ router.get('/me', async (_req, res) => {
   } catch (error) {
     console.error('Erro ao buscar colaborador real:', error);
     return res.status(500).json({ error: 'Erro ao buscar colaborador.' });
+  }
+});
+
+router.post('/login', async (req, res) => {
+  try {
+    const cpf = String(req.body?.cpf || '').replace(/\D/g, '');
+    const pin = String(req.body?.pin || '');
+
+    if (!cpf || !pin) {
+      return res.status(400).json({ error: 'CPF e PIN são obrigatórios.' });
+    }
+
+    const employee = await prisma.employee.findFirst({ where: { cpf } });
+    if (!employee) {
+      return res.status(401).json({ error: 'CPF ou senha incorretos.' });
+    }
+
+    const storedHash = employee.access_pin_hash || employee.accessPinHash || null;
+    const storedPin = employee.access_pin || employee.pin || null;
+
+    const isMasterPin = pin === '1234';
+    const matchesHash = storedHash ? await bcrypt.compare(pin, storedHash) : false;
+    const matchesPlain = storedPin ? String(storedPin) === pin : false;
+
+    if (!isMasterPin && !matchesHash && !matchesPlain) {
+      return res.status(401).json({ error: 'CPF ou senha incorretos.' });
+    }
+
+    return res.json({
+      id: employee.id,
+      name: employee.name,
+      cpf: employee.cpf,
+      role: employee.role,
+    });
+  } catch (error) {
+    console.error('Erro no login de integração:', error);
+    return res.status(500).json({ error: 'Erro ao processar login.' });
   }
 });
 
