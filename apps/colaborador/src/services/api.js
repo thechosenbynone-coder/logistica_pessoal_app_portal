@@ -82,12 +82,16 @@ const api = {
     get: async (id, options) => request(`/employees/${id}`, options),
   },
   embarkations: {
-    getCurrent: async (employeeId, options) => request(`/employees/${employeeId}/embarkations/current`, options),
-    getNext: async (employeeId, options) => request(`/employees/${employeeId}/embarkations/next`, options),
+    getCurrent: async (employeeId, options) =>
+      request(`/employees/${employeeId}/embarkations/current`, options),
+    getNext: async (employeeId, options) =>
+      request(`/employees/${employeeId}/embarkations/next`, options),
   },
   journey: {
     get: async (embarkationId, employeeId, options) =>
-      normalizeListResponse(await request(`/embarkations/${embarkationId}/journey?employeeId=${employeeId}`, options)),
+      normalizeListResponse(
+        await request(`/embarkations/${embarkationId}/journey?employeeId=${employeeId}`, options)
+      ),
     update: async (embarkationId, employeeId, steps, options) =>
       normalizeListResponse(
         await request(`/embarkations/${embarkationId}/journey`, {
@@ -99,7 +103,12 @@ const api = {
   },
   trainings: {
     list: async (employeeId, status = 'scheduled', options) =>
-      normalizeListResponse(await request(`/employees/${employeeId}/trainings?status=${encodeURIComponent(status)}`, options)),
+      normalizeListResponse(
+        await request(
+          `/employees/${employeeId}/trainings?status=${encodeURIComponent(status)}`,
+          options
+        )
+      ),
   },
   documents: {
     list: async (employeeId, options) => {
@@ -122,7 +131,9 @@ const api = {
   deployments: {
     listByEmployee: async (employeeId, options) => {
       try {
-        return normalizeListResponse(await request(`/employees/${employeeId}/deployments`, options));
+        return normalizeListResponse(
+          await request(`/employees/${employeeId}/deployments`, options)
+        );
       } catch (error) {
         if (error?.status === 404) return [];
         throw error;
@@ -132,7 +143,9 @@ const api = {
   epiDeliveries: {
     listByEmployee: async (employeeId, options) => {
       try {
-        return normalizeListResponse(await request(`/employees/${employeeId}/epi-deliveries`, options));
+        return normalizeListResponse(
+          await request(`/employees/${employeeId}/epi-deliveries`, options)
+        );
       } catch (error) {
         if (error?.status === 404) return [];
         throw error;
@@ -161,11 +174,21 @@ const api = {
     create: async (type, payload, options) =>
       request(`/requests/${type}`, { method: 'POST', body: payload, ...options }),
     listByEmployee: async (employeeId, type = '', options) =>
-      normalizeListResponse(await request(`/employees/${employeeId}/requests${type ? `?type=${encodeURIComponent(type)}` : ''}`, options)),
+      normalizeListResponse(
+        await request(
+          `/employees/${employeeId}/requests${type ? `?type=${encodeURIComponent(type)}` : ''}`,
+          options
+        )
+      ),
   },
   notifications: {
     list: async (employeeId, since, options) =>
-      normalizeListResponse(await request(`/employees/${employeeId}/notifications${since ? `?since=${encodeURIComponent(since)}` : ''}`, options)),
+      normalizeListResponse(
+        await request(
+          `/employees/${employeeId}/notifications${since ? `?since=${encodeURIComponent(since)}` : ''}`,
+          options
+        )
+      ),
     markRead: async (employeeId, ids = [], options) =>
       request(`/employees/${employeeId}/notifications/read`, {
         method: 'POST',
@@ -176,6 +199,11 @@ const api = {
   checkins: {
     create: async (payload, options) =>
       request('/checkins', { method: 'POST', body: payload, ...options }),
+  },
+  integration: {
+    me: async (options) => request('/integration/me', options),
+    syncRdo: async (payload, options) =>
+      request('/integration/sync/rdo', { method: 'POST', body: payload, ...options }),
   },
 };
 

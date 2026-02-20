@@ -11,27 +11,48 @@ import {
 const router = express.Router();
 const prisma = new PrismaClient(); // Conecta no Postgres (Neon)
 
+router.get('/me', async (_req, res) => {
+  try {
+    const employee = prisma.employee?.findFirst
+      ? await prisma.employee.findFirst()
+      : await prisma.user?.findFirst?.();
+
+    if (!employee) {
+      return res.status(404).json({ error: 'Nenhum colaborador encontrado.' });
+    }
+
+    return res.json(employee);
+  } catch (error) {
+    console.error('Erro ao buscar colaborador real:', error);
+    return res.status(500).json({ error: 'Erro ao buscar colaborador.' });
+  }
+});
+
 // ==========================================
 // ROTA RDO: COLABORADOR (APP) -> SERVIDOR
 // ==========================================
 router.post('/sync/rdo', async (req, res) => {
   try {
     const { employeeId, date, description, status } = req.body;
-    
+
+    if (!employeeId) {
+      return res.status(400).json({ error: 'employeeId é obrigatório.' });
+    }
+
     // Grava o RDO direto na tabela real
     const newRdo = await prisma.serviceOrder.create({
       data: {
-        employeeId: employeeId || 'cl_demo_user', 
+        employeeId,
         type: 'RDO',
         status: status || 'PENDING',
         details: description,
-        date: new Date(date)
-      }
+        date: new Date(date),
+      },
     });
 
     res.json({ success: true, data: newRdo });
   } catch (error) {
-    console.error("Erro ao salvar RDO no banco:", error);
+    console.error('Erro ao salvar RDO no banco:', error);
     res.status(500).json({ error: 'Erro ao processar RDO no servidor' });
   }
 });
@@ -44,11 +65,11 @@ router.get('/work-orders/rdo', async (req, res) => {
     const rdos = await prisma.serviceOrder.findMany({
       where: { type: 'RDO' },
       orderBy: { createdAt: 'desc' },
-      include: { employee: true } // Traz os dados do funcionário, se existir
+      include: { employee: true }, // Traz os dados do funcionário, se existir
     });
     res.json(rdos);
   } catch (error) {
-    console.error("Erro ao buscar RDOs:", error);
+    console.error('Erro ao buscar RDOs:', error);
     res.status(500).json({ error: 'Erro ao buscar RDOs' });
   }
 });
@@ -61,8 +82,14 @@ router.get('/sync/:employeeId', (req, res) => {
     timestamp: Date.now(),
     journey,
     notifications: store.notifications,
-    pendingActions: store.requests.filter(r => r.employeeId === req.params.employeeId && r.status === 'pending')
+    pendingActions: store.requests.filter(
+      (r) => r.employeeId === req.params.employeeId && r.status === 'pending'
+    ),
   });
 });
+
+export function registerIntegrationRoutes(app) {
+  app.use('/api/integration', router);
+}
 
 export default router;

@@ -77,7 +77,7 @@ export default function EmployeeLogisticsApp() {
   const [tripStatusIntent, setTripStatusIntent] = useState(false);
   const [tripStatusTick, setTripStatusTick] = useState(0);
   const [fabOpen, setFabOpen] = useState(false);
-  const [employeeId, setEmployeeId] = useLocalStorageState('employeeId', '1');
+  const [employeeId, setEmployeeId] = useLocalStorageState('employeeId', '');
   const [requestModal, setRequestModal] = useState({ open: false, type: null, title: '' });
   const [requestDescription, setRequestDescription] = useState('');
 
@@ -119,6 +119,26 @@ export default function EmployeeLogisticsApp() {
   } = useNotifications({ api, employeeId });
 
   useEffect(() => {
+    let cancelled = false;
+
+    const loadRealEmployee = async () => {
+      try {
+        const me = await api.integration.me();
+        if (cancelled || !me?.id) return;
+        setEmployeeId(String(me.id));
+      } catch (error) {
+        console.error('Falha ao carregar colaborador real:', error);
+      }
+    };
+
+    loadRealEmployee();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [setEmployeeId]);
+
+  useEffect(() => {
     if (journey?.length) setJourneySteps(journey);
     else if (!currentEmbarkation) setJourneySteps([]);
   }, [journey, currentEmbarkation, setJourneySteps]);
@@ -148,7 +168,7 @@ export default function EmployeeLogisticsApp() {
 
   const handleLogout = () => {
     clearAuth();
-    setEmployeeId('1');
+    setEmployeeId('');
     window.localStorage.removeItem('employeeId');
     window.location.reload();
   };
@@ -359,6 +379,7 @@ export default function EmployeeLogisticsApp() {
                 initialIntent={workInitialIntent}
                 intentTick={workIntentTick}
                 onCreateRequest={createRequest}
+                employeeId={employeeId}
               />
             )}
 
@@ -372,6 +393,7 @@ export default function EmployeeLogisticsApp() {
                 initialIntent={financeInitialIntent}
                 intentTick={financeIntentTick}
                 onCreateRequest={createRequest}
+                employeeId={employeeId}
               />
             )}
 
@@ -454,7 +476,6 @@ export default function EmployeeLogisticsApp() {
             </div>
           </div>
         )}
-
       </div>
     </div>
   );
