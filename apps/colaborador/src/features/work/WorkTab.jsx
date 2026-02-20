@@ -1,43 +1,36 @@
 import React, { useState } from 'react';
 import { FileText, Send, CheckCircle } from 'lucide-react';
-import api from '../../services/api'; 
-import { enqueueSyncAction } from '../../lib/outbox';
+import api from '../../services/api';
+import { outboxEnqueue } from '../../lib/outbox';
 
-export default function WorkTab() {
+export function WorkTab({ employeeId }) {
   const [descricao, setDescricao] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [sucesso, setSucesso] = useState(false);
 
   const handleSubmitRDO = async (e) => {
     e.preventDefault();
-    if (!descricao.trim()) return;
+    if (!descricao.trim() || !employeeId) return;
 
     setEnviando(true);
 
     const payload = {
-      employeeId: "cl_demo_user", // Na versão final, pegar ID do usuário logado
+      employeeId,
       date: new Date().toISOString(),
       description: descricao,
-      status: 'PENDING'
+      status: 'PENDING',
     };
 
-    // 1. Salva na caixa de saída (Garante que funciona sem internet)
-    enqueueSyncAction({
-      type: 'SYNC_RDO',
-      payload: payload
-    });
+    outboxEnqueue('RDO', employeeId, payload, payload.date);
 
-    // 2. Disparo forçado para a demonstração (Tempo Real)
     try {
-      await api.post('/integration/sync/rdo', payload);
+      await api.integration.syncRdo(payload);
       setSucesso(true);
-      setDescricao(''); // Limpa o formulário
-      
-      // Reseta o aviso de sucesso após 3 segundos
+      setDescricao('');
       setTimeout(() => setSucesso(false), 3000);
     } catch (error) {
       console.error('Erro ao enviar:', error);
-      alert("Aviso: Sem conexão, salvo para envio offline.");
+      alert('Aviso: Sem conexão, salvo para envio offline.');
     } finally {
       setEnviando(false);
     }
@@ -45,18 +38,20 @@ export default function WorkTab() {
 
   return (
     <div className="p-4 space-y-6 pb-24">
-      {/* Cabeçalho */}
       <div className="bg-blue-600 rounded-2xl p-6 text-white shadow-lg">
         <div className="flex items-center space-x-3 mb-2">
           <FileText size={28} className="text-blue-200" />
           <h2 className="text-xl font-bold">Relatório de Obra</h2>
         </div>
-        <p className="text-blue-100 text-sm">Registre as atividades executadas no seu turno (RDO).</p>
+        <p className="text-blue-100 text-sm">
+          Registre as atividades executadas no seu turno (RDO).
+        </p>
       </div>
 
-      {/* Formulário do RDO */}
-      <form onSubmit={handleSubmitRDO} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-        
+      <form
+        onSubmit={handleSubmitRDO}
+        className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4"
+      >
         <div>
           <label className="block text-sm font-semibold text-slate-700 mb-1">
             Descrição das Atividades (Hoje)
@@ -78,7 +73,7 @@ export default function WorkTab() {
         ) : (
           <button
             type="submit"
-            disabled={enviando || !descricao.trim()}
+            disabled={enviando || !descricao.trim() || !employeeId}
             className="w-full flex justify-center items-center space-x-2 bg-blue-600 text-white font-bold py-4 rounded-xl shadow-md hover:bg-blue-700 active:scale-95 disabled:opacity-50 transition-all"
           >
             <Send size={20} />
@@ -89,3 +84,5 @@ export default function WorkTab() {
     </div>
   );
 }
+
+export default WorkTab;

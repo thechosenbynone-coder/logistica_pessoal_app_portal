@@ -9,6 +9,7 @@ import FinancePage from './features/finance/FinancePage';
 import EquipmentPage from './features/equipment/EquipmentPage';
 import RequestsPage from './features/requests/RequestsPage.jsx';
 import ModulePlaceholderPage from './features/common/ModulePlaceholderPage';
+import WorkPage from './features/work/WorkPage.jsx';
 import NotFoundPage from './features/common/NotFoundPage';
 import { ROUTE_PATHS, resolvePathByKey } from './navigation/routes.js';
 
@@ -22,10 +23,10 @@ const ROUTE_COMPONENTS = {
   [ROUTE_PATHS.equipment]: () => <EquipmentPage />,
   [ROUTE_PATHS.finance]: () => <FinancePage />,
   '/financial-requests': () => <FinancePage />,
-  [ROUTE_PATHS.rdo]: () => <ModulePlaceholderPage title="Relatórios Diários" />,
-  '/daily-reports': () => <ModulePlaceholderPage title="Relatórios Diários" />,
-  '/os': () => <ModulePlaceholderPage title="Relatórios Diários" />,
-  '/service-orders': () => <ModulePlaceholderPage title="Relatórios Diários" />,
+  [ROUTE_PATHS.rdo]: () => <WorkPage />,
+  '/daily-reports': () => <WorkPage />,
+  '/os': () => <WorkPage />,
+  '/service-orders': () => <WorkPage />,
   [ROUTE_PATHS.hotel]: () => <ModulePlaceholderPage title="Hotelaria" />,
   [ROUTE_PATHS.requests]: () => <RequestsPage />,
 };
