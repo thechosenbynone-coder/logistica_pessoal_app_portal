@@ -1,6 +1,7 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { runSeed } from '../prisma/seed.js';
 import {
   addNotification,
   composeJourney,
@@ -81,10 +82,10 @@ router.post('/sync/rdo', async (req, res) => {
     const newRdo = await prisma.serviceOrder.create({
       data: {
         employeeId,
-        type: 'RDO',
         status: status || 'PENDING',
-        details: description,
-        date: new Date(date),
+        description,
+        openedAt: new Date(date),
+        title: 'RDO integração',
       },
     });
 
@@ -101,7 +102,7 @@ router.post('/sync/rdo', async (req, res) => {
 router.get('/work-orders/rdo', async (req, res) => {
   try {
     const rdos = await prisma.serviceOrder.findMany({
-      where: { type: 'RDO' },
+      where: { title: { contains: 'RDO' } },
       orderBy: { createdAt: 'desc' },
       include: { employee: true }, // Traz os dados do funcionário, se existir
     });
@@ -126,8 +127,24 @@ router.get('/sync/:employeeId', (req, res) => {
   });
 });
 
+const handleDevSeed = async (req, res) => {
+  const expectedToken = process.env.ADMIN_KEY || 'dev-senha-segura';
+  if (req.query.token !== expectedToken) {
+    return res.status(401).send('Unauthorized');
+  }
+
+  try {
+    const result = await runSeed();
+    return res.status(200).json({ ok: true, ...result });
+  } catch (error) {
+    console.error('Erro no seed de desenvolvimento:', error);
+    return res.status(500).json({ ok: false, error: error?.message || 'seed failed' });
+  }
+};
+
 export function registerIntegrationRoutes(app) {
   app.use('/api/integration', router);
+  app.get('/api/dev/seed', handleDevSeed);
 }
 
 export default router;

@@ -7,66 +7,189 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id            String    @id @default(uuid())
-  registration  String    @unique
-  name          String
-  email         String    @unique
-  role          String    @default("COLLABORATOR")
-  jobTitle      String?   
-  avatarUrl     String?
-  
-  documents     UserDocument[]
-  deployments   Deployment[]
-  timeSheets    TimeSheet[]
-  expenses      Expense[]
-  createdAt     DateTime  @default(now())
+model Employee {
+  id                 Int        @id @default(autoincrement())
+  name               String?
+  cpf                String?
+  role               String?
+  email              String?
+  phone              String?
+  base               String?
+  accessPinHash      String?    @map("access_pin_hash")
+  accessPinUpdatedAt DateTime?  @map("access_pin_updated_at") @db.Timestamptz(6)
+  createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  documents          Document[]
+  deployments        Deployment[]
+  epiDeliveries      EpiDelivery[]
+  dailyReports       DailyReport[]
+  serviceOrders      ServiceOrder[]
+  financialRequests  FinancialRequest[]
+
+  @@map("employees")
 }
 
-model Project {
-  id          String       @id @default(uuid())
-  name        String       
-  deployments Deployment[]
+model Vessel {
+  id            Int           @id @default(autoincrement())
+  name          String?
+  type          String?
+  client        String?
+  deployments   Deployment[]
+  serviceOrders ServiceOrder[]
+
+  @@map("vessels")
 }
 
 model Deployment {
-  id            String    @id @default(uuid())
-  userId        String
-  projectId     String?
-  destination   String    
-  embarkDate    DateTime
-  disembarkDate DateTime?
-  status        String    @default("SCHEDULED")
-  
-  user          User      @relation(fields: [userId], references: [id])
-  project       Project?  @relation(fields: [projectId], references: [id])
+  id              Int       @id @default(autoincrement())
+  employeeId      Int?      @map("employee_id")
+  vesselId        Int?      @map("vessel_id")
+  startDate       DateTime? @map("start_date") @db.Date
+  endDateExpected DateTime? @map("end_date_expected") @db.Date
+  endDateActual   DateTime? @map("end_date_actual") @db.Date
+  notes           String?
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  employee        Employee? @relation(fields: [employeeId], references: [id])
+  vessel          Vessel?   @relation(fields: [vesselId], references: [id])
+
+  @@map("deployments")
 }
 
-model UserDocument {
-  id          String    @id @default(uuid())
-  userId      String
-  name        String    
-  issueDate   DateTime? // <--- ADICIONADO
-  expiryDate  DateTime
-  status      String    @default("VALID")
-  fileUrl     String?
-  
-  user        User      @relation(fields: [userId], references: [id])
+model DocumentType {
+  id                 Int        @id @default(autoincrement())
+  code               String?    @unique(map: "idx_document_types_code")
+  name               String
+  category           String?
+  requiresExpiration Boolean    @default(true) @map("requires_expiration")
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
+
+  documents          Document[]
+
+  @@map("document_types")
 }
 
-model Expense {
-  id          String    @id @default(uuid())
-  userId      String
-  amount      Decimal
-  status      String    @default("PENDING")
-  description String?
-  user        User      @relation(fields: [userId], references: [id])
+model Document {
+  id             Int          @id @default(autoincrement())
+  employeeId     Int          @map("employee_id")
+  documentTypeId Int          @map("document_type_id")
+  issueDate      DateTime     @map("issue_date") @db.Date
+  expirationDate DateTime?    @map("expiration_date") @db.Date
+  fileUrl        String?      @map("file_url")
+  evidenceType   String?      @map("evidence_type")
+  evidenceRef    String?      @map("evidence_ref")
+  notes          String?
+  verified       Boolean      @default(false)
+  verifiedBy     String?      @map("verified_by")
+  verifiedAt     DateTime?    @map("verified_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  employee       Employee     @relation(fields: [employeeId], references: [id])
+  documentType   DocumentType @relation(fields: [documentTypeId], references: [id])
+
+  @@unique([employeeId, documentTypeId], map: "idx_documents_employee_document_type_unique")
+  @@index([employeeId], map: "idx_documents_employee_id")
+  @@index([documentTypeId], map: "idx_documents_document_type_id")
+  @@index([expirationDate], map: "idx_documents_expiration_date")
+  @@map("documents")
 }
 
-model TimeSheet {
-  id          String    @id @default(uuid())
-  userId      String
-  date        DateTime
-  hours       Decimal
-  user        User      @relation(fields: [userId], references: [id])
+model EpiCatalog {
+  id         Int           @id @default(autoincrement())
+  name       String
+  code       String?
+  ca         String?
+  unit       String?
+  stockQty   Int           @default(0) @map("stock_qty")
+  minStock   Int           @default(0) @map("min_stock")
+  active     Boolean       @default(true)
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+
+  deliveries EpiDelivery[]
+
+  @@map("epi_catalog")
+}
+
+model EpiDelivery {
+  id           Int        @id @default(autoincrement())
+  employeeId   Int        @map("employee_id")
+  epiItemId    Int        @map("epi_item_id")
+  deliveryDate DateTime   @default(dbgenerated("CURRENT_DATE")) @map("delivery_date") @db.Date
+  quantity     Int        @default(1)
+  signatureUrl String?    @map("signature_url")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  employee     Employee   @relation(fields: [employeeId], references: [id])
+  epiItem      EpiCatalog @relation(fields: [epiItemId], references: [id])
+
+  @@index([employeeId], map: "idx_epi_deliveries_employee_id")
+  @@index([epiItemId], map: "idx_epi_deliveries_epi_item_id")
+  @@map("epi_deliveries")
+}
+
+model DailyReport {
+  id             Int        @id @default(autoincrement())
+  employeeId     Int?       @map("employee_id")
+  reportDate     DateTime?  @map("report_date") @db.Date
+  description    String?
+  hoursWorked    Decimal?   @map("hours_worked") @db.Decimal(10, 2)
+  approvalStatus String?    @map("approval_status")
+  approvedBy     String?    @map("approved_by")
+  clientId       String?    @unique(map: "idx_daily_reports_client_id_unique") @map("client_id")
+  clientFilledAt DateTime?  @map("client_filled_at") @db.Timestamptz(6)
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  employee       Employee?  @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId, createdAt(sort: Desc)], map: "idx_daily_reports_employee_created_desc")
+  @@map("daily_reports")
+}
+
+model ServiceOrder {
+  id             Int        @id @default(autoincrement())
+  employeeId     Int?       @map("employee_id")
+  osNumber       String?    @map("os_number")
+  title          String?
+  description    String?
+  priority       String?
+  openedAt       DateTime?  @map("opened_at") @db.Date
+  approvalStatus String?    @map("approval_status")
+  vesselId       Int?       @map("vessel_id")
+  status         String?
+  clientId       String?    @unique(map: "idx_service_orders_client_id_unique") @map("client_id")
+  clientFilledAt DateTime?  @map("client_filled_at") @db.Timestamptz(6)
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  employee       Employee?  @relation(fields: [employeeId], references: [id])
+  vessel         Vessel?    @relation(fields: [vesselId], references: [id])
+
+  @@index([employeeId], map: "idx_service_orders_employee_id")
+  @@index([employeeId, createdAt(sort: Desc)], map: "idx_service_orders_employee_created_desc")
+  @@map("service_orders")
+}
+
+model FinancialRequest {
+  id             Int        @id @default(autoincrement())
+  employeeId     Int?       @map("employee_id")
+  type           String?
+  amount         Decimal?   @db.Decimal(10, 2)
+  description    String?
+  status         String?
+  clientId       String?    @unique(map: "idx_financial_requests_client_id_unique") @map("client_id")
+  clientFilledAt DateTime?  @map("client_filled_at") @db.Timestamptz(6)
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  employee       Employee?  @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId, createdAt(sort: Desc)], map: "idx_financial_requests_employee_created_desc")
+  @@map("financial_requests")
 }
