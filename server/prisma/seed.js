@@ -249,9 +249,10 @@ export const runSeed = async () => {
 
     const documents = [];
 
-    for (const employeeId of employeeIds) {
+    for (let idx = 0; idx < employeeIds.length; idx += 1) {
+      const employeeId = employeeIds[idx];
       const isMissing = missingMandatoryEmployeeIds.has(employeeId);
-      const missingCode = isMissing ? mandatoryDocCodes[employeeId % mandatoryDocCodes.length] : null;
+      const missingCode = isMissing ? mandatoryDocCodes[idx % mandatoryDocCodes.length] : null;
       const availableCodes = mandatoryDocCodes.filter((code) => code !== missingCode);
       const desiredCount = isMissing ? 5 : pick([3, 4, 5, 6]);
       const selectedCodes = shuffle(availableCodes).slice(0, desiredCount);
@@ -330,17 +331,20 @@ export const runSeed = async () => {
 
     await tx.financialRequest.createMany({ data: financialRequests });
 
-    const serviceOrders = Array.from({ length: 150 }, (_, index) => ({
-      employeeId: employeeIds[index % employeeIds.length],
-      vesselId: vesselIds[index % vesselIds.length],
-      osNumber: `OS-${30000 + index}`,
-      title: `OS ${index + 1} - Frente Offshore`,
-      description: 'Execução de atividade de campo e registro diário de obra em altura.',
-      priority: pick(['BAIXA', 'MEDIA', 'ALTA']),
-      openedAt: randomDateWithin45Days(),
-      approvalStatus: index % 4 === 0 ? 'Pendente' : 'Aprovado',
-      status: pick(['OPEN', 'IN_PROGRESS', 'CONCLUDED']),
-    }));
+    const serviceOrders = Array.from({ length: 150 }, (_, index) => {
+      const isRdoOrder = index < 40;
+      return {
+        employeeId: employeeIds[index % employeeIds.length],
+        vesselId: vesselIds[index % vesselIds.length],
+        osNumber: `${isRdoOrder ? 'RDO' : 'OS'}-${30000 + index}`,
+        title: `${isRdoOrder ? 'RDO' : 'OS'} ${index + 1} - Frente Offshore`,
+        description: 'Execução de atividade de campo e registro diário de obra em altura.',
+        priority: pick(['BAIXA', 'MEDIA', 'ALTA']),
+        openedAt: randomDateWithin45Days(),
+        approvalStatus: index % 4 === 0 ? 'Pendente' : 'Aprovado',
+        status: pick(['OPEN', 'IN_PROGRESS', 'CONCLUDED']),
+      };
+    });
 
     const dailyReports = Array.from({ length: 150 }, (_, index) => ({
       employeeId: employeeIds[(index * 2) % employeeIds.length],
