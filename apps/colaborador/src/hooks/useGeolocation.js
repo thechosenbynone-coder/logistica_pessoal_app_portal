@@ -16,7 +16,7 @@ export function useGeolocation(options = {}) {
       setError(null);
 
       if (typeof navigator === 'undefined' || !navigator.geolocation) {
-        const err = { ok: false, error: 'Geolocation not supported' };
+        const err = { ok: false, error: 'Geolocalização não disponível neste dispositivo.' };
         setError(err.error);
         setLoading(false);
         resolve(err);
@@ -24,7 +24,7 @@ export function useGeolocation(options = {}) {
       }
 
       const timer = setTimeout(() => {
-        const err = { ok: false, error: 'Timeout getting location' };
+        const err = { ok: false, error: 'Não foi possível obter sua localização a tempo.' };
         setError(err.error);
         setLoading(false);
         resolve(err);
@@ -46,7 +46,14 @@ export function useGeolocation(options = {}) {
         },
         (err) => {
           clearTimeout(timer);
-          const result = { ok: false, error: err.message };
+          const code = err?.code;
+          const friendlyError =
+            code === 1
+              ? 'Permissão de localização negada.'
+              : code === 2
+                ? 'Não foi possível identificar sua localização.'
+                : 'Não foi possível obter sua localização.';
+          const result = { ok: false, error: friendlyError };
           setError(result.error);
           setLoading(false);
           resolve(result);

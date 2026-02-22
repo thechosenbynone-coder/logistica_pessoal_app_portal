@@ -1,4 +1,5 @@
 import React from 'react';
+import { getAvatarUrl } from '../../utils';
 import {
     User,
     Shield,
@@ -58,7 +59,7 @@ export function ProfileTab({
             <div className="bg-white rounded-xl p-5 shadow-md">
                 <div className="flex items-center gap-4 mb-4">
                     <img
-                        src={employee.photo}
+                        src={getAvatarUrl(employee)}
                         alt={employee.name}
                         className="w-16 h-16 rounded-full border-2 border-blue-600"
                     />

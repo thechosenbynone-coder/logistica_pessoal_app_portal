@@ -18,6 +18,7 @@ import { HistoryView } from './features/history';
 import { DocumentsView } from './features/documents';
 import { NotificationsView } from './features/notifications';
 import { LoginScreen } from './features/auth/LoginScreen';
+import { getAvatarUrl } from './utils';
 import api from './services/api';
 
 const HOME_VIEW = 'home';
@@ -147,9 +148,10 @@ export default function EmployeeLogisticsApp() {
 
   const currentEmployee = employee;
 
-  const hasToken = Boolean(api.getToken());
+  const hasToken = Boolean(api.getToken()?.trim());
+  const hasEmployeeId = Boolean(String(employeeId || '').trim());
 
-  if (!hasToken || !employeeId) {
+  if (!hasToken || !hasEmployeeId) {
     return <LoginScreen onLoginSuccess={(id) => setEmployeeId(id)} api={api} />;
   }
 
@@ -262,7 +264,7 @@ export default function EmployeeLogisticsApp() {
                   </button>
                 ) : null}
                 <div>
-                  <p className="text-xs text-gray-500">Portal do Colaborador</p>
+                  <p className="text-xs text-gray-500">App do Colaborador</p>
                   <p className="font-semibold text-gray-800">{pageTitle}</p>
                 </div>
               </div>
@@ -280,7 +282,7 @@ export default function EmployeeLogisticsApp() {
                   aria-label="Abrir perfil"
                 >
                   <img
-                    src={currentEmployee.photo}
+                    src={getAvatarUrl(currentEmployee)}
                     alt="Avatar do colaborador"
                     className="h-6 w-6 rounded-full object-cover"
                   />
