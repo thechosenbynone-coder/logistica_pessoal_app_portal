@@ -1,22 +1,25 @@
 import { apiFetch } from '../lib/apiClient';
 
 const DEFAULT_TIMEOUT_MS = 15_000;
+const AUTH_TOKEN_KEY = 'el_token';
 
 export const getToken = () => {
   if (typeof window === 'undefined') return '';
-  return window.localStorage.getItem('el_token') || '';
+  return window.localStorage.getItem(AUTH_TOKEN_KEY) || '';
 };
 
 export const setToken = (token) => {
   if (typeof window === 'undefined') return;
   if (token) {
-    window.localStorage.setItem('el_token', token);
+    window.localStorage.setItem(AUTH_TOKEN_KEY, token);
+    return;
   }
+  window.localStorage.removeItem(AUTH_TOKEN_KEY);
 };
 
 export const clearAuth = () => {
   if (typeof window === 'undefined') return;
-  window.localStorage.removeItem('el_token');
+  window.localStorage.removeItem(AUTH_TOKEN_KEY);
   window.localStorage.removeItem('employeeId');
 };
 
@@ -74,9 +77,14 @@ const normalizeListResponse = (data) => {
 };
 
 const api = {
+  getToken,
+  clearAuth,
   auth: {
-    login: async (payload, options) =>
-      request('/auth/login', { method: 'POST', body: payload, ...options }),
+    login: async (payload, options) => {
+      const response = await request('/auth/login', { method: 'POST', body: payload, ...options });
+      setToken(response?.token || '');
+      return response;
+    },
   },
   employees: {
     get: async (id, options) => request(`/employees/${id}`, options),

@@ -18,17 +18,7 @@ import { HistoryView } from './features/history';
 import { DocumentsView } from './features/documents';
 import { NotificationsView } from './features/notifications';
 import { LoginScreen } from './features/auth/LoginScreen';
-import api, { clearAuth } from './services/api';
-import {
-  mockAdvances,
-  mockEmergencyContacts,
-  mockEmbarkHistory,
-  mockEmployee,
-  mockEquipment,
-  mockExpenses,
-  mockReimbursements,
-  createInitialWorkOrders,
-} from './data/mockData';
+import api from './services/api';
 
 const HOME_VIEW = 'home';
 
@@ -82,23 +72,19 @@ export default function EmployeeLogisticsApp() {
   const [requestModal, setRequestModal] = useState({ open: false, type: null, title: '' });
   const [requestDescription, setRequestDescription] = useState('');
 
-  const [workOrders, setWorkOrders] = useLocalStorageState(
-    'el_workOrders',
-    createInitialWorkOrders()
-  );
+  const [workOrders, setWorkOrders] = useLocalStorageState('el_workOrders', []);
   const [dailyReports, setDailyReports] = useLocalStorageState('el_dailyReports', []);
   const [syncLog, setSyncLog] = useLocalStorageState('el_syncLog', []);
   const [isOnBase, setIsOnBase] = useLocalStorageState('el_isOnBase', false);
-  const [expenses, setExpenses] = useLocalStorageState('el_expenses', mockExpenses);
-  const [advances, setAdvances] = useLocalStorageState('el_advances', mockAdvances);
-  const [equipment, setEquipment] = useLocalStorageState('el_equipment', mockEquipment);
+  const [expenses, setExpenses] = useLocalStorageState('el_expenses', []);
+  const [advances, setAdvances] = useLocalStorageState('el_advances', []);
+  const [equipment, setEquipment] = useLocalStorageState('el_equipment', []);
   const [journeySteps, setJourneySteps] = useLocalStorageState(
     `el_tripJourneySteps_${employeeId}`,
     []
   );
-
   const { employee, loading, screenError, dailyReportsApi, serviceOrdersApi, refreshLists } =
-    useEmployeeData({ api, employeeId, mockEmployee });
+    useEmployeeData({ api, employeeId });
   const {
     loading: syncLoading,
     error: syncError,
@@ -148,12 +134,47 @@ export default function EmployeeLogisticsApp() {
   }, [mergedWork, mergedRdo, mergedRequests]);
 
   const handleLogout = () => {
-    clearAuth();
+    api.clearAuth();
     setEmployeeId('');
+
+    if (typeof window !== 'undefined') {
+      for (const key of Object.keys(window.localStorage)) {
+        if (key.startsWith('el_')) window.localStorage.removeItem(key);
+      }
+      window.localStorage.removeItem('employeeId');
+    }
   };
 
-  if (!employeeId) {
-    return <LoginScreen onLoginSuccess={(id) => setEmployeeId(id)} />;
+  const currentEmployee = employee;
+
+  const hasToken = Boolean(api.getToken());
+
+  if (!hasToken || !employeeId) {
+    return <LoginScreen onLoginSuccess={(id) => setEmployeeId(id)} api={api} />;
+  }
+
+  if (!currentEmployee && loading) {
+    return (
+      <div className="min-h-[100dvh] bg-slate-100 flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (!currentEmployee) {
+    return (
+      <div className="min-h-[100dvh] bg-slate-100 flex items-center justify-center px-4">
+        <div className="rounded-xl bg-white p-4 text-center shadow-sm">
+          <p className="text-sm text-slate-700">Sessão inválida. Faça login novamente.</p>
+          <button
+            onClick={handleLogout}
+            className="mt-3 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white"
+          >
+            Voltar ao login
+          </button>
+        </div>
+      </div>
+    );
   }
 
   const openWork = (section = 'os', intent = null) => {
@@ -222,8 +243,6 @@ export default function EmployeeLogisticsApp() {
       docs: 'Documentações',
       notifications: 'Notificações',
     }[activeView] || 'Início';
-
-  const currentEmployee = employee || mockEmployee;
 
   return (
     <div className="min-h-[100dvh] bg-slate-100 flex justify-center">
@@ -370,7 +389,7 @@ export default function EmployeeLogisticsApp() {
               <FinanceTab
                 expenses={expenses}
                 advances={advances}
-                reimbursements={mockReimbursements}
+                reimbursements={[]}
                 onAddExpense={(item) => setExpenses((prev) => [item, ...prev])}
                 onRequestAdvance={(item) => setAdvances((prev) => [item, ...prev])}
                 initialIntent={financeInitialIntent}
@@ -388,7 +407,7 @@ export default function EmployeeLogisticsApp() {
               <ProfileTab
                 employee={currentEmployee}
                 personalDocuments={documentsApi || []}
-                emergencyContacts={mockEmergencyContacts}
+                emergencyContacts={[]}
                 onNavigateToEquipment={() => setActiveView('epis')}
                 onNavigateToHistory={() => setActiveView('history')}
               />
@@ -415,7 +434,7 @@ export default function EmployeeLogisticsApp() {
 
             {activeView === 'history' && (
               <HistoryView
-                embarkHistory={mockEmbarkHistory}
+                embarkHistory={[]}
                 onBack={() => setActiveView('profile')}
               />
             )}

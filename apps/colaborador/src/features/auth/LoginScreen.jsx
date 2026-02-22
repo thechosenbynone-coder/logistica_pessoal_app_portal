@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import api from '../../services/api';
 
-export function LoginScreen({ onLoginSuccess }) {
+export function LoginScreen({ onLoginSuccess, api }) {
   const [cpf, setCpf] = useState('');
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
@@ -12,8 +11,15 @@ export function LoginScreen({ onLoginSuccess }) {
     if (loading) return;
 
     const cleanCpf = cpf.replace(/\D/g, '');
-    if (!cleanCpf || !pin) {
-      setError('Preencha CPF e PIN para continuar.');
+    const cleanPin = pin.replace(/\D/g, '');
+
+    if (cleanCpf.length !== 11) {
+      setError('CPF/PIN inválidos');
+      return;
+    }
+
+    if (!/^\d{4,12}$/.test(cleanPin)) {
+      setError('CPF/PIN inválidos');
       return;
     }
 
@@ -21,14 +27,14 @@ export function LoginScreen({ onLoginSuccess }) {
     setError('');
 
     try {
-      const user = await api.integration.login({ cpf: cleanCpf, pin });
-      if (!user?.id) {
-        setError('CPF ou senha incorretos.');
+      const response = await api.auth.login({ cpf: cleanCpf, pin: cleanPin });
+      if (!response?.employee?.id) {
+        setError('CPF/PIN inválidos');
         return;
       }
-      onLoginSuccess(String(user.id));
+      onLoginSuccess(String(response.employee.id));
     } catch (_err) {
-      setError('CPF ou senha incorretos.');
+      setError('CPF/PIN inválidos');
     } finally {
       setLoading(false);
     }
@@ -40,7 +46,8 @@ export function LoginScreen({ onLoginSuccess }) {
         <div className="mb-8 text-center">
           <p className="text-xs uppercase tracking-[0.2em] text-slate-500">MVP Demo</p>
           <h1 className="mt-2 text-2xl font-bold text-slate-900">Portal do Colaborador</h1>
-          <p className="mt-2 text-sm text-slate-600">Acesse com CPF e PIN de 4 dígitos</p>
+          <p className="mt-2 text-sm text-slate-600">Acesse com CPF e PIN</p>
+          <p className="mt-1 text-xs text-slate-500">Na demo, o PIN é os 4 primeiros dígitos do CPF</p>
         </div>
 
         <form
@@ -64,10 +71,10 @@ export function LoginScreen({ onLoginSuccess }) {
             <input
               type="password"
               inputMode="numeric"
-              maxLength={4}
+              maxLength={12}
               placeholder="••••"
               value={pin}
-              onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 4))}
+              onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 12))}
               className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-slate-900 outline-none ring-slate-200 transition focus:border-slate-400 focus:ring"
             />
           </label>
