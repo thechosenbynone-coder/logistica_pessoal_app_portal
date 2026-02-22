@@ -44,10 +44,8 @@ export function LoginScreen({ onLoginSuccess, api }) {
     <div className="h-screen bg-slate-50 px-4 py-6">
       <div className="mx-auto flex h-full w-full max-w-[430px] flex-col justify-center">
         <div className="mb-8 text-center">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">MVP Demo</p>
-          <h1 className="mt-2 text-2xl font-bold text-slate-900">Portal do Colaborador</h1>
+          <h1 className="mt-2 text-2xl font-bold text-slate-900">App do Colaborador</h1>
           <p className="mt-2 text-sm text-slate-600">Acesse com CPF e PIN</p>
-          <p className="mt-1 text-xs text-slate-500">Na demo, o PIN é os 4 primeiros dígitos do CPF</p>
         </div>
 
         <form
@@ -89,6 +87,8 @@ export function LoginScreen({ onLoginSuccess, api }) {
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
+
+        <p className="mt-4 text-center text-xs text-slate-500">Desenvolvido por Hubye</p>
       </div>
     </div>
   );

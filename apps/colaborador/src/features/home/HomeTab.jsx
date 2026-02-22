@@ -7,6 +7,7 @@ import {
     CheckCircle,
 } from 'lucide-react';
 import { formatDateBR } from '../../utils';
+import { useGeolocation } from '../../hooks/useGeolocation';
 
 /**
  * HomeTab - Main home screen with status, next trip, check-in/out, and timeline.
@@ -20,19 +21,26 @@ export function HomeTab({
 }) {
     const [currentLocation, setCurrentLocation] = useState(null);
     const [checkInStatus, setCheckInStatus] = useState('pending');
+    const { getLocation } = useGeolocation();
 
     const handleCheckIn = useCallback(async () => {
         try {
             await onCheckIn?.();
-            // Mock location for demo
-            setCurrentLocation({ lat: -22.9068, lng: -43.1729 });
+            const locationResult = await getLocation();
+
+            if (locationResult?.ok) {
+                setCurrentLocation({ lat: locationResult.lat, lng: locationResult.lng });
+            } else {
+                setCurrentLocation(null);
+            }
+
             setCheckInStatus('success');
             setTimeout(() => setCheckInStatus('completed'), 1200);
         } catch (error) {
             console.error('Check-in error:', error.message);
             alert('Erro ao fazer check-in. Tente novamente.');
         }
-    }, [onCheckIn]);
+    }, [getLocation, onCheckIn]);
 
     const handleCheckOut = useCallback(async () => {
         try {
