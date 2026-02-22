@@ -80,12 +80,15 @@ export default function EmployeeLogisticsApp() {
   const [expenses, setExpenses] = useLocalStorageState('el_expenses', []);
   const [advances, setAdvances] = useLocalStorageState('el_advances', []);
   const [equipment, setEquipment] = useLocalStorageState('el_equipment', []);
+  const token = api.getToken()?.trim() || '';
+  const isAuthed = Boolean(token) && Boolean(String(employeeId || '').trim());
+  const effectiveEmployeeId = isAuthed ? employeeId : '';
   const [journeySteps, setJourneySteps] = useLocalStorageState(
     `el_tripJourneySteps_${employeeId}`,
     []
   );
   const { employee, loading, screenError, dailyReportsApi, serviceOrdersApi, refreshLists } =
-    useEmployeeData({ api, employeeId });
+    useEmployeeData({ api, employeeId: effectiveEmployeeId });
   const {
     loading: syncLoading,
     error: syncError,
@@ -97,14 +100,14 @@ export default function EmployeeLogisticsApp() {
     requests: requestsApi,
     refresh: refreshSync,
     updateJourney,
-  } = useEmployeeSyncData({ api, employeeId });
-  const { isOnline } = useOutboxSync({ api, employeeId, refreshLists });
+  } = useEmployeeSyncData({ api, employeeId: effectiveEmployeeId });
+  const { isOnline } = useOutboxSync({ api, employeeId: effectiveEmployeeId, refreshLists });
   const {
     items: notifications,
     unreadCount,
     toast,
     markRead,
-  } = useNotifications({ api, employeeId });
+  } = useNotifications({ api, employeeId: effectiveEmployeeId });
 
   useEffect(() => {
     if (journey?.length) setJourneySteps(journey);
@@ -148,10 +151,7 @@ export default function EmployeeLogisticsApp() {
 
   const currentEmployee = employee;
 
-  const hasToken = Boolean(api.getToken()?.trim());
-  const hasEmployeeId = Boolean(String(employeeId || '').trim());
-
-  if (!hasToken || !hasEmployeeId) {
+  if (!isAuthed) {
     return <LoginScreen onLoginSuccess={(id) => setEmployeeId(id)} api={api} />;
   }
 
