@@ -438,6 +438,181 @@ app.get('/api/employees/:id', ...employeeParamsAuth, async (req, res) => {
   }
 });
 
+app.get('/api/employees/:employeeId/notifications', requireEmployeeAuth, async (req, res) => {
+  try {
+    const employeeId = Number(req.params.employeeId);
+    if (!Number.isInteger(employeeId) || employeeId <= 0) {
+      return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'employeeId inválido' });
+    }
+
+    if (req.auth?.role !== 'admin' && Number(req.auth?.employee_id) !== employeeId) {
+      return res
+        .status(403)
+        .json({ errorCode: 'FORBIDDEN', message: 'Acesso fora do escopo do colaborador' });
+    }
+
+    const [
+      expiredDocsResult,
+      docsExpiringSoonResult,
+      missingEpiSignatureResult,
+      pendingFinancialRequestsResult,
+      pendingDailyReportsResult,
+      pendingServiceOrdersResult,
+    ] = await Promise.all([
+      pool.query(
+        `SELECT COUNT(*)::int AS count
+         FROM documents
+         WHERE employee_id = $1
+           AND expiration_date IS NOT NULL
+           AND expiration_date < NOW()`,
+        [employeeId]
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS count
+         FROM documents
+         WHERE employee_id = $1
+           AND expiration_date IS NOT NULL
+           AND expiration_date BETWEEN NOW() AND NOW() + INTERVAL '15 days'`,
+        [employeeId]
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS count
+         FROM epi_deliveries
+         WHERE employee_id = $1
+           AND signature_url IS NULL`,
+        [employeeId]
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS count
+         FROM financial_requests
+         WHERE employee_id = $1
+           AND status IN ('Solicitado','Pendente')`,
+        [employeeId]
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS count
+         FROM daily_reports
+         WHERE employee_id = $1
+           AND approval_status IN ('Pendente','PENDING')`,
+        [employeeId]
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS count
+         FROM service_orders
+         WHERE employee_id = $1
+           AND approval_status IN ('Pendente','PENDING')`,
+        [employeeId]
+      ),
+    ]);
+
+    const counts = {
+      docsExpired: expiredDocsResult.rows[0]?.count || 0,
+      docsExpiringSoon: docsExpiringSoonResult.rows[0]?.count || 0,
+      missingEpiSignatures: missingEpiSignatureResult.rows[0]?.count || 0,
+      pendingFinancialRequests: pendingFinancialRequestsResult.rows[0]?.count || 0,
+      pendingDailyReports: pendingDailyReportsResult.rows[0]?.count || 0,
+      pendingServiceOrders: pendingServiceOrdersResult.rows[0]?.count || 0,
+    };
+
+    const createdAt = new Date().toISOString();
+    const notifications = [];
+
+    if (counts.docsExpired > 0) {
+      notifications.push({
+        id: 'docs-expired',
+        type: 'docs',
+        severity: 'high',
+        title: 'Documentos vencidos',
+        message: `Você tem ${counts.docsExpired} documentos vencidos.`,
+        createdAt,
+        read: false,
+      });
+    }
+
+    if (counts.docsExpiringSoon > 0) {
+      notifications.push({
+        id: 'docs-expiring-soon',
+        type: 'docs',
+        severity: 'medium',
+        title: 'Documentos vencendo',
+        message: `Você tem ${counts.docsExpiringSoon} documentos vencendo em até 15 dias.`,
+        createdAt,
+        read: false,
+      });
+    }
+
+    if (counts.missingEpiSignatures > 0) {
+      notifications.push({
+        id: 'epi-missing-signature',
+        type: 'epi',
+        severity: 'medium',
+        title: 'EPIs pendentes de aceite',
+        message: `Você tem ${counts.missingEpiSignatures} entregas de EPI sem assinatura.`,
+        createdAt,
+        read: false,
+      });
+    }
+
+    if (counts.pendingFinancialRequests > 0) {
+      notifications.push({
+        id: 'financial-requests-pending',
+        type: 'financial',
+        severity: 'low',
+        title: 'Solicitações financeiras pendentes',
+        message: `Você tem ${counts.pendingFinancialRequests} solicitações financeiras pendentes.`,
+        createdAt,
+        read: false,
+      });
+    }
+
+    if (counts.pendingDailyReports > 0) {
+      notifications.push({
+        id: 'daily-reports-pending',
+        type: 'daily-reports',
+        severity: 'low',
+        title: 'RDOs pendentes',
+        message: `Você tem ${counts.pendingDailyReports} RDOs pendentes de aprovação.`,
+        createdAt,
+        read: false,
+      });
+    }
+
+    if (counts.pendingServiceOrders > 0) {
+      notifications.push({
+        id: 'service-orders-pending',
+        type: 'service-orders',
+        severity: 'low',
+        title: 'Ordens de serviço pendentes',
+        message: `Você tem ${counts.pendingServiceOrders} ordens de serviço pendentes de aprovação.`,
+        createdAt,
+        read: false,
+      });
+    }
+
+    return res.status(200).json(notifications);
+  } catch (error) {
+    if (error?.code === '42P01') {
+      return res.status(200).json([]);
+    }
+    handleServerError(res, error, 'employee-notifications');
+  }
+});
+
+app.post('/api/employees/:employeeId/notifications/read', requireEmployeeAuth, async (req, res) => {
+  const employeeId = Number(req.params.employeeId);
+  if (!Number.isInteger(employeeId) || employeeId <= 0) {
+    return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'employeeId inválido' });
+  }
+
+  if (req.auth?.role !== 'admin' && Number(req.auth?.employee_id) !== employeeId) {
+    return res
+      .status(403)
+      .json({ errorCode: 'FORBIDDEN', message: 'Acesso fora do escopo do colaborador' });
+  }
+
+  return res.json({ ok: true });
+});
+
 app.post('/api/employees', requireAdminKeyIfConfigured, async (req, res) => {
   try {
     const data = pickData(req.body, ['name', 'cpf', 'role', 'email', 'phone', 'base']);
