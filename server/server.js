@@ -308,19 +308,33 @@ app.get('/health', async (_req, res) => {
 ========================= */
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const employeeIdParsed = parseRequiredInteger(req.body?.employee_id, 'employee_id');
+    const rawCpf = req.body?.cpf;
+    const cpf = rawCpf ? normalizeCPF(rawCpf) : '';
+    const employeeIdParsed = cpf ? null : parseRequiredInteger(req.body?.employee_id, 'employee_id');
     const pin = String(req.body?.pin || '').trim();
 
-    if (employeeIdParsed?.error || !pin || pin.length < 4 || pin.length > 12) {
+    if ((!cpf && employeeIdParsed?.error) || !pin || pin.length < 4 || pin.length > 12) {
       return res.status(401).json({ errorCode: 'INVALID_CREDENTIALS', message: 'Credenciais inválidas' });
     }
 
-    const result = await pool.query(
-      `SELECT id, name, cpf, role, email, phone, base, created_at, access_pin_hash
-       FROM employees
-       WHERE id = $1`,
-      [employeeIdParsed.value]
-    );
+    if (cpf && cpf.length !== 11) {
+      return res.status(401).json({ errorCode: 'INVALID_CREDENTIALS', message: 'Credenciais inválidas' });
+    }
+
+    const result = cpf
+      ? await pool.query(
+          `SELECT id, name, cpf, role, email, phone, base, created_at, access_pin_hash
+           FROM employees
+           WHERE cpf = $1
+           LIMIT 1`,
+          [cpf]
+        )
+      : await pool.query(
+          `SELECT id, name, cpf, role, email, phone, base, created_at, access_pin_hash
+           FROM employees
+           WHERE id = $1`,
+          [employeeIdParsed.value]
+        );
 
     const employee = result.rows[0];
     if (!employee) {

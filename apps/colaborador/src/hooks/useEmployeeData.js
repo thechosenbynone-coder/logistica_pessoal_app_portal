@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
-export function useEmployeeData({ api, employeeId, mockEmployee }) {
-  const [employee, setEmployee] = useState(mockEmployee);
+export function useEmployeeData({ api, employeeId }) {
+  const [employee, setEmployee] = useState(null);
   const [loading, setLoading] = useState(false);
   const [screenError, setScreenError] = useState('');
   const [documents, setDocuments] = useState([]);
@@ -11,57 +11,84 @@ export function useEmployeeData({ api, employeeId, mockEmployee }) {
   const [serviceOrdersApi, setServiceOrdersApi] = useState([]);
   const [financialRequestsApi, setFinancialRequestsApi] = useState([]);
 
-  const refreshLists = useCallback(async (id) => {
-    if (!id) return;
-    const results = await Promise.allSettled([
-      api.dailyReports.listByEmployee(id),
-      api.serviceOrders.listByEmployee(id),
-      api.financialRequests.listByEmployee(id),
-    ]);
+  const refreshLists = useCallback(
+    async (id) => {
+      if (!id) return;
+      const results = await Promise.allSettled([
+        api.dailyReports.listByEmployee(id),
+        api.serviceOrders.listByEmployee(id),
+        api.financialRequests.listByEmployee(id),
+      ]);
 
-    if (results[0].status === 'fulfilled') setDailyReportsApi(results[0].value);
-    if (results[1].status === 'fulfilled') setServiceOrdersApi(results[1].value);
-    if (results[2].status === 'fulfilled') setFinancialRequestsApi(results[2].value);
-  }, [api]);
+      if (results[0].status === 'fulfilled') setDailyReportsApi(results[0].value);
+      if (results[1].status === 'fulfilled') setServiceOrdersApi(results[1].value);
+      if (results[2].status === 'fulfilled') setFinancialRequestsApi(results[2].value);
+    },
+    [api]
+  );
 
-  const loadEmployeeData = useCallback(async (id, isCancelled = () => false) => {
-    if (!id || isCancelled()) return;
+  const loadEmployeeData = useCallback(
+    async (id, isCancelled = () => false) => {
+      if (!id || isCancelled()) {
+        setEmployee(null);
+        setLoading(false);
+        return;
+      }
 
-    setLoading(true);
-    setScreenError('');
+      setLoading(true);
+      setScreenError('');
 
-    const results = await Promise.allSettled([
-      api.employees.get(id),
-      api.documents.listByEmployee(id),
-      api.deployments.listByEmployee(id),
-      api.epiDeliveries.listByEmployee(id),
-      api.dailyReports.listByEmployee(id),
-      api.serviceOrders.listByEmployee(id),
-      api.financialRequests.listByEmployee(id),
-    ]);
+      const results = await Promise.allSettled([
+        api.employees.get(id),
+        api.documents.listByEmployee(id),
+        api.deployments.listByEmployee(id),
+        api.epiDeliveries.listByEmployee(id),
+        api.dailyReports.listByEmployee(id),
+        api.serviceOrders.listByEmployee(id),
+        api.financialRequests.listByEmployee(id),
+      ]);
 
-    if (isCancelled()) return;
+      if (isCancelled()) return;
 
-    const hasFailures = results.some((item) => item.status === 'rejected');
-    if (hasFailures) setScreenError('Alguns dados do Portal RH não carregaram.');
+      const employeeRequest = results[0];
+      if (employeeRequest.status === 'rejected' && [401, 404].includes(employeeRequest.reason?.status)) {
+        setEmployee(null);
+        setScreenError('Sessão inválida. Faça login novamente.');
+        setLoading(false);
+        return;
+      }
 
-    if (results[0].status === 'fulfilled' && results[0].value) {
-      const employeeData = results[0].value;
-      setEmployee((prev) => ({ ...prev, ...employeeData, registration: String(employeeData.id || id) }));
-    }
-    if (results[1].status === 'fulfilled') setDocuments(results[1].value);
-    if (results[2].status === 'fulfilled') setDeployments(results[2].value);
-    if (results[3].status === 'fulfilled') setEpiDeliveries(results[3].value);
-    if (results[4].status === 'fulfilled') setDailyReportsApi(results[4].value);
-    if (results[5].status === 'fulfilled') setServiceOrdersApi(results[5].value);
-    if (results[6].status === 'fulfilled') setFinancialRequestsApi(results[6].value);
+      const hasFailures = results.some((item) => item.status === 'rejected');
+      if (hasFailures) setScreenError('Alguns dados do Portal RH não carregaram.');
 
-    if (isCancelled()) return;
-    setLoading(false);
-  }, [api]);
+      if (employeeRequest.status === 'fulfilled' && employeeRequest.value) {
+        const employeeData = employeeRequest.value;
+        setEmployee({ ...employeeData, registration: String(employeeData.id || id) });
+      }
+      if (results[1].status === 'fulfilled') setDocuments(results[1].value);
+      if (results[2].status === 'fulfilled') setDeployments(results[2].value);
+      if (results[3].status === 'fulfilled') setEpiDeliveries(results[3].value);
+      if (results[4].status === 'fulfilled') setDailyReportsApi(results[4].value);
+      if (results[5].status === 'fulfilled') setServiceOrdersApi(results[5].value);
+      if (results[6].status === 'fulfilled') setFinancialRequestsApi(results[6].value);
+
+      if (isCancelled()) return;
+      setLoading(false);
+    },
+    [api]
+  );
 
   useEffect(() => {
     let cancelled = false;
+    if (!employeeId) {
+      setEmployee(null);
+      setScreenError('');
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
     loadEmployeeData(employeeId, () => cancelled);
     return () => {
       cancelled = true;
