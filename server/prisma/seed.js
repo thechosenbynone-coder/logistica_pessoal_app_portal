@@ -1,389 +1,239 @@
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-
-const prisma = new PrismaClient();
+import { prisma } from '../src/prismaClient.js';
+import { recomputeAllEmployeeDocStatuses } from '../src/services/employeeDocStatus.js';
 
 const SEED_BCRYPT_ROUNDS = Number(process.env.SEED_BCRYPT_ROUNDS || 4);
-const TX_TIMEOUT_MS = Number(process.env.SEED_TX_TIMEOUT_MS || 120000);
-const TX_MAXWAIT_MS = Number(process.env.SEED_TX_MAXWAIT_MS || 20000);
-
-const nomes = [
-  'João',
-  'Carlos',
-  'Pedro',
-  'Lucas',
-  'Rafael',
-  'Bruno',
-  'Diego',
-  'Felipe',
-  'Gustavo',
-  'Thiago',
-  'Marcos',
-  'André',
-  'Renato',
-  'Leandro',
-  'Fernando',
+const roles = [
+  'Técnico de Segurança',
+  'Supervisor de Convés',
+  'Operador de Produção',
+  'Soldador Escalador',
+  'Eletricista Offshore',
+  'Mecânico de Manutenção',
+  'Encarregado de Movimentação de Carga',
+  'Almoxarife Offshore',
+  'Inspetor de Integridade',
+  'Radioperador',
 ];
-const sobrenomes = [
-  'Silva',
-  'Santos',
-  'Oliveira',
-  'Souza',
-  'Pereira',
-  'Lima',
-  'Ferreira',
-  'Costa',
-  'Rodrigues',
-  'Almeida',
-  'Barbosa',
-  'Mendes',
-];
-const cargos = ['Pedreiro', 'Mestre de Obras', 'Engenheiro Civil', 'Eletricista', 'Técnico de Segurança'];
-const bases = ['Base Macaé', 'Base Rio das Ostras', 'Base Campos'];
+const firstNames = ['João', 'Carlos', 'Rafael', 'Marcos', 'Paulo', 'Diego', 'Felipe', 'André', 'Thiago', 'Bruno', 'Lucas'];
+const lastNames = ['Silva', 'Souza', 'Santos', 'Pereira', 'Oliveira', 'Costa', 'Mendes', 'Barbosa', 'Almeida'];
 
-const vesselSeed = [
-  { name: 'MV Atlântico Norte', type: 'PSV', client: 'Petrobras' },
-  { name: 'OSV Vitória', type: 'OSRV', client: 'Equinor' },
-  { name: 'P-76 Support', type: 'AHTS', client: 'Petrobras' },
-  { name: 'Cidade de Niterói', type: 'Crew Boat', client: 'Subsea7' },
-  { name: 'Rio Offshore I', type: 'Supply', client: 'Shell' },
-  { name: 'Campos Explorer', type: 'Utility', client: 'TotalEnergies' },
-];
-
-const epiCatalogSeed = [
-  { name: 'Capacete Classe B', code: 'EPI-001', ca: '12345', unit: 'UN', stockQty: 18, minStock: 12 },
-  { name: 'Luva Vaqueta', code: 'EPI-002', ca: '12346', unit: 'PAR', stockQty: 80, minStock: 30 },
-  { name: 'Óculos Incolor', code: 'EPI-003', ca: '12347', unit: 'UN', stockQty: 10, minStock: 12 },
-  { name: 'Botina PVC', code: 'EPI-004', ca: '12348', unit: 'PAR', stockQty: 26, minStock: 20 },
-  { name: 'Protetor Auricular Plug', code: 'EPI-005', ca: '12349', unit: 'PAR', stockQty: 15, minStock: 20 },
-  { name: 'Respirador PFF2', code: 'EPI-006', ca: '12350', unit: 'UN', stockQty: 45, minStock: 25 },
-  { name: 'Cinto Paraquedista', code: 'EPI-007', ca: '12351', unit: 'UN', stockQty: 7, minStock: 10 },
-  { name: 'Talabarte Duplo', code: 'EPI-008', ca: '12352', unit: 'UN', stockQty: 14, minStock: 14 },
-  { name: 'Macacão Antichama', code: 'EPI-009', ca: '12353', unit: 'UN', stockQty: 33, minStock: 20 },
-  { name: 'Máscara de Solda', code: 'EPI-010', ca: '12354', unit: 'UN', stockQty: 6, minStock: 8 },
-  { name: 'Avental Raspa', code: 'EPI-011', ca: '12355', unit: 'UN', stockQty: 12, minStock: 10 },
-  { name: 'Luva Nitrílica', code: 'EPI-012', ca: '12356', unit: 'PAR', stockQty: 65, minStock: 25 },
-  { name: 'Face Shield', code: 'EPI-013', ca: '12357', unit: 'UN', stockQty: 19, minStock: 15 },
-  { name: 'Bota de Segurança', code: 'EPI-014', ca: '12358', unit: 'PAR', stockQty: 23, minStock: 18 },
-  { name: 'Colete Refletivo', code: 'EPI-015', ca: '12359', unit: 'UN', stockQty: 11, minStock: 16 },
-  { name: 'Perneira de Raspa', code: 'EPI-016', ca: '12360', unit: 'PAR', stockQty: 5, minStock: 9 },
-  { name: 'Creme Protetor Solar', code: 'EPI-017', ca: '12361', unit: 'UN', stockQty: 40, minStock: 18 },
-  { name: 'Capuz Balaclava', code: 'EPI-018', ca: '12362', unit: 'UN', stockQty: 9, minStock: 12 },
-  { name: 'Detector de Gás Portátil', code: 'EPI-019', ca: '12363', unit: 'UN', stockQty: 8, minStock: 8 },
-  { name: 'Lanterna Intrinsecamente Segura', code: 'EPI-020', ca: '12364', unit: 'UN', stockQty: 4, minStock: 7 },
-];
-
-const documentTypeDefaults = [
-  { code: 'ASO', name: 'ASO', category: 'Médico', requiresExpiration: true },
-  { code: 'CBSP', name: 'CBSP', category: 'Treinamento', requiresExpiration: true },
-  { code: 'HUET', name: 'HUET', category: 'Treinamento', requiresExpiration: true },
-  { code: 'NR-33', name: 'NR-33', category: 'NR', requiresExpiration: true },
-  { code: 'NR-35', name: 'NR-35', category: 'NR', requiresExpiration: true },
-  { code: 'NR-37', name: 'NR-37', category: 'NR', requiresExpiration: true },
-];
-
+const addDays = (d) => {
+  const x = new Date();
+  x.setHours(0, 0, 0, 0);
+  x.setDate(x.getDate() + d);
+  return x;
+};
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-
-const shuffle = (arr) => {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-};
-
 const cpfDigit = (digits, startWeight) => {
-  const total = digits.reduce((acc, number, index) => acc + number * (startWeight - index), 0);
-  const remainder = total % 11;
-  return remainder < 2 ? 0 : 11 - remainder;
+  const total = digits.reduce((acc, n, i) => acc + n * (startWeight - i), 0);
+  const rem = total % 11;
+  return rem < 2 ? 0 : 11 - rem;
 };
-
-const generateValidCpf = (usedCpfs) => {
+const generateCpf = (used) => {
   while (true) {
     const base = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10));
     const d1 = cpfDigit(base, 10);
     const d2 = cpfDigit([...base, d1], 11);
     const cpf = `${base.join('')}${d1}${d2}`;
-    if (!usedCpfs.has(cpf)) {
-      usedCpfs.add(cpf);
+    if (!used.has(cpf)) {
+      used.add(cpf);
       return cpf;
     }
   }
 };
 
-const dateFromNow = (days) => {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  date.setDate(date.getDate() + days);
-  return date;
-};
-
-const randomDateWithin45Days = () => {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  date.setDate(date.getDate() - Math.floor(Math.random() * 45));
-  return date;
-};
-
 export const runSeed = async () => {
-  const usedCpfs = new Set();
-  const employeesPayload = [];
+  const used = new Set();
+  const employeesData = [];
 
-  for (let index = 0; index < 65; index += 1) {
-    const cpf = generateValidCpf(usedCpfs);
-    const pinHash = await bcrypt.hash(cpf.slice(0, 4), SEED_BCRYPT_ROUNDS);
-    employeesPayload.push({
-      name:
-        index === 0
-          ? 'Jéssica Martins Tavares da Silva'
-          : `${pick(nomes)} ${pick(sobrenomes)} ${pick(sobrenomes)}`,
-      role: index === 0 ? 'Diretora de RH' : pick(cargos),
-      email: index === 0 ? 'jessica@demo.com' : `colaborador${index}@demo.com`,
+  for (let i = 0; i < 65; i += 1) {
+    const cpf = generateCpf(used);
+    employeesData.push({
+      name: `${pick(firstNames)} ${pick(lastNames)} ${pick(lastNames)}`,
       cpf,
-      phone: `552197${Math.floor(1000000 + Math.random() * 9000000)}`,
-      base: pick(bases),
-      accessPinHash: pinHash,
+      role: i === 0 ? 'Diretora de RH' : pick(roles),
+      email: `demo${i + 1}@portal.local`,
+      phone: `552197${String(1000000 + i).padStart(7, '0')}`,
+      base: 'Base Macaé',
+      accessPinHash: await bcrypt.hash(cpf.slice(0, 4), SEED_BCRYPT_ROUNDS),
       accessPinUpdatedAt: new Date(),
     });
   }
 
-  const result = await prisma.$transaction(
-    async (tx) => {
-      await tx.dailyReport.deleteMany();
-      await tx.serviceOrder.deleteMany();
-      await tx.epiDelivery.deleteMany();
-      await tx.financialRequest.deleteMany();
-      await tx.deployment.deleteMany();
-      await tx.document.deleteMany();
-      await tx.employee.deleteMany();
-      await tx.documentType.deleteMany();
-      await tx.epiCatalog.deleteMany();
-      await tx.vessel.deleteMany();
+  await prisma.$transaction(async (tx) => {
+    await tx.employeeDocStatus.deleteMany();
+    await tx.dailyReport.deleteMany();
+    await tx.serviceOrder.deleteMany();
+    await tx.epiDelivery.deleteMany();
+    await tx.financialRequest.deleteMany();
+    await tx.deployment.deleteMany();
+    await tx.document.deleteMany();
+    await tx.epiCatalog.deleteMany();
+    await tx.documentType.deleteMany();
+    await tx.vessel.deleteMany();
+    await tx.employee.deleteMany();
 
-      await tx.documentType.createMany({
-        data: documentTypeDefaults,
-        skipDuplicates: true,
-      });
+    await tx.vessel.createMany({
+      data: [
+        { name: 'P-70', type: 'FPSO', client: 'Petrobras' },
+        { name: 'P-75', type: 'FPSO', client: 'Petrobras' },
+        { name: 'Base Macaé', type: 'Base', client: 'Interno' },
+      ],
+    });
 
-      await tx.employee.createMany({ data: employeesPayload });
-      await tx.vessel.createMany({ data: vesselSeed });
-      await tx.epiCatalog.createMany({ data: epiCatalogSeed });
+    await tx.documentType.createMany({
+      data: [
+        { code: 'ASO', name: 'ASO', category: 'Médico', requiresExpiration: true },
+        { code: 'CBSP', name: 'CBSP', category: 'Treinamento', requiresExpiration: true },
+        { code: 'NR-35', name: 'NR-35', category: 'NR', requiresExpiration: true },
+      ],
+    });
 
-      const [employees, vessels, documentTypes, epiCatalog] = await Promise.all([
-        tx.employee.findMany({ select: { id: true } }),
-        tx.vessel.findMany({ select: { id: true } }),
-        tx.documentType.findMany({ select: { id: true, code: true } }),
-        tx.epiCatalog.findMany({ select: { id: true } }),
-      ]);
+    await tx.employee.createMany({ data: employeesData });
 
-      const employeeIds = employees.map((employee) => employee.id);
-      const vesselIds = vessels.map((vessel) => vessel.id);
-      const epiItemIds = epiCatalog.map((item) => item.id);
-      const documentTypesByCode = Object.fromEntries(documentTypes.map((type) => [type.code, type.id]));
-      const mandatoryDocCodes = ['ASO', 'CBSP', 'HUET', 'NR-33', 'NR-35', 'NR-37'];
+    const [employees, vessels, docTypes] = await Promise.all([
+      tx.employee.findMany({ orderBy: { id: 'asc' } }),
+      tx.vessel.findMany({ orderBy: { id: 'asc' } }),
+      tx.documentType.findMany(),
+    ]);
 
-      const shuffledEmployees = shuffle(employeeIds);
-      const expiredEmployeeIds = new Set(shuffledEmployees.slice(0, 10));
-      const expiringSoonEmployeeIds = new Set(shuffledEmployees.slice(10, 25));
-      const expiringDuringDeploymentEmployeeIds = new Set(shuffledEmployees.slice(25, 35));
-      const missingMandatoryEmployeeIds = new Set(shuffledEmployees.slice(35, 45));
+    const vesselByName = Object.fromEntries(vessels.map((v) => [v.name, v]));
+    const dtByCode = Object.fromEntries(docTypes.map((d) => [d.code, d]));
 
-      const onboardEmployees = [
-        ...Array.from(expiringDuringDeploymentEmployeeIds),
-        ...shuffle(employeeIds.filter((id) => !expiringDuringDeploymentEmployeeIds.has(id))).slice(0, 20),
-      ];
+    const scenarioEmployeeIds = new Set([employees[0].id, employees[1].id, employees[2].id]);
+    const nonScenarioEmployees = employees.slice(3);
 
-      const deployments = [];
+    const batchWindows = [
+      { vessel: 'P-70', start: addDays(3), end: addDays(17), size: 10 },
+      { vessel: 'P-75', start: addDays(5), end: addDays(19), size: 10 },
+      { vessel: 'P-70', start: addDays(20), end: addDays(34), size: 8 },
+      { vessel: 'P-75', start: addDays(22), end: addDays(36), size: 8 },
+      { vessel: 'Base Macaé', start: addDays(1), end: addDays(8), size: 8 },
+    ];
 
-      for (let i = 0; i < 30; i += 1) {
-        const startOffset = -pick([28, 24, 21, 18, 15, 12, 10, 8, 6, 4]);
-        const endOffset = pick([4, 7, 10, 12, 15, 18, 21]);
+    let idx = 0;
+    const deployments = [];
+    for (const batch of batchWindows) {
+      for (let i = 0; i < batch.size; i += 1) {
         deployments.push({
-          employeeId: onboardEmployees[i % onboardEmployees.length],
-          vesselId: vesselIds[i % vesselIds.length],
-          startDate: dateFromNow(startOffset),
-          endDateExpected: dateFromNow(endOffset),
-          endDateActual: null,
-          notes: 'Mobilização em andamento - escala offshore.',
+          employeeId: nonScenarioEmployees[idx % nonScenarioEmployees.length].id,
+          vesselId: vesselByName[batch.vessel].id,
+          startDate: batch.start,
+          endDateExpected: batch.end,
+          notes: `Lote ${batch.vessel} ${batch.start.toISOString().slice(0, 10)}`,
         });
+        idx += 1;
       }
+    }
 
-      for (let i = 0; i < 30; i += 1) {
-        const startOffset = pick([2, 4, 6, 8, 10, 12, 15, 18, 21, 24, 30]);
-        const endOffset = startOffset + pick([7, 10, 14, 21]);
-        deployments.push({
-          employeeId: employeeIds[(i + 5) % employeeIds.length],
-          vesselId: vesselIds[(i + 2) % vesselIds.length],
-          startDate: dateFromNow(startOffset),
-          endDateExpected: dateFromNow(endOffset),
-          endDateActual: null,
-          notes: 'Programado para próxima janela operacional.',
-        });
-      }
-
-      for (let i = 0; i < 20; i += 1) {
-        const startOffset = -pick([40, 36, 33, 30, 27, 24, 21, 18, 15]);
-        const duration = pick([7, 10, 14]);
-        const endOffset = startOffset + duration;
-        deployments.push({
-          employeeId: employeeIds[(i + 17) % employeeIds.length],
-          vesselId: vesselIds[(i + 1) % vesselIds.length],
-          startDate: dateFromNow(startOffset),
-          endDateExpected: dateFromNow(endOffset),
-          endDateActual: dateFromNow(endOffset + pick([0, 1, 2])),
-          notes: 'Campanha concluída e desembarcado.',
-        });
-      }
-
-      await tx.deployment.createMany({ data: deployments });
-
-      const onboardDeployments = await tx.deployment.findMany({
-        where: {
-          endDateActual: null,
-          startDate: { lte: new Date() },
-          endDateExpected: { gte: new Date() },
-          employeeId: { in: Array.from(expiringDuringDeploymentEmployeeIds) },
-        },
-        select: { employeeId: true, startDate: true, endDateExpected: true },
+    for (let i = 0; i < 12; i += 1) {
+      deployments.push({
+        employeeId: nonScenarioEmployees[(idx + i) % nonScenarioEmployees.length].id,
+        vesselId: vesselByName['P-70'].id,
+        startDate: addDays(-10 - i),
+        endDateExpected: addDays(4 + i),
+        notes: 'Embarque em andamento',
       });
+    }
 
-      const onboardByEmployee = new Map(onboardDeployments.map((item) => [item.employeeId, item]));
+    await tx.deployment.createMany({ data: deployments });
 
-      const documents = [];
-
-      for (let idx = 0; idx < employeeIds.length; idx += 1) {
-        const employeeId = employeeIds[idx];
-        const isMissing = missingMandatoryEmployeeIds.has(employeeId);
-        const missingCode = isMissing ? mandatoryDocCodes[idx % mandatoryDocCodes.length] : null;
-        const availableCodes = mandatoryDocCodes.filter((code) => code !== missingCode);
-        const desiredCount = isMissing ? 5 : pick([3, 4, 5, 6]);
-        const selectedCodes = shuffle(availableCodes).slice(0, desiredCount);
-
-        const forceCode = expiredEmployeeIds.has(employeeId)
-          ? 'ASO'
-          : expiringSoonEmployeeIds.has(employeeId)
-            ? 'NR-35'
-            : expiringDuringDeploymentEmployeeIds.has(employeeId)
-              ? 'CBSP'
-              : null;
-
-        if (forceCode && !selectedCodes.includes(forceCode) && availableCodes.includes(forceCode)) {
-          selectedCodes[selectedCodes.length - 1] = forceCode;
-        }
-
-        for (const code of selectedCodes) {
-          const issueDate = dateFromNow(-pick([280, 240, 210, 180, 150, 120, 90]));
-          let expirationDate = dateFromNow(pick([30, 45, 60, 90, 120, 180, 240]));
-
-          if (expiredEmployeeIds.has(employeeId) && code === 'ASO') {
-            expirationDate = dateFromNow(-pick([30, 45, 60, 90]));
-          }
-
-          if (expiringSoonEmployeeIds.has(employeeId) && code === 'NR-35') {
-            expirationDate = dateFromNow(pick([2, 5, 8, 10, 12, 14]));
-          }
-
-          if (expiringDuringDeploymentEmployeeIds.has(employeeId) && code === 'CBSP') {
-            const deployment = onboardByEmployee.get(employeeId);
-            if (deployment?.startDate && deployment?.endDateExpected) {
-              const start = new Date(deployment.startDate);
-              const end = new Date(deployment.endDateExpected);
-              const durationMs = end.getTime() - start.getTime();
-              expirationDate = new Date(start.getTime() + Math.max(1, Math.floor(durationMs / 2)));
-            }
-          }
-
-          documents.push({
-            employeeId,
-            documentTypeId: documentTypesByCode[code],
-            issueDate,
-            expirationDate,
-            fileUrl: `https://files.demo.local/documents/${employeeId}-${code}.pdf`,
-            evidenceType: 'upload',
-            evidenceRef: `DOC-${employeeId}-${code}`,
-            notes: 'Documento de compliance para operação offshore.',
-            verified: Math.random() > 0.2,
-            verifiedBy: 'RH Demo',
-            verifiedAt: new Date(),
-          });
-        }
-      }
-
-      await tx.document.createMany({ data: documents, skipDuplicates: true });
-
-      const epiDeliveries = Array.from({ length: 120 }, (_, index) => ({
-        employeeId: employeeIds[index % employeeIds.length],
-        epiItemId: epiItemIds[index % epiItemIds.length],
-        deliveryDate: dateFromNow(-pick([1, 2, 3, 5, 7, 10, 14, 20, 25, 30, 40])),
-        quantity: pick([1, 1, 1, 2, 2, 3]),
-        signatureUrl:
-          index < 60 ? null : `https://signatures.demo.local/epi/${employeeIds[index % employeeIds.length]}-${index}.png`,
-      }));
-
-      await tx.epiDelivery.createMany({ data: epiDeliveries });
-
-      const financialRequests = Array.from({ length: 90 }, (_, index) => ({
-        employeeId: employeeIds[(index * 3) % employeeIds.length],
-        type: pick(['Reembolso', 'Adiantamento']),
-        amount: Number((50 + Math.random() * 3950).toFixed(2)),
-        description: `Solicitação financeira #${index + 1} para despesas operacionais.`,
-        status: pick(['Solicitado', 'Aprovado', 'Rejeitado', 'Pago']),
-        createdAt: dateFromNow(-pick([0, 1, 2, 3, 5, 7, 10, 12, 15, 20, 25, 30])),
-      }));
-
-      await tx.financialRequest.createMany({ data: financialRequests });
-
-      const serviceOrders = Array.from({ length: 150 }, (_, index) => {
-        const isRdoOrder = index < 40;
-        return {
-          employeeId: employeeIds[index % employeeIds.length],
-          vesselId: vesselIds[index % vesselIds.length],
-          osNumber: `${isRdoOrder ? 'RDO' : 'OS'}-${30000 + index}`,
-          title: `${isRdoOrder ? 'RDO' : 'OS'} ${index + 1} - Frente Offshore`,
-          description: 'Execução de atividade de campo e registro diário de obra em altura.',
-          priority: pick(['BAIXA', 'MEDIA', 'ALTA']),
-          openedAt: randomDateWithin45Days(),
-          approvalStatus: index % 4 === 0 ? 'Pendente' : 'Aprovado',
-          status: pick(['OPEN', 'IN_PROGRESS', 'CONCLUDED']),
-        };
+    const docs = [];
+    for (const employee of employees) {
+      docs.push({
+        employeeId: employee.id,
+        documentTypeId: dtByCode.ASO.id,
+        issueDate: addDays(-320),
+        expirationDate: addDays(120),
+        verified: true,
+        verifiedBy: 'RH Demo',
+        verifiedAt: new Date(),
       });
+      docs.push({
+        employeeId: employee.id,
+        documentTypeId: dtByCode.CBSP.id,
+        issueDate: addDays(-240),
+        expirationDate: addDays(160),
+        verified: true,
+        verifiedBy: 'RH Demo',
+        verifiedAt: new Date(),
+      });
+      docs.push({
+        employeeId: employee.id,
+        documentTypeId: dtByCode['NR-35'].id,
+        issueDate: addDays(-210),
+        expirationDate: addDays(200),
+        verified: true,
+        verifiedBy: 'RH Demo',
+        verifiedAt: new Date(),
+      });
+    }
 
-      const dailyReports = Array.from({ length: 150 }, (_, index) => ({
-        employeeId: employeeIds[(index * 2) % employeeIds.length],
-        reportDate: randomDateWithin45Days(),
-        description: `RDO diário ${index + 1}`,
-        hoursWorked: 8,
-        approvalStatus: index % 3 === 0 ? 'Pendente' : 'Aprovado',
-        approvedBy: index % 3 === 0 ? null : 'RH',
-      }));
+    // Cenário 1: employee[0] com ASO vencido
+    docs.find(
+      (d) => d.employeeId === employees[0].id && d.documentTypeId === dtByCode.ASO.id
+    ).expirationDate = addDays(-5);
 
-      await tx.serviceOrder.createMany({ data: serviceOrders });
-      await tx.dailyReport.createMany({ data: dailyReports });
+    // Cenário 2: employee[1] com deployment de 14 dias e CBSP vencendo dentro da janela
+    const scenario2Employee = employees[1];
+    await tx.deployment.create({
+      data: {
+        employeeId: scenario2Employee.id,
+        vesselId: vesselByName['P-75'].id,
+        startDate: addDays(2),
+        endDateExpected: addDays(16),
+        notes: 'Cenário VENCE_NO_EMBARQUE',
+      },
+    });
+    docs.find(
+      (d) => d.employeeId === scenario2Employee.id && d.documentTypeId === dtByCode.CBSP.id
+    ).expirationDate = addDays(9);
 
-      return {
-        ok: true,
-        employees: employeesPayload.length,
-        vessels: vesselSeed.length,
-        deployments: deployments.length,
-        documents: documents.length,
-        epiDeliveries: epiDeliveries.length,
-        financialRequests: financialRequests.length,
-        serviceOrders: serviceOrders.length,
-        dailyReports: dailyReports.length,
-      };
-    },
-    { timeout: TX_TIMEOUT_MS, maxWait: TX_MAXWAIT_MS },
-  );
+    // Cenário 3: employee[2] com próximo deployment e NR-35 vencendo 1 dia antes
+    const scenario3Employee = employees[2];
+    await tx.deployment.create({
+      data: {
+        employeeId: scenario3Employee.id,
+        vesselId: vesselByName['P-70'].id,
+        startDate: addDays(12),
+        endDateExpected: addDays(26),
+        notes: 'Cenário RISCO_REEMBARQUE',
+      },
+    });
+    docs.find(
+      (d) => d.employeeId === scenario3Employee.id && d.documentTypeId === dtByCode['NR-35'].id
+    ).expirationDate = addDays(11);
 
-  return result;
+    await tx.document.createMany({ data: docs, skipDuplicates: true });
+
+    // sanity: garantir que cenários não receberam lotes genéricos
+    const overlapCount = await tx.deployment.count({
+      where: {
+        employeeId: { in: Array.from(scenarioEmployeeIds) },
+        notes: { startsWith: 'Lote ' },
+      },
+    });
+    if (overlapCount > 0) {
+      throw new Error('Seed inválido: cenários receberam deployments de lote geral.');
+    }
+  });
+
+  await recomputeAllEmployeeDocStatuses();
+
+  return {
+    ok: true,
+    employees: await prisma.employee.count(),
+    vessels: await prisma.vessel.count(),
+    documentTypes: await prisma.documentType.count(),
+    deployments: await prisma.deployment.count(),
+    statuses: await prisma.employeeDocStatus.count(),
+  };
 };
 
 if (process.argv[1] && process.argv[1].endsWith('seed.js')) {
   runSeed()
-    .then((result) => {
-      console.log('✅ Seed executado:', result);
-    })
+    .then((result) => console.log('✅ Seed executado:', result))
     .catch((error) => {
       console.error('❌ Falha no seed:', error);
       process.exitCode = 1;

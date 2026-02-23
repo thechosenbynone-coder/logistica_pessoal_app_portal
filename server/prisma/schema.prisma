@@ -21,6 +21,7 @@ model Employee {
   updatedAt          DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   documents          Document[]
+  docStatuses        EmployeeDocStatus[]
   deployments        Deployment[]
   epiDeliveries      EpiDelivery[]
   dailyReports       DailyReport[]
@@ -28,6 +29,24 @@ model Employee {
   financialRequests  FinancialRequest[]
 
   @@map("employees")
+}
+
+model EmployeeDocStatus {
+  id                    String   @id @default(cuid())
+  employeeId            Int      @map("employee_id")
+  docType               String   @map("doc_type")
+  status                String
+  expiresAt             DateTime @map("expires_at") @db.Date
+  computedAt            DateTime @default(now()) @map("computed_at") @db.Timestamptz(6)
+  venceDuranteEmbarque  Boolean? @map("vence_durante_embarque")
+  riscoReembarque       Boolean? @map("risco_reembarque")
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, docType], map: "idx_employee_doc_status_employee_doc_type_unique")
+  @@index([status], map: "idx_employee_doc_status_status")
+  @@index([expiresAt], map: "idx_employee_doc_status_expires_at")
+  @@map("employee_doc_status")
 }
 
 model Vessel {
