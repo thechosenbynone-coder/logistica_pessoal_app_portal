@@ -10,105 +10,58 @@ const { Pool } = pg;
 const app = express();
 const port = process.env.PORT || 3001;
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
-
-const normalizeOrigin = (origin) => {
-  if (typeof origin !== 'string') return origin;
-  return origin.trim().replace(/\/+$/, '').toLowerCase();
+const normalizeOrigin = (value) => {
+  if (typeof value !== 'string') return value;
+  return value.trim().replace(/\/+$/, '').toLowerCase();
 };
 
-const configuredCorsOrigins = [
-  ...new Set(
-    `${process.env.CORS_ORIGINS || ''},${process.env.CORS_ORIGIN || ''}`
-      .split(',')
-      .map((item) => normalizeOrigin(item))
-      .filter(Boolean)
-  ),
-];
+const allowedOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map((origin) => normalizeOrigin(origin))
+  .filter(Boolean);
 
-const allowVercelOrigins = process.env.CORS_ALLOW_VERCEL === 'true';
-const allowNullOrigin = process.env.CORS_ALLOW_NULL_ORIGIN === 'true';
-const isProduction = process.env.NODE_ENV === 'production';
-
-const isAllowedOrigin = (origin) => {
-  if (origin === undefined) {
-    // server-to-server / same-origin requests sem header Origin
-    return true;
-  }
-
-  const normalizedOrigin = normalizeOrigin(origin);
-
-  if (configuredCorsOrigins.includes('*')) {
-    return true;
-  }
-
-  if (
-    normalizedOrigin === null ||
-    normalizedOrigin === '' ||
-    normalizedOrigin === 'null'
-  ) {
-    return allowNullOrigin;
-  }
-
-  if (
-    normalizedOrigin === 'capacitor://localhost' ||
-    normalizedOrigin === 'ionic://localhost'
-  ) {
-    return true;
-  }
-
-  if (!isProduction) {
-    if (
-      normalizedOrigin.startsWith('http://localhost:') ||
-      normalizedOrigin.startsWith('http://127.0.0.1:')
-    ) {
-      return true;
-    }
-  }
-
-  if (configuredCorsOrigins.includes(normalizedOrigin)) {
-    return true;
-  }
-
-  if (allowVercelOrigins) {
-    try {
-      const hostname = new URL(normalizedOrigin).hostname;
-      if (hostname.endsWith('.vercel.app')) return true;
-    } catch (_error) {
-      return false;
-    }
-  }
-
-  return false;
-};
+let didLogPermissiveCorsWarning = false;
 
 const corsOptions = {
-  origin: (origin, cb) => {
-    if (isAllowedOrigin(origin)) return cb(null, true);
+  origin: (origin, callback) => {
+    if (origin === undefined || origin === null) {
+      return callback(null, true);
+    }
 
     const normalizedOrigin = normalizeOrigin(origin);
-    console.error('[CORS] bloqueado', {
-      origin,
-      normalizedOrigin,
-      configuredCorsOrigins,
-      allowVercelOrigins,
-      allowNullOrigin,
-      nodeEnv: process.env.NODE_ENV,
-    });
 
-    return cb(new Error('Origem não permitida por CORS'));
+    if (allowedOrigins.length === 0) {
+      if (!didLogPermissiveCorsWarning) {
+        console.warn('[CORS] CORS_ORIGINS não configurado. Rodando em modo permissivo temporário.');
+        didLogPermissiveCorsWarning = true;
+      }
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(normalizedOrigin)) {
+      return callback(null, true);
+    }
+
+    console.warn(
+      `[CORS] blocked origin=${origin} normalized=${normalizedOrigin} allowed=${allowedOrigins.join(',')}`
+    );
+    return callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 204,
+  maxAge: 86400,
 };
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 app.use(express.json());
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
 app.use(authOptional);
 registerIntegrationRoutes(app);
 
