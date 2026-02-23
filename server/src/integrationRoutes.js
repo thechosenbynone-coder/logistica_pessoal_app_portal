@@ -1,6 +1,6 @@
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { prisma } from './prismaClient.js';
 import { runSeed } from '../prisma/seed.js';
 import {
   addNotification,
@@ -11,7 +11,6 @@ import {
 } from './integrationStore.js';
 
 const router = express.Router();
-const prisma = new PrismaClient(); // Conecta no Postgres (Neon)
 
 router.get('/me', async (_req, res) => {
   try {

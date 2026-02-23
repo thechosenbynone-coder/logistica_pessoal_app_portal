@@ -1,52 +1,47 @@
-import pg from 'pg';
-import bcrypt from 'bcryptjs';
 import 'dotenv/config';
+import bcrypt from 'bcryptjs';
+import { prisma } from './prismaClient.js';
 
-const { Pool } = pg;
+const [, , employeeIdArg, pinArg] = process.argv;
 
-const args = process.argv.slice(2);
-const getArg = (name) => {
-  const idx = args.indexOf(`--${name}`);
-  if (idx === -1) return '';
-  return args[idx + 1] || '';
+const usage = () => {
+  console.error('Uso: npm run set-pin -- <employeeId> <pin>');
+  console.error('Exemplo: npm run set-pin -- 1 1234');
 };
 
-const idRaw = getArg('id');
-const pin = getArg('pin');
-const employeeId = Number(idRaw);
+const main = async () => {
+  const employeeId = Number(employeeIdArg);
+  const pin = String(pinArg || '').trim();
 
-if (!Number.isInteger(employeeId) || employeeId <= 0) {
-  console.error('Uso: node src/setPinCli.js --id <employee_id> --pin <pin>');
-  process.exit(1);
-}
+  if (!Number.isInteger(employeeId) || employeeId <= 0) {
+    usage();
+    process.exit(1);
+  }
 
-if (!pin || pin.length < 4 || pin.length > 12) {
-  console.error('PIN inválido: use 4 a 12 caracteres.');
-  process.exit(1);
-}
+  if (!/^\d{4,12}$/.test(pin)) {
+    console.error('PIN inválido. Use apenas dígitos (4 a 12).');
+    process.exit(1);
+  }
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
-
-try {
   const hash = await bcrypt.hash(pin, 10);
-  const result = await pool.query(
-    `UPDATE employees
-     SET access_pin_hash = $1,
-         access_pin_updated_at = NOW()
-     WHERE id = $2
-     RETURNING id`,
-    [hash, employeeId]
-  );
+  const result = await prisma.employee.updateMany({
+    where: { id: employeeId },
+    data: { accessPinHash: hash, accessPinUpdatedAt: new Date() },
+  });
 
-  if (!result.rows[0]) {
+  if (result.count === 0) {
     console.error('Colaborador não encontrado.');
     process.exit(1);
   }
 
-  console.log('PIN atualizado com sucesso.');
-} finally {
-  await pool.end();
-}
+  console.log(`PIN atualizado com sucesso para employee_id=${employeeId}`);
+};
+
+main()
+  .catch((error) => {
+    console.error('Erro ao atualizar PIN:', error?.message || error);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
