@@ -162,6 +162,23 @@ const parseDateInputOrError = (value, fieldName, required = false) => {
   }
   return { value: parsed };
 };
+
+const shouldUsePaginatedResponse = (query) => {
+  const hasPageParams = ['page', 'pageSize', 'q'].some((key) =>
+    Object.prototype.hasOwnProperty.call(query || {}, key)
+  );
+  const paginatedFlag = String(query?.paginated ?? '').toLowerCase() === 'true';
+  return hasPageParams || paginatedFlag;
+};
+
+const resolvePagination = (query, defaultPageSize = 25) => {
+  const pageRaw = Number.parseInt(String(query?.page ?? '1'), 10);
+  const pageSizeRaw = Number.parseInt(String(query?.pageSize ?? String(defaultPageSize)), 10);
+  const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
+  const pageSize = Math.min(100, Math.max(1, Number.isFinite(pageSizeRaw) ? pageSizeRaw : defaultPageSize));
+  const q = String(query?.q ?? '').trim();
+  return { page, pageSize, q };
+};
 const mapEmployee = (e) => ({
   id: e.id, name: e.name, cpf: e.cpf, role: e.role, email: e.email, phone: e.phone, base: e.base, created_at: e.createdAt,
 });
@@ -272,21 +289,12 @@ app.post('/api/admin/employees/:id/pin', async (req, res) => {
 
 app.get('/api/employees', async (req, res) => {
   try {
-    const hasPageParams = ['page', 'pageSize', 'q'].some((key) =>
-      Object.prototype.hasOwnProperty.call(req.query || {}, key)
-    );
-    const paginatedFlag = String(req.query?.paginated ?? '').toLowerCase() === 'true';
-
-    if (!hasPageParams && !paginatedFlag) {
+    if (!shouldUsePaginatedResponse(req.query)) {
       const rows = await prisma.employee.findMany({ orderBy: { id: 'asc' } });
       return res.json(rows.map(mapEmployee));
     }
 
-    const pageRaw = Number.parseInt(String(req.query?.page ?? '1'), 10);
-    const pageSizeRaw = Number.parseInt(String(req.query?.pageSize ?? '25'), 10);
-    const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
-    const pageSize = Math.min(100, Math.max(1, Number.isFinite(pageSizeRaw) ? pageSizeRaw : 25));
-    const q = String(req.query?.q ?? '').trim();
+    const { page, pageSize, q } = resolvePagination(req.query);
 
     const where = q
       ? {
@@ -433,7 +441,47 @@ app.post('/api/document-types', requireAdminKeyIfConfigured, async (req, res) =>
   } catch (error) { handleServerError(res, error, 'document-types-create'); }
 });
 
-app.get('/api/documents', async (_req, res) => { try { const rows = await prisma.document.findMany({ include: { documentType: true }, orderBy: { id: 'asc' } }); res.json(rows.map(mapDocument)); } catch (error) { handleServerError(res, error, 'documents-list'); } });
+app.get('/api/documents', async (req, res) => {
+  try {
+    if (!shouldUsePaginatedResponse(req.query)) {
+      const rows = await prisma.document.findMany({ include: { documentType: true }, orderBy: { id: 'asc' } });
+      return res.json(rows.map(mapDocument));
+    }
+
+    const { page, pageSize, q } = resolvePagination(req.query);
+    const where = q
+      ? {
+          OR: [
+            { notes: { contains: q, mode: 'insensitive' } },
+            { evidenceRef: { contains: q, mode: 'insensitive' } },
+            { evidenceType: { contains: q, mode: 'insensitive' } },
+            { documentType: { is: { name: { contains: q, mode: 'insensitive' } } } },
+            { documentType: { is: { code: { contains: q, mode: 'insensitive' } } } },
+          ],
+        }
+      : undefined;
+
+    const total = await prisma.document.count({ where });
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const safePage = Math.min(page, totalPages);
+    const rows = await prisma.document.findMany({
+      where,
+      include: { documentType: true },
+      orderBy: { id: 'asc' },
+      skip: (safePage - 1) * pageSize,
+      take: pageSize,
+    });
+
+    return res.json({
+      items: rows.map(mapDocument),
+      page: safePage,
+      pageSize,
+      total,
+      totalPages,
+      hasMore: safePage < totalPages,
+    });
+  } catch (error) { handleServerError(res, error, 'documents-list'); }
+});
 app.get('/api/employees/:id/documents', ...employeeParamsAuth, async (req, res) => {
   try { const employeeId = parseEmployeeIdParam(req, res); if (!employeeId) return; const rows = await prisma.document.findMany({ where: { employeeId }, include: { documentType: true }, orderBy: { id: 'asc' } }); res.json(rows.map(mapDocument)); }
   catch (error) { handleServerError(res, error, 'documents-by-employee'); }
@@ -494,7 +542,39 @@ app.post('/api/documents', requireAdminKeyIfConfigured, async (req, res) => {
   } catch (error) { handleServerError(res, error, 'documents-create'); }
 });
 
-app.get('/api/deployments', async (_req, res) => { try { const rows = await prisma.deployment.findMany({ orderBy: { id: 'asc' } }); res.json(rows.map(mapDeployment)); } catch (error) { handleServerError(res, error, 'deployments-list'); } });
+app.get('/api/deployments', async (req, res) => {
+  try {
+    if (!shouldUsePaginatedResponse(req.query)) {
+      const rows = await prisma.deployment.findMany({ orderBy: { id: 'asc' } });
+      return res.json(rows.map(mapDeployment));
+    }
+
+    const { page, pageSize, q } = resolvePagination(req.query);
+    const where = q
+      ? {
+          OR: [{ notes: { contains: q, mode: 'insensitive' } }],
+        }
+      : undefined;
+    const total = await prisma.deployment.count({ where });
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const safePage = Math.min(page, totalPages);
+    const rows = await prisma.deployment.findMany({
+      where,
+      orderBy: { id: 'asc' },
+      skip: (safePage - 1) * pageSize,
+      take: pageSize,
+    });
+
+    return res.json({
+      items: rows.map(mapDeployment),
+      page: safePage,
+      pageSize,
+      total,
+      totalPages,
+      hasMore: safePage < totalPages,
+    });
+  } catch (error) { handleServerError(res, error, 'deployments-list'); }
+});
 app.get('/api/employees/:id/deployments', ...employeeParamsAuth, async (req, res) => {
   try { const employeeId = parseEmployeeIdParam(req, res); if (!employeeId) return; const rows = await prisma.deployment.findMany({ where: { employeeId }, orderBy: { id: 'asc' } }); res.json(rows.map(mapDeployment)); }
   catch (error) { handleServerError(res, error, 'deployments-by-employee'); }
@@ -529,7 +609,33 @@ app.post('/api/epi/catalog', requireAdminKeyIfConfigured, async (req, res) => {
   } catch (error) { handleServerError(res, error, 'epi-catalog-create'); }
 });
 
-app.get('/api/epi/deliveries', async (_req, res) => { try { const rows = await prisma.epiDelivery.findMany({ orderBy: { id: 'asc' } }); res.json(rows.map(mapEpiDelivery)); } catch (error) { handleServerError(res, error, 'epi-deliveries-list'); } });
+app.get('/api/epi/deliveries', async (req, res) => {
+  try {
+    if (!shouldUsePaginatedResponse(req.query)) {
+      const rows = await prisma.epiDelivery.findMany({ orderBy: { id: 'asc' } });
+      return res.json(rows.map(mapEpiDelivery));
+    }
+
+    const { page, pageSize } = resolvePagination(req.query);
+    const total = await prisma.epiDelivery.count();
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const safePage = Math.min(page, totalPages);
+    const rows = await prisma.epiDelivery.findMany({
+      orderBy: { id: 'asc' },
+      skip: (safePage - 1) * pageSize,
+      take: pageSize,
+    });
+
+    return res.json({
+      items: rows.map(mapEpiDelivery),
+      page: safePage,
+      pageSize,
+      total,
+      totalPages,
+      hasMore: safePage < totalPages,
+    });
+  } catch (error) { handleServerError(res, error, 'epi-deliveries-list'); }
+});
 app.get('/api/employees/:id/epi-deliveries', ...employeeParamsAuth, async (req, res) => {
   try { const employeeId = parseEmployeeIdParam(req, res); if (!employeeId) return; const rows = await prisma.epiDelivery.findMany({ where: { employeeId }, orderBy: { id: 'asc' } }); res.json(rows.map(mapEpiDelivery)); }
   catch (error) { handleServerError(res, error, 'epi-deliveries-by-employee'); }
@@ -547,7 +653,43 @@ app.post('/api/epi/deliveries', requireAdminKeyIfConfigured, async (req, res) =>
   } catch (error) { handleServerError(res, error, 'epi-deliveries-create'); }
 });
 
-app.get('/api/daily-reports', async (_req, res) => { try { const rows = await prisma.dailyReport.findMany({ orderBy: { id: 'asc' } }); res.json(rows.map(mapDailyReport)); } catch (error) { handleServerError(res, error, 'daily-reports-list'); } });
+app.get('/api/daily-reports', async (req, res) => {
+  try {
+    if (!shouldUsePaginatedResponse(req.query)) {
+      const rows = await prisma.dailyReport.findMany({ orderBy: { id: 'asc' } });
+      return res.json(rows.map(mapDailyReport));
+    }
+
+    const { page, pageSize, q } = resolvePagination(req.query);
+    const where = q
+      ? {
+          OR: [
+            { description: { contains: q, mode: 'insensitive' } },
+            { approvalStatus: { contains: q, mode: 'insensitive' } },
+          ],
+        }
+      : undefined;
+
+    const total = await prisma.dailyReport.count({ where });
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const safePage = Math.min(page, totalPages);
+    const rows = await prisma.dailyReport.findMany({
+      where,
+      orderBy: { id: 'asc' },
+      skip: (safePage - 1) * pageSize,
+      take: pageSize,
+    });
+
+    return res.json({
+      items: rows.map(mapDailyReport),
+      page: safePage,
+      pageSize,
+      total,
+      totalPages,
+      hasMore: safePage < totalPages,
+    });
+  } catch (error) { handleServerError(res, error, 'daily-reports-list'); }
+});
 app.get('/api/employees/:id/daily-reports', ...employeeParamsAuth, async (req, res) => {
   try { const employeeId = parseEmployeeIdParam(req, res); if (!employeeId) return; const rows = await prisma.dailyReport.findMany({ where: { employeeId }, orderBy: { id: 'desc' } }); res.json(rows.map(mapDailyReport)); }
   catch (error) { handleServerError(res, error, 'daily-reports-by-employee'); }
@@ -579,7 +721,46 @@ app.post('/api/daily-reports', ...employeeBodyAuth, async (req, res) => {
   } catch (error) { handleServerError(res, error, 'daily-reports-create'); }
 });
 
-app.get('/api/service-orders', async (_req, res) => { try { const rows = await prisma.serviceOrder.findMany({ orderBy: { id: 'asc' } }); res.json(rows.map(mapServiceOrder)); } catch (error) { handleServerError(res, error, 'service-orders-list'); } });
+app.get('/api/service-orders', async (req, res) => {
+  try {
+    if (!shouldUsePaginatedResponse(req.query)) {
+      const rows = await prisma.serviceOrder.findMany({ orderBy: { id: 'asc' } });
+      return res.json(rows.map(mapServiceOrder));
+    }
+
+    const { page, pageSize, q } = resolvePagination(req.query);
+    const where = q
+      ? {
+          OR: [
+            { osNumber: { contains: q, mode: 'insensitive' } },
+            { title: { contains: q, mode: 'insensitive' } },
+            { description: { contains: q, mode: 'insensitive' } },
+            { status: { contains: q, mode: 'insensitive' } },
+            { approvalStatus: { contains: q, mode: 'insensitive' } },
+          ],
+        }
+      : undefined;
+
+    const total = await prisma.serviceOrder.count({ where });
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const safePage = Math.min(page, totalPages);
+    const rows = await prisma.serviceOrder.findMany({
+      where,
+      orderBy: { id: 'asc' },
+      skip: (safePage - 1) * pageSize,
+      take: pageSize,
+    });
+
+    return res.json({
+      items: rows.map(mapServiceOrder),
+      page: safePage,
+      pageSize,
+      total,
+      totalPages,
+      hasMore: safePage < totalPages,
+    });
+  } catch (error) { handleServerError(res, error, 'service-orders-list'); }
+});
 app.get('/api/employees/:id/service-orders', ...employeeParamsAuth, async (req, res) => {
   try { const employeeId = parseEmployeeIdParam(req, res); if (!employeeId) return; const rows = await prisma.serviceOrder.findMany({ where: { employeeId }, orderBy: { id: 'desc' } }); res.json(rows.map(mapServiceOrder)); }
   catch (error) { handleServerError(res, error, 'service-orders-by-employee'); }
@@ -613,7 +794,49 @@ app.post('/api/service-orders', ...employeeBodyAuth, async (req, res) => {
 });
 
 app.get('/api/financial-requests', async (req, res) => {
-  try { const where = req.query.type ? { type: String(req.query.type) } : undefined; const rows = await prisma.financialRequest.findMany({ where, orderBy: { id: 'asc' } }); res.json(rows.map(mapFinancialRequest)); }
+  try {
+    const typeFilter = req.query.type ? { type: String(req.query.type) } : undefined;
+
+    if (!shouldUsePaginatedResponse(req.query)) {
+      const rows = await prisma.financialRequest.findMany({ where: typeFilter, orderBy: { id: 'asc' } });
+      return res.json(rows.map(mapFinancialRequest));
+    }
+
+    const { page, pageSize, q } = resolvePagination(req.query);
+    const where = q
+      ? {
+          AND: [
+            ...(typeFilter ? [typeFilter] : []),
+            {
+              OR: [
+                { description: { contains: q, mode: 'insensitive' } },
+                { status: { contains: q, mode: 'insensitive' } },
+                { type: { contains: q, mode: 'insensitive' } },
+              ],
+            },
+          ],
+        }
+      : typeFilter;
+
+    const total = await prisma.financialRequest.count({ where });
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const safePage = Math.min(page, totalPages);
+    const rows = await prisma.financialRequest.findMany({
+      where,
+      orderBy: { id: 'asc' },
+      skip: (safePage - 1) * pageSize,
+      take: pageSize,
+    });
+
+    return res.json({
+      items: rows.map(mapFinancialRequest),
+      page: safePage,
+      pageSize,
+      total,
+      totalPages,
+      hasMore: safePage < totalPages,
+    });
+  }
   catch (error) { handleServerError(res, error, 'financial-requests-list'); }
 });
 app.get('/api/employees/:id/financial-requests', ...employeeParamsAuth, async (req, res) => {
