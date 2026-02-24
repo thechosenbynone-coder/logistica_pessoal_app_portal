@@ -62,11 +62,11 @@ export default function DashboardPage() {
   const attentionPills = useMemo(
     () => [
       {
-        title: 'Docs Críticos',
-        value: formatMetric(metrics?.documentsExpiringSoon, '4'),
-        subtitle: 'A vencer em 7 dias / Risco',
+        title: 'Docs Vencidos',
+        value: formatMetric(metrics?.documentsExpired, '0'),
+        subtitle: 'Requer ação imediata',
         dotClass: 'bg-red-500',
-        go: () => navigate('/documentations?filter=critical'),
+        go: () => navigate('/documentations?filter=expired'),
         icon: (
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
             <path d="M3 7.5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -74,20 +74,33 @@ export default function DashboardPage() {
         )
       },
       {
-        title: 'Próximos Embarques',
-        value: formatMetric(metrics?.activeDeployments, '12'),
-        subtitle: 'Nas próximas 48h',
+        title: 'Docs Vencendo',
+        value: formatMetric(metrics?.documentsExpiringSoon, '0'),
+        subtitle: 'Vencem em até 30 dias',
         dotClass: 'bg-yellow-500',
-        go: () => navigate('/mobility?filter=next_48h'),
+        go: () => navigate('/documentations?filter=expiring_30d'),
         icon: (
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <path d="M2 12h20M6 16h12M10 20h4" />
-            <path d="M7 12l4-8 2 1-2 7m2 0l6 1-1.5 2-4.5-1" />
+            <path d="M4 6h10l4 4v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" />
+            <path d="M14 6v4h4" />
           </svg>
         )
       },
       {
-        title: 'Almoxarifado/EPI',
+        title: 'Solicitações Pendentes',
+        value: formatMetric(metrics?.financialRequestsPending, '0'),
+        subtitle: 'Aguardando aprovação',
+        dotClass: 'bg-blue-500',
+        go: () => navigate('/requests?status=pending'),
+        icon: (
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M6 8a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6" />
+            <path d="M10 18a2 2 0 0 0 4 0" />
+          </svg>
+        )
+      },
+      {
+        title: 'EPI Estoque Baixo',
         value: formatMetric(metrics?.equipmentLowStock, '3'),
         subtitle: 'Estoque mínimo atingido',
         dotClass: 'bg-orange-500',
@@ -97,19 +110,6 @@ export default function DashboardPage() {
             <path d="M4 13a8 8 0 0 1 16 0" />
             <path d="M6 13v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2" />
             <path d="M10 9V6h4v3" />
-          </svg>
-        )
-      },
-      {
-        title: 'Solicitações Pendentes',
-        value: formatMetric(metrics?.financialRequestsPending, '5'),
-        subtitle: 'A aguardar aprovação',
-        dotClass: 'bg-blue-500',
-        go: () => navigate('/requests?status=pending'),
-        icon: (
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <path d="M6 8a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6" />
-            <path d="M10 18a2 2 0 0 0 4 0" />
           </svg>
         )
       }
