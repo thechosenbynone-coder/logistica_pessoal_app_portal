@@ -57,10 +57,6 @@ export const computeEmployeeDocStatus = async (employeeId) => {
     (dep) => dep.disembarkDateOnly >= today
   );
 
-  const currentDeployments = currentOrFutureDeployments.filter(
-    (dep) => dep.embarkDateOnly <= today && dep.disembarkDateOnly >= today
-  );
-
   const nextDeployment = currentOrFutureDeployments.find((dep) => dep.embarkDateOnly > today);
   const computedAt = new Date();
   const rowsToCreate = [];
@@ -78,7 +74,7 @@ export const computeEmployeeDocStatus = async (employeeId) => {
     if (expiresAt < today) {
       status = 'VENCIDO';
     } else {
-      for (const deployment of currentDeployments) {
+      for (const deployment of currentOrFutureDeployments) {
         if (expiresAt >= deployment.embarkDateOnly && expiresAt <= deployment.disembarkDateOnly) {
           status = 'VENCE_NO_EMBARQUE';
           venceDuranteEmbarque = true;
