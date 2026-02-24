@@ -270,9 +270,58 @@ app.post('/api/admin/employees/:id/pin', async (req, res) => {
   } catch (error) { handleServerError(res, error, 'admin-set-pin'); }
 });
 
-app.get('/api/employees', async (_req, res) => {
-  try { const rows = await prisma.employee.findMany({ orderBy: { id: 'asc' } }); res.json(rows.map(mapEmployee)); }
-  catch (error) { handleServerError(res, error, 'employees-list'); }
+app.get('/api/employees', async (req, res) => {
+  try {
+    const hasPageParams = ['page', 'pageSize', 'q'].some((key) =>
+      Object.prototype.hasOwnProperty.call(req.query || {}, key)
+    );
+    const paginatedFlag = String(req.query?.paginated ?? '').toLowerCase() === 'true';
+
+    if (!hasPageParams && !paginatedFlag) {
+      const rows = await prisma.employee.findMany({ orderBy: { id: 'asc' } });
+      return res.json(rows.map(mapEmployee));
+    }
+
+    const pageRaw = Number.parseInt(String(req.query?.page ?? '1'), 10);
+    const pageSizeRaw = Number.parseInt(String(req.query?.pageSize ?? '25'), 10);
+    const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
+    const pageSize = Math.min(100, Math.max(1, Number.isFinite(pageSizeRaw) ? pageSizeRaw : 25));
+    const q = String(req.query?.q ?? '').trim();
+
+    const where = q
+      ? {
+          OR: [
+            { name: { contains: q, mode: 'insensitive' } },
+            { cpf: { contains: q } },
+            { role: { contains: q, mode: 'insensitive' } },
+            { base: { contains: q, mode: 'insensitive' } },
+            { email: { contains: q, mode: 'insensitive' } },
+            { phone: { contains: q } },
+          ],
+        }
+      : undefined;
+
+    const total = await prisma.employee.count({ where });
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const safePage = Math.min(page, totalPages);
+    const rows = await prisma.employee.findMany({
+      where,
+      orderBy: { id: 'asc' },
+      skip: (safePage - 1) * pageSize,
+      take: pageSize,
+    });
+
+    return res.json({
+      items: rows.map(mapEmployee),
+      page: safePage,
+      pageSize,
+      total,
+      totalPages,
+      hasMore: safePage < totalPages,
+    });
+  } catch (error) {
+    handleServerError(res, error, 'employees-list');
+  }
 });
 app.get('/api/employees/:id', ...employeeParamsAuth, async (req, res) => {
   try { const employeeId = parseEmployeeIdParam(req, res); if (!employeeId) return; const e = await prisma.employee.findUnique({ where: { id: employeeId } }); if (!e) return res.status(404).json({ errorCode: 'NOT_FOUND', message: 'Colaborador não encontrado' }); res.json(mapEmployee(e)); }

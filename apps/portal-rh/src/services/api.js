@@ -20,12 +20,33 @@ const getDurationMs = (startTime) => {
   return Number.isFinite(duration) && duration >= 0 ? duration : 0;
 };
 
+export async function fetchWithTimeout(path, options = {}, timeoutMs = 15000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await apiFetch(path, {
+      ...options,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      const timeoutError = new Error('Tempo limite excedido para a requisição.');
+      timeoutError.code = 'REQUEST_TIMEOUT';
+      throw timeoutError;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function request(method, path, payload) {
   const endpoint = path.startsWith('/') ? path : `/${path}`;
   const apiPath = endpoint.startsWith('/api') ? endpoint : `/api${endpoint}`;
   const start = Date.now();
   try {
-    const response = await apiFetch(apiPath, {
+    const response = await fetchWithTimeout(apiPath, {
       method,
       ...(payload !== undefined ? { body: payload } : {}),
     });
@@ -61,7 +82,21 @@ const apiService = {
     get: async () => (await api.get('/dashboard/metrics')).data,
   },
   employees: {
-    list: async () => (await api.get('/employees')).data,
+    list: async (params) => {
+      if (params === undefined) {
+        return (await api.get('/employees')).data;
+      }
+
+      const { page = 1, pageSize = 25, q = '' } = params || {};
+      const query = new URLSearchParams({
+        paginated: 'true',
+        page: String(page),
+        pageSize: String(pageSize),
+        q: String(q ?? ''),
+      });
+
+      return (await api.get(`/employees?${query.toString()}`)).data;
+    },
     create: async (data) => (await api.post('/employees', data)).data,
   },
   checkins: {
