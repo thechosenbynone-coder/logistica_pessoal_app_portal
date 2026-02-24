@@ -14,6 +14,27 @@ function normalizeListResponse(data) {
   return [];
 }
 
+function buildPaginatedQuery(params = {}) {
+  const query = new URLSearchParams({ paginated: 'true' });
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null) return;
+    query.set(key, String(value));
+  });
+
+  return query.toString();
+}
+
+function hasValidPaginatedParams(params) {
+  if (!params) return false;
+
+  return Object.entries(params).some(([key, value]) => {
+    if (value === undefined || value === null) return false;
+    if (key === 'q') return String(value).trim().length > 0;
+    return true;
+  });
+}
+
 const getDurationMs = (startTime) => {
   const start = Number.isFinite(startTime) ? startTime : Date.now();
   const duration = Date.now() - start;
@@ -83,19 +104,12 @@ const apiService = {
   },
   employees: {
     list: async (params) => {
-      if (params === undefined) {
+      if (!params || Object.keys(params).length === 0 || !hasValidPaginatedParams(params)) {
         return (await api.get('/employees')).data;
       }
 
-      const { page = 1, pageSize = 25, q = '' } = params || {};
-      const query = new URLSearchParams({
-        paginated: 'true',
-        page: String(page),
-        pageSize: String(pageSize),
-        q: String(q ?? ''),
-      });
-
-      return (await api.get(`/employees?${query.toString()}`)).data;
+      const query = buildPaginatedQuery(params);
+      return (await api.get(`/employees?${query}`)).data;
     },
     create: async (data) => (await api.post('/employees', data)).data,
   },
@@ -128,13 +142,21 @@ const apiService = {
     create: async (data) => (await api.post('/document-types', data)).data,
   },
   documents: {
-    list: async () => normalizeListResponse((await api.get('/documents')).data),
+    list: async (params) => {
+      if (!params || Object.keys(params).length === 0 || !hasValidPaginatedParams(params)) return normalizeListResponse((await api.get('/documents')).data);
+      const query = buildPaginatedQuery(params);
+      return (await api.get(`/documents?${query}`)).data;
+    },
     create: async (data) => (await api.post('/documents', data)).data,
     listByEmployee: async (employeeId) =>
       normalizeListResponse((await api.get(`/employees/${employeeId}/documents`)).data),
   },
   deployments: {
-    list: async () => normalizeListResponse((await api.get('/deployments')).data),
+    list: async (params) => {
+      if (!params || Object.keys(params).length === 0 || !hasValidPaginatedParams(params)) return normalizeListResponse((await api.get('/deployments')).data);
+      const query = buildPaginatedQuery(params);
+      return (await api.get(`/deployments?${query}`)).data;
+    },
     create: async (data) => (await api.post('/deployments', data)).data,
     listByEmployee: async (employeeId) =>
       normalizeListResponse((await api.get(`/employees/${employeeId}/deployments`)).data),
@@ -144,21 +166,37 @@ const apiService = {
     create: async (data) => (await api.post('/epi/catalog', data)).data,
   },
   epiDeliveries: {
-    list: async () => normalizeListResponse((await api.get('/epi/deliveries')).data),
+    list: async (params) => {
+      if (!params || Object.keys(params).length === 0 || !hasValidPaginatedParams(params)) return normalizeListResponse((await api.get('/epi/deliveries')).data);
+      const query = buildPaginatedQuery(params);
+      return (await api.get(`/epi/deliveries?${query}`)).data;
+    },
     create: async (data) => (await api.post('/epi/deliveries', data)).data,
     listByEmployee: async (employeeId) =>
       normalizeListResponse((await api.get(`/employees/${employeeId}/epi-deliveries`)).data),
   },
   dailyReports: {
-    list: async () => (await api.get('/daily-reports')).data,
+    list: async (params) => {
+      if (!params || Object.keys(params).length === 0 || !hasValidPaginatedParams(params)) return (await api.get('/daily-reports')).data;
+      const query = buildPaginatedQuery(params);
+      return (await api.get(`/daily-reports?${query}`)).data;
+    },
     create: async (data) => (await api.post('/daily-reports', data)).data,
   },
   serviceOrders: {
-    list: async () => (await api.get('/service-orders')).data,
+    list: async (params) => {
+      if (!params || Object.keys(params).length === 0 || !hasValidPaginatedParams(params)) return (await api.get('/service-orders')).data;
+      const query = buildPaginatedQuery(params);
+      return (await api.get(`/service-orders?${query}`)).data;
+    },
     create: async (data) => (await api.post('/service-orders', data)).data,
   },
   financialRequests: {
-    list: async () => (await api.get('/financial-requests')).data,
+    list: async (params) => {
+      if (!params || Object.keys(params).length === 0 || !hasValidPaginatedParams(params)) return (await api.get('/financial-requests')).data;
+      const query = buildPaginatedQuery(params);
+      return (await api.get(`/financial-requests?${query}`)).data;
+    },
     create: async (data) => (await api.post('/financial-requests', data)).data,
   },
   embarkations: {
