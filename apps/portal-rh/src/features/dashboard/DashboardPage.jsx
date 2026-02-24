@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Badge from '../../ui/Badge.jsx';
 import Card from '../../ui/Card.jsx';
 import api from '../../services/api';
@@ -36,10 +35,20 @@ function BentoPill({ title, value, subtitle, dotClass, icon, onClick }) {
   );
 }
 
-export default function DashboardPage() {
+export default function DashboardPage({ onNavigate }) {
   const [metrics, setMetrics] = useState(null);
 
-  const navigate = useNavigate();
+  const goTo = (url) => {
+    const safeUrl = String(url || '/');
+    window.history.pushState({}, '', safeUrl);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    if (typeof onNavigate === 'function') {
+      const key = safeUrl.replace(/^\//, '').split('?')[0].split('/')[0] || 'dashboard';
+      try {
+        onNavigate(key, { rawUrl: safeUrl });
+      } catch (_) {}
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -66,7 +75,7 @@ export default function DashboardPage() {
         value: formatMetric(metrics?.documentsExpired, '0'),
         subtitle: 'Requer ação imediata',
         dotClass: 'bg-red-500',
-        go: () => navigate('/documentations?filter=expired'),
+        go: () => goTo('/documentations?filter=expired'),
         icon: (
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
             <path d="M3 7.5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -78,7 +87,7 @@ export default function DashboardPage() {
         value: formatMetric(metrics?.documentsExpiringSoon, '0'),
         subtitle: 'Vencem em até 30 dias',
         dotClass: 'bg-yellow-500',
-        go: () => navigate('/documentations?filter=expiring_30d'),
+        go: () => goTo('/documentations?filter=expiring_30d'),
         icon: (
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
             <path d="M4 6h10l4 4v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" />
@@ -91,7 +100,7 @@ export default function DashboardPage() {
         value: formatMetric(metrics?.financialRequestsPending, '0'),
         subtitle: 'Aguardando aprovação',
         dotClass: 'bg-blue-500',
-        go: () => navigate('/requests?status=pending'),
+        go: () => goTo('/requests?status=pending'),
         icon: (
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
             <path d="M6 8a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6" />
@@ -104,7 +113,7 @@ export default function DashboardPage() {
         value: formatMetric(metrics?.equipmentLowStock, '3'),
         subtitle: 'Estoque mínimo atingido',
         dotClass: 'bg-orange-500',
-        go: () => navigate('/equipment?filter=low_stock'),
+        go: () => goTo('/equipment?filter=low_stock'),
         icon: (
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
             <path d="M4 13a8 8 0 0 1 16 0" />
@@ -114,7 +123,7 @@ export default function DashboardPage() {
         )
       }
     ],
-    [metrics, navigate]
+    [metrics, onNavigate]
   );
 
   const tacticalTrips = useMemo(
