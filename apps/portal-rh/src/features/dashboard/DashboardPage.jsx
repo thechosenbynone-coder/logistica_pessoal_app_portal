@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Badge from '../../ui/Badge.jsx';
-import Button from '../../ui/Button.jsx';
 import Card from '../../ui/Card.jsx';
 import api from '../../services/api';
 
@@ -39,15 +39,7 @@ function BentoPill({ title, value, subtitle, dotClass, icon, onClick }) {
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState(null);
 
-  const navigate = (to) => {
-    const [pathname, query = ''] = String(to || '').split('?');
-    const normalizedPath = pathname || '/dashboard';
-    const normalized = `${normalizedPath}${query ? `?${query}` : ''}`;
-    if (`${window.location.pathname}${window.location.search}` !== normalized) {
-      window.history.pushState({}, '', normalized);
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    }
-  };
+  const navigate = useNavigate();
 
   useEffect(() => {
     let mounted = true;
@@ -180,17 +172,6 @@ export default function DashboardPage() {
         <p className="text-slate-500 mt-1">O que faremos hoje?</p>
       </div>
 
-      <Card className="rounded-2xl border border-white/60 bg-white/80 p-6 shadow-lg backdrop-blur">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Dashboard RH</h1>
-            <p className="mt-1 text-sm text-slate-500">Central operacional com foco em decisões rápidas.</p>
-          </div>
-          <Button variant="secondary" onClick={() => navigate('/requests?status=pending')}>
-            Ver fila de aprovações
-          </Button>
-        </div>
-      </Card>
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {attentionPills.map((pill) => (
