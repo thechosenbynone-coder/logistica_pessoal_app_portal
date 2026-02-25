@@ -1,0 +1,46 @@
+import express from 'express';
+import { prisma } from '../prismaClient.js';
+import { startOfTodayDateOnly } from '../services/employeeDocStatus.js';
+import { handleServerError } from '../helpers.js';
+
+const router = express.Router();
+
+router.get('/api/dashboard/metrics', async (_req, res) => {
+  try {
+    const today = startOfTodayDateOnly();
+    const in30 = new Date(today);
+    in30.setUTCDate(in30.getUTCDate() + 30);
+
+    const [
+      employeesTotal,
+      activeDeployments,
+      dailyReportsPending,
+      financialRequestsPending,
+      documentsExpired,
+      documentsExpiringDuringDeployment,
+      documentsExpiringSoon,
+    ] = await Promise.all([
+      prisma.employee.count(),
+      prisma.deployment.count({ where: { endDateActual: null } }),
+      prisma.dailyReport.count({ where: { approvalStatus: 'Pendente' } }),
+      prisma.financialRequest.count({ where: { status: { in: ['Solicitado', 'Aprovado'] } } }),
+      prisma.employeeDocStatus.count({ where: { status: 'VENCIDO' } }),
+      prisma.employeeDocStatus.count({ where: { status: 'VENCE_NO_EMBARQUE' } }),
+      prisma.employeeDocStatus.count({ where: { expiresAt: { gte: today, lte: in30 } } }),
+    ]);
+
+    res.json({
+      employeesTotal,
+      activeDeployments,
+      dailyReportsPending,
+      financialRequestsPending,
+      documentsExpired,
+      documentsExpiringSoon,
+      documentsExpiringDuringDeployment,
+    });
+  } catch (error) {
+    handleServerError(res, error, 'dashboard-metrics');
+  }
+});
+
+export default router;
