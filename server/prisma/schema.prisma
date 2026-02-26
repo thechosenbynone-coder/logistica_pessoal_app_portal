@@ -7,6 +7,31 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum DeploymentStatus {
+  PLANEJADO
+  CONFIRMADO
+  DOCS_OK
+  EMBARCADO
+  CONCLUIDO
+  CANCELADO
+}
+
+enum EpiDeliveryStatus {
+  EMITIDO
+  AGUARDANDO_ASSINATURA
+  ASSINADO
+  DEVOLVIDO
+  PARCIAL
+}
+
+enum ReviewStatus {
+  PENDENTE
+  EM_REVISAO
+  APROVADO
+  REJEITADO
+  CORRECAO_SOLICITADA
+}
+
 model Employee {
   id                 Int        @id @default(autoincrement())
   name               String?
@@ -71,8 +96,13 @@ model Deployment {
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  status          DeploymentStatus @default(PLANEJADO)
+  transportType   String?    @map("transport_type")
+  departureHub    String?    @map("departure_hub")
+
   employee        Employee? @relation(fields: [employeeId], references: [id])
   vessel          Vessel?   @relation(fields: [vesselId], references: [id])
+  tickets         DeploymentTicket[]
 
   @@map("deployments")
 }
@@ -129,7 +159,8 @@ model EpiCatalog {
   createdAt  DateTime      @default(now()) @map("created_at")
   updatedAt  DateTime      @updatedAt @map("updated_at")
 
-  deliveries EpiDelivery[]
+  deliveries   EpiDelivery[]
+  requirements EpiFunctionRequirement[]
 
   @@map("epi_catalog")
 }
@@ -141,6 +172,13 @@ model EpiDelivery {
   deliveryDate DateTime   @default(dbgenerated("CURRENT_DATE")) @map("delivery_date") @db.Date
   quantity     Int        @default(1)
   signatureUrl String?    @map("signature_url")
+  status       EpiDeliveryStatus @default(EMITIDO)
+  location     String?
+  responsible  String?
+  notes        String?
+  returnedAt   DateTime?  @map("returned_at") @db.Timestamptz(6)
+  returnedQty  Int?       @map("returned_qty")
+  returnedNotes String?   @map("returned_notes")
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
@@ -160,6 +198,9 @@ model DailyReport {
   hoursWorked    Decimal?   @map("hours_worked") @db.Decimal(10, 2)
   approvalStatus String?    @map("approval_status")
   approvedBy     String?    @map("approved_by")
+  reviewedBy     String?    @map("reviewed_by")
+  reviewedAt     DateTime?  @map("reviewed_at") @db.Timestamptz(6)
+  rejectionReason String?   @map("rejection_reason")
   clientId       String?    @unique(map: "idx_daily_reports_client_id_unique") @map("client_id")
   clientFilledAt DateTime?  @map("client_filled_at") @db.Timestamptz(6)
   createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -180,6 +221,9 @@ model ServiceOrder {
   priority       String?
   openedAt       DateTime?  @map("opened_at") @db.Date
   approvalStatus String?    @map("approval_status")
+  reviewedBy     String?    @map("reviewed_by")
+  reviewedAt     DateTime?  @map("reviewed_at") @db.Timestamptz(6)
+  rejectionReason String?   @map("rejection_reason")
   vesselId       Int?       @map("vessel_id")
   status         String?
   clientId       String?    @unique(map: "idx_service_orders_client_id_unique") @map("client_id")
@@ -211,4 +255,41 @@ model FinancialRequest {
 
   @@index([employeeId, createdAt(sort: Desc)], map: "idx_financial_requests_employee_created_desc")
   @@map("financial_requests")
+}
+
+
+model EpiFunctionRequirement {
+  id        Int      @id @default(autoincrement())
+  role      String
+  epiItemId Int      @map("epi_item_id")
+  qty       Int      @default(1)
+  mandatory Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  epiItem   EpiCatalog @relation(fields: [epiItemId], references: [id])
+
+  @@unique([role, epiItemId])
+  @@map("epi_function_requirements")
+}
+
+model DeploymentTicket {
+  id          Int       @id @default(autoincrement())
+  deploymentId Int      @map("deployment_id")
+  type        String
+  provider    String?
+  locator     String?
+  departure   DateTime? @db.Timestamptz(6)
+  arrival     DateTime? @db.Timestamptz(6)
+  origin      String?
+  destination String?
+  fileUrl     String?   @map("file_url")
+  notes       String?
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+
+  @@index([deploymentId])
+  @@map("deployment_tickets")
 }
