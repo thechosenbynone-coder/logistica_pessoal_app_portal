@@ -28,12 +28,6 @@ export const parseOptionalBoolean = (value, fieldName) => {
   return { error: `${fieldName} deve ser boolean (true/false)` };
 };
 
-export const parseRequiredInteger = (value, fieldName) => {
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed <= 0) return { error: `${fieldName} deve ser um inteiro positivo válido` };
-  return { value: parsed };
-};
-
 export const parseEmployeeIdParam = (req, res) => {
   const parsed = parseRequiredInteger(req.params.id, 'employeeId');
   if (parsed?.error) {
@@ -54,7 +48,11 @@ export const parseDateInput = (value) => {
   if (isoMatch) {
     const [, y, m, d] = isoMatch;
     const date = new Date(`${y}-${m}-${d}T00:00:00.000Z`);
-    if (date.getUTCFullYear() === Number(y) && date.getUTCMonth() + 1 === Number(m) && date.getUTCDate() === Number(d)) {
+    if (
+      date.getUTCFullYear() === Number(y) &&
+      date.getUTCMonth() + 1 === Number(m) &&
+      date.getUTCDate() === Number(d)
+    ) {
       return date;
     }
     return null;
@@ -64,7 +62,11 @@ export const parseDateInput = (value) => {
   if (brMatch) {
     const [, d, m, y] = brMatch;
     const date = new Date(`${y}-${m}-${d}T00:00:00.000Z`);
-    if (date.getUTCFullYear() === Number(y) && date.getUTCMonth() + 1 === Number(m) && date.getUTCDate() === Number(d)) {
+    if (
+      date.getUTCFullYear() === Number(y) &&
+      date.getUTCMonth() + 1 === Number(m) &&
+      date.getUTCDate() === Number(d)
+    ) {
       return date;
     }
     return null;
@@ -109,53 +111,164 @@ export const resolvePagination = (query, defaultPageSize = 25) => {
 };
 
 export const mapEmployee = (e) => ({
-  id: e.id, name: e.name, cpf: e.cpf, role: e.role, email: e.email, phone: e.phone, base: e.base, created_at: e.createdAt,
+  id: e.id,
+  name: e.name,
+  cpf: e.cpf,
+  role: e.role,
+  email: e.email,
+  phone: e.phone,
+  base: e.base,
+  created_at: e.createdAt,
 });
 export const mapVessel = (v) => ({ id: v.id, name: v.name, type: v.type, client: v.client });
-export const mapDocumentType = (d) => ({ id: d.id, code: d.code, name: d.name, category: d.category, requires_expiration: d.requiresExpiration });
+export const mapDocumentType = (d) => ({
+  id: d.id,
+  code: d.code,
+  name: d.name,
+  category: d.category,
+  requires_expiration: d.requiresExpiration,
+});
 export const mapDocument = (d) => ({
-  id: d.id, employee_id: d.employeeId, document_type_id: d.documentTypeId, issue_date: d.issueDate,
-  expiration_date: d.expirationDate, file_url: d.fileUrl, evidence_type: d.evidenceType, evidence_ref: d.evidenceRef,
-  notes: d.notes, verified: d.verified, verified_by: d.verifiedBy, verified_at: d.verifiedAt,
-  created_at: d.createdAt, updated_at: d.updatedAt,
-  document_code: d.documentType?.code, document_name: d.documentType?.name,
+  id: d.id,
+  employee_id: d.employeeId,
+  document_type_id: d.documentTypeId,
+  issue_date: d.issueDate,
+  expiration_date: d.expirationDate,
+  file_url: d.fileUrl,
+  evidence_type: d.evidenceType,
+  evidence_ref: d.evidenceRef,
+  notes: d.notes,
+  verified: d.verified,
+  verified_by: d.verifiedBy,
+  verified_at: d.verifiedAt,
+  created_at: d.createdAt,
+  updated_at: d.updatedAt,
+  document_code: d.documentType?.code,
+  document_name: d.documentType?.name,
 });
 export const mapDeployment = (d) => ({
-  id: d.id, employee_id: d.employeeId, vessel_id: d.vesselId, start_date: d.startDate,
-  end_date_expected: d.endDateExpected, end_date_actual: d.endDateActual, notes: d.notes,
-  created_at: d.createdAt, updated_at: d.updatedAt,
+  id: d.id,
+  employee_id: d.employeeId,
+  vessel_id: d.vesselId,
+  start_date: d.startDate,
+  end_date_expected: d.endDateExpected,
+  end_date_actual: d.endDateActual,
+  notes: d.notes,
+  status: d.status,
+  transport_type: d.transportType,
+  departure_hub: d.departureHub,
+  employee: d.employee ? mapEmployee(d.employee) : undefined,
+  vessel: d.vessel ? mapVessel(d.vessel) : undefined,
+  created_at: d.createdAt,
+  updated_at: d.updatedAt,
 });
 export const mapEpiCatalog = (e) => ({
-  id: e.id, name: e.name, code: e.code, ca: e.ca, unit: e.unit, stock_qty: e.stockQty,
-  min_stock: e.minStock, active: e.active, created_at: e.createdAt, updated_at: e.updatedAt,
+  id: e.id,
+  name: e.name,
+  code: e.code,
+  ca: e.ca,
+  unit: e.unit,
+  stock_qty: e.stockQty,
+  min_stock: e.minStock,
+  active: e.active,
+  created_at: e.createdAt,
+  updated_at: e.updatedAt,
 });
 export const mapEpiDelivery = (e) => ({
-  id: e.id, employee_id: e.employeeId, epi_item_id: e.epiItemId, delivery_date: e.deliveryDate,
-  quantity: e.quantity, signature_url: e.signatureUrl, created_at: e.createdAt, updated_at: e.updatedAt,
+  id: e.id,
+  employee_id: e.employeeId,
+  epi_item_id: e.epiItemId,
+  delivery_date: e.deliveryDate,
+  quantity: e.quantity,
+  signature_url: e.signatureUrl,
+  status: e.status,
+  location: e.location,
+  responsible: e.responsible,
+  notes: e.notes,
+  returned_at: e.returnedAt,
+  returned_qty: e.returnedQty,
+  returned_notes: e.returnedNotes,
+  created_at: e.createdAt,
+  updated_at: e.updatedAt,
+  employee: e.employee ? mapEmployee(e.employee) : undefined,
+  epi_item: e.epiItem ? mapEpiCatalog(e.epiItem) : undefined,
 });
 export const mapDailyReport = (d) => ({
-  id: d.id, employee_id: d.employeeId, report_date: d.reportDate, description: d.description, hours_worked: d.hoursWorked,
-  approval_status: d.approvalStatus, approved_by: d.approvedBy, client_id: d.clientId, client_filled_at: d.clientFilledAt,
-  created_at: d.createdAt, updated_at: d.updatedAt,
+  id: d.id,
+  employee_id: d.employeeId,
+  report_date: d.reportDate,
+  description: d.description,
+  hours_worked: d.hoursWorked,
+  approval_status: d.approvalStatus,
+  approved_by: d.approvedBy,
+  reviewed_by: d.reviewedBy,
+  reviewed_at: d.reviewedAt,
+  rejection_reason: d.rejectionReason,
+  client_id: d.clientId,
+  client_filled_at: d.clientFilledAt,
+  employee: d.employee ? mapEmployee(d.employee) : undefined,
+  created_at: d.createdAt,
+  updated_at: d.updatedAt,
 });
 export const mapServiceOrder = (s) => ({
-  id: s.id, employee_id: s.employeeId, os_number: s.osNumber, title: s.title, description: s.description,
-  priority: s.priority, opened_at: s.openedAt, approval_status: s.approvalStatus, vessel_id: s.vesselId,
-  status: s.status, client_id: s.clientId, client_filled_at: s.clientFilledAt, created_at: s.createdAt, updated_at: s.updatedAt,
+  id: s.id,
+  employee_id: s.employeeId,
+  os_number: s.osNumber,
+  title: s.title,
+  description: s.description,
+  priority: s.priority,
+  opened_at: s.openedAt,
+  approval_status: s.approvalStatus,
+  vessel_id: s.vesselId,
+  reviewed_by: s.reviewedBy,
+  reviewed_at: s.reviewedAt,
+  rejection_reason: s.rejectionReason,
+  status: s.status,
+  client_id: s.clientId,
+  client_filled_at: s.clientFilledAt,
+  employee: s.employee ? mapEmployee(s.employee) : undefined,
+  vessel: s.vessel ? mapVessel(s.vessel) : undefined,
+  created_at: s.createdAt,
+  updated_at: s.updatedAt,
 });
 export const mapFinancialRequest = (f) => ({
-  id: f.id, employee_id: f.employeeId, type: f.type, amount: f.amount, description: f.description, status: f.status,
-  client_id: f.clientId, client_filled_at: f.clientFilledAt, created_at: f.createdAt, updated_at: f.updatedAt,
+  id: f.id,
+  employee_id: f.employeeId,
+  type: f.type,
+  amount: f.amount,
+  description: f.description,
+  status: f.status,
+  client_id: f.clientId,
+  client_filled_at: f.clientFilledAt,
+  created_at: f.createdAt,
+  updated_at: f.updatedAt,
 });
 
 export const passthrough = (_req, _res, next) => next();
 export const shouldRequireEmployeeAuth = process.env.REQUIRE_EMPLOYEE_AUTH === 'true';
-export const employeeParamsAuth = shouldRequireEmployeeAuth ? [requireEmployeeAuth, guardEmployeeScope('params')] : [passthrough];
-export const employeeBodyAuth = shouldRequireEmployeeAuth ? [requireEmployeeAuth, guardEmployeeScope('body')] : [passthrough];
+export const employeeParamsAuth = shouldRequireEmployeeAuth
+  ? [requireEmployeeAuth, guardEmployeeScope('params')]
+  : [passthrough];
+export const employeeBodyAuth = shouldRequireEmployeeAuth
+  ? [requireEmployeeAuth, guardEmployeeScope('body')]
+  : [passthrough];
 
 export const requireAdminKeyIfConfigured = (req, res, next) => {
   if (!process.env.ADMIN_KEY) return next();
   const headerKey = req.header('x-admin-key');
   if (headerKey && headerKey === process.env.ADMIN_KEY) return next();
   return res.status(401).json({ errorCode: 'UNAUTHORIZED', message: 'x-admin-key inválido ou ausente' });
+};
+
+export const startOfTodayDateOnly = () => {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+};
+
+export const parseRequiredInteger = (value, fieldName) => {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(parsed)) {
+    return { error: `${fieldName} deve ser um inteiro válido` };
+  }
+  return { value: parsed };
 };

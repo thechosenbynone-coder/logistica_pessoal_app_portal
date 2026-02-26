@@ -158,6 +158,10 @@ const apiService = {
       return (await api.get(`/deployments?${query}`)).data;
     },
     create: async (data) => (await api.post('/deployments', data)).data,
+    updateStatus: async (id, status) => (await api.patch(`/deployments/${id}/status`, { status })).data,
+    listTickets: async (id) => normalizeListResponse((await api.get(`/deployments/${id}/tickets`)).data),
+    createTicket: async (id, data) => (await api.post(`/deployments/${id}/tickets`, data)).data,
+    removeTicket: async (id, tid) => (await api.delete(`/deployments/${id}/tickets/${tid}`)).data,
     listByEmployee: async (employeeId) =>
       normalizeListResponse((await api.get(`/employees/${employeeId}/deployments`)).data),
   },
@@ -172,8 +176,17 @@ const apiService = {
       return (await api.get(`/epi/deliveries?${query}`)).data;
     },
     create: async (data) => (await api.post('/epi/deliveries', data)).data,
+    updateStatus: async (id, data) => (await api.patch(`/epi/deliveries/${id}/status`, data)).data,
+    registerReturn: async (id, data) => (await api.patch(`/epi/deliveries/${id}/return`, data)).data,
+    listPendencias: async () => normalizeListResponse((await api.get('/epi/pendencias')).data),
     listByEmployee: async (employeeId) =>
       normalizeListResponse((await api.get(`/employees/${employeeId}/epi-deliveries`)).data),
+    fichaByEmployee: async (employeeId) => (await api.get(`/employees/${employeeId}/epi-ficha`)).data,
+  },
+  epiFunctionRequirements: {
+    list: async () => normalizeListResponse((await api.get('/epi/function-requirements')).data),
+    create: async (data) => (await api.post('/epi/function-requirements', data)).data,
+    remove: async (id) => (await api.delete(`/epi/function-requirements/${id}`)).data,
   },
   dailyReports: {
     list: async (params) => {
@@ -182,6 +195,9 @@ const apiService = {
       return (await api.get(`/daily-reports?${query}`)).data;
     },
     create: async (data) => (await api.post('/daily-reports', data)).data,
+    review: async (id, data) => (await api.patch(`/daily-reports/${id}/review`, data)).data,
+    semPreenchimento: async (date) => (await api.get(`/rdo/sem-preenchimento${date ? `?date=${date}` : ''}`)).data,
+    cobrar: async (employeeId) => (await api.post(`/daily-reports/${employeeId}/cobrar`, {})).data,
   },
   serviceOrders: {
     list: async (params) => {
@@ -190,6 +206,7 @@ const apiService = {
       return (await api.get(`/service-orders?${query}`)).data;
     },
     create: async (data) => (await api.post('/service-orders', data)).data,
+    review: async (id, data) => (await api.patch(`/service-orders/${id}/review`, data)).data,
   },
   financialRequests: {
     list: async (params) => {
