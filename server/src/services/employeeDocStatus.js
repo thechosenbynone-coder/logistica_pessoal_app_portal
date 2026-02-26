@@ -94,6 +94,13 @@ export const computeEmployeeDocStatus = async (employeeId) => {
           riscoReembarque = true;
         }
       }
+
+      if (status === 'OK') {
+        const in30Days = new Date(today.getTime() + 30 * DAY_MS);
+        if (expiresAt <= in30Days) {
+          status = 'VENCENDO';
+        }
+      }
     }
 
     rowsToCreate.push({

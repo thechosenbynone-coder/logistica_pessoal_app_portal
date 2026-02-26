@@ -59,21 +59,27 @@ export default function EquipmentTab({ employee }) {
   const canCreate = useMemo(() => draftItems.length > 0, [draftItems]);
 
   const emitTerm = async () => {
-    for (const item of draftItems) {
-      await apiService.epiDeliveries.create({
-        employee_id: employee.id,
-        epi_item_id: item.catalogId,
-        quantity: Number(item.qty),
-        location: draft.location,
-        responsible: draft.responsible,
-        notes: draft.notes,
-      });
+    try {
+      await Promise.all(
+        draftItems.map((item) =>
+          apiService.epiDeliveries.create({
+            employee_id: employee.id,
+            epi_item_id: item.catalogId,
+            quantity: Number(item.qty),
+            location: draft.location,
+            responsible: draft.responsible,
+            notes: draft.notes,
+          })
+        )
+      );
+      setOpen(false);
+      setDraftItems([]);
+      setDraft({ location: 'Base', responsible: 'RH', notes: '' });
+      await load();
+    } catch (err) {
+      console.error('[equipment-tab] erro ao emitir termo', err);
+      // modal permanece aberto para o usuário corrigir
     }
-
-    setOpen(false);
-    setDraftItems([]);
-    setDraft({ location: 'Base', responsible: 'RH', notes: '' });
-    await load();
   };
 
   return (

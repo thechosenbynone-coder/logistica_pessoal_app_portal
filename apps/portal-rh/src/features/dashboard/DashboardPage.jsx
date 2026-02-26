@@ -75,7 +75,7 @@ export default function DashboardPage({ onNavigate }) {
         value: formatMetric(metrics?.documentsExpired, '0'),
         subtitle: 'Requer ação imediata',
         dotClass: 'bg-red-500',
-        go: () => goTo('/documentations?filter=expired'),
+        go: () => onNavigate('docs', { status: 'expired' }),
         icon: (
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
             <path d="M3 7.5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -87,7 +87,7 @@ export default function DashboardPage({ onNavigate }) {
         value: formatMetric(metrics?.documentsExpiringSoon, '0'),
         subtitle: 'Vencem em até 30 dias',
         dotClass: 'bg-yellow-500',
-        go: () => goTo('/documentations?filter=expiring_30d'),
+        go: () => onNavigate('docs', { status: 'expiringSoon' }),
         icon: (
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
             <path d="M4 6h10l4 4v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" />

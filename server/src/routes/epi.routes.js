@@ -45,6 +45,8 @@ router.post('/api/epi/deliveries', requireAdminKeyIfConfigured, async (req, res)
     const qty = parseRequiredInteger(quantity, 'quantity');
     if (employeeId?.error || epiItemId?.error || qty?.error) return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: employeeId?.error || epiItemId?.error || qty?.error });
 
+    if (qty.value <= 0) return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'quantity deve ser maior que zero' });
+
     const deliveryDateParsed = parseDateInputOrError(delivery_date, 'delivery_date');
     if (deliveryDateParsed.error) return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: deliveryDateParsed.error });
 

@@ -1,6 +1,6 @@
 import express from 'express';
 import { prisma } from '../prismaClient.js';
-import { startOfTodayDateOnly } from '../services/employeeDocStatus.js';
+import { startOfTodayDateOnly, recomputeAllEmployeeDocStatuses } from '../services/employeeDocStatus.js';
 import { handleServerError } from '../helpers.js';
 
 const router = express.Router();
@@ -8,9 +8,6 @@ const router = express.Router();
 router.get('/api/dashboard/metrics', async (_req, res) => {
   try {
     const today = startOfTodayDateOnly();
-    const in30 = new Date(today);
-    in30.setUTCDate(in30.getUTCDate() + 30);
-
     const [
       employeesTotal,
       activeDeployments,
@@ -26,7 +23,7 @@ router.get('/api/dashboard/metrics', async (_req, res) => {
       prisma.financialRequest.count({ where: { status: { in: ['Solicitado', 'Aprovado'] } } }),
       prisma.employeeDocStatus.count({ where: { status: 'VENCIDO' } }),
       prisma.employeeDocStatus.count({ where: { status: 'VENCE_NO_EMBARQUE' } }),
-      prisma.employeeDocStatus.count({ where: { expiresAt: { gte: today, lte: in30 } } }),
+      prisma.employeeDocStatus.count({ where: { status: 'VENCENDO' } }),
     ]);
 
     res.json({
@@ -40,6 +37,17 @@ router.get('/api/dashboard/metrics', async (_req, res) => {
     });
   } catch (error) {
     handleServerError(res, error, 'dashboard-metrics');
+  }
+});
+
+
+// TEMPORÁRIO — remover após rodar uma vez em produção
+router.post('/api/admin/recompute-doc-status', async (_req, res) => {
+  try {
+    await recomputeAllEmployeeDocStatuses();
+    res.json({ ok: true });
+  } catch (error) {
+    handleServerError(res, error, 'recompute-doc-status');
   }
 });
 
