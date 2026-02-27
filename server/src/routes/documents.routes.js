@@ -1,7 +1,7 @@
 import express from 'express';
 import { prisma } from '../prismaClient.js';
 import { computeEmployeeDocStatus } from '../services/employeeDocStatus.js';
-import { employeeParamsAuth, handleServerError, mapDocument, mapDocumentType, parseDateInputOrError, parseEmployeeIdParam, parseOptionalBoolean, parseRequiredInteger, requireAdminKeyIfConfigured, resolvePagination, shouldUsePaginatedResponse } from '../helpers.js';
+import { employeeParamsAuth, handleServerError, mapDocument, mapDocumentType, mapEmployee, parseDateInputOrError, parseEmployeeIdParam, parseOptionalBoolean, parseRequiredInteger, requireAdminKeyIfConfigured, resolvePagination, shouldUsePaginatedResponse } from '../helpers.js';
 
 const router = express.Router();
 
@@ -116,6 +116,71 @@ router.post('/api/documents', requireAdminKeyIfConfigured, async (req, res) => {
     await computeEmployeeDocStatus(employeeIdParsed.value);
     res.status(201).json(mapDocument(row));
   } catch (error) { handleServerError(res, error, 'documents-create'); }
+});
+
+router.get('/api/documentations/overview', async (_req, res) => {
+  try {
+    const [employees, docStatuses, documents, docTypes, activeDeployments] = await Promise.all([
+      prisma.employee.findMany({ orderBy: { id: 'asc' } }),
+      prisma.employeeDocStatus.findMany({ orderBy: { employeeId: 'asc' } }),
+      prisma.document.findMany({ include: { documentType: true }, orderBy: { id: 'asc' } }),
+      prisma.documentType.findMany({ orderBy: { id: 'asc' } }),
+      prisma.deployment.findMany({
+        where: { endDateActual: null },
+        select: {
+          id: true,
+          employeeId: true,
+          startDate: true,
+          endDateExpected: true,
+          endDateActual: true,
+        },
+      }),
+    ]);
+
+    const statusMap = new Map();
+    docStatuses.forEach((statusRow) => {
+      statusMap.set(`${statusRow.employeeId}:${statusRow.docType}`, statusRow.status);
+    });
+
+    const deploymentMap = new Map();
+    activeDeployments.forEach((deployment) => {
+      if (deployment.employeeId) deploymentMap.set(deployment.employeeId, deployment);
+    });
+
+    const employeeMap = new Map(employees.map((employee) => [employee.id, mapEmployee(employee)]));
+    const docTypeMap = new Map(docTypes.map((docType) => [docType.id, mapDocumentType(docType)]));
+
+    const rows = documents.map((document) => {
+      const employee = employeeMap.get(document.employeeId);
+      const docType = docTypeMap.get(document.documentTypeId);
+      const deployment = deploymentMap.get(document.employeeId);
+      const docTypeCode = (docType?.code || docType?.name || '').toUpperCase();
+      const precomputedStatus = statusMap.get(`${document.employeeId}:${docTypeCode}`);
+
+      return {
+        ...mapDocument(document),
+        employee: employee || null,
+        precomputed_status: precomputedStatus || null,
+        active_deployment: deployment
+          ? {
+              id: deployment.id,
+              employee_id: deployment.employeeId,
+              start_date: deployment.startDate,
+              end_date_expected: deployment.endDateExpected,
+              end_date_actual: deployment.endDateActual,
+            }
+          : null,
+      };
+    });
+
+    res.json({
+      rows,
+      employees: employees.map(mapEmployee),
+      doc_types: docTypes.map(mapDocumentType),
+    });
+  } catch (error) {
+    handleServerError(res, error, 'documentations-overview');
+  }
 });
 
 export default router;

@@ -151,6 +151,9 @@ const apiService = {
     listByEmployee: async (employeeId) =>
       normalizeListResponse((await api.get(`/employees/${employeeId}/documents`)).data),
   },
+  documentations: {
+    overview: async () => (await api.get('/documentations/overview')).data,
+  },
   deployments: {
     list: async (params) => {
       if (!params || Object.keys(params).length === 0 || !hasValidPaginatedParams(params)) return normalizeListResponse((await api.get('/deployments')).data);

@@ -93,18 +93,24 @@ export default function DocumentationsPage({ onOpenEmployee }) {
     try {
       setLoading(true);
       setError('');
-      const [employeeRows, typeRows, documentRows, deploymentRows] = await Promise.all([
-        api.employees.list(),
-        api.documentTypes.list(),
-        api.documents.list(),
-        api.deployments.list(),
-      ]);
-      setEmployees((employeeRows || []).map(normalizeEmployeeRow));
-      setDocTypes(typeRows || []);
-      setDocuments(documentRows || []);
-      setDeployments(deploymentRows || []);
+      const data = await api.documentations.overview();
+      const rows = data?.rows || [];
+      setEmployees((data?.employees || []).map(normalizeEmployeeRow));
+      setDocTypes(data?.doc_types || []);
+      setDocuments(rows);
+      // Deduplica deployments — um colaborador pode ter múltiplos docs,
+      // o mesmo active_deployment apareceria várias vezes sem o Set
+      const uniqueDeployments = [];
+      const deploymentIds = new Set();
+      rows.forEach((row) => {
+        const deployment = row?.active_deployment;
+        if (!deployment || deploymentIds.has(deployment.id)) return;
+        deploymentIds.add(deployment.id);
+        uniqueDeployments.push(deployment);
+      });
+      setDeployments(uniqueDeployments);
     } catch (err) {
-      console.error('Falha ao carregar módulo de documentações.', err);
+      console.error('Falha ao carregar documentações.', err);
       setError('Não foi possível carregar as documentações. Tente novamente.');
       setEmployees([]);
       setDocTypes([]);
