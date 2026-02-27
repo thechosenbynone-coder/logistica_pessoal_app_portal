@@ -1,6 +1,6 @@
 import express from 'express';
 import { prisma } from '../prismaClient.js';
-import { startOfTodayDateOnly, recomputeAllEmployeeDocStatuses } from '../services/employeeDocStatus.js';
+import { startOfTodayDateOnly } from '../services/employeeDocStatus.js';
 import { handleServerError } from '../helpers.js';
 
 const router = express.Router();
@@ -37,17 +37,6 @@ router.get('/api/dashboard/metrics', async (_req, res) => {
     });
   } catch (error) {
     handleServerError(res, error, 'dashboard-metrics');
-  }
-});
-
-
-// TEMPORÁRIO — remover após rodar uma vez em produção
-router.post('/api/admin/recompute-doc-status', async (_req, res) => {
-  try {
-    await recomputeAllEmployeeDocStatuses();
-    res.json({ ok: true });
-  } catch (error) {
-    handleServerError(res, error, 'recompute-doc-status');
   }
 });
 

@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import 'dotenv/config';
 import { authOptional } from './src/auth.js';
 import { registerIntegrationRoutes } from './src/integrationRoutes.js';
@@ -15,6 +16,7 @@ import dailyReportsRouter from './src/routes/dailyReports.routes.js';
 import serviceOrdersRouter from './src/routes/serviceOrders.routes.js';
 import financialRequestsRouter from './src/routes/financialRequests.routes.js';
 import dashboardRouter from './src/routes/dashboard.routes.js';
+import portalAuthRouter from './src/routes/portal-auth.routes.js';
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -66,6 +68,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 app.use(express.json());
+app.use(cookieParser());
 app.use((error, _req, res, next) => {
   if (error instanceof SyntaxError && 'body' in error) {
     return res.status(400).json({ code: 'INVALID_JSON', message: 'JSON inválido no corpo da requisição.' });
@@ -91,6 +94,7 @@ app.get(['/api/health', '/health'], async (_req, res) => {
 });
 
 app.use(authRouter);
+app.use(portalAuthRouter);
 app.use(employeesRouter);
 app.use(vesselsRouter);
 app.use(documentsRouter);

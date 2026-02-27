@@ -9,7 +9,8 @@
     "dev": "node --watch server.js",
     "set-pin": "node ./src/setPinCli.js",
     "prisma:generate": "prisma generate",
-    "prisma:deploy": "prisma migrate deploy"
+    "prisma:deploy": "prisma migrate deploy",
+    "create-portal-user": "node src/scripts/createPortalUser.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -18,7 +19,8 @@
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2",
     "@prisma/client": "5.10.2",
-    "prisma": "5.10.2"
+    "prisma": "5.10.2",
+    "cookie-parser": "^1.4.7"
   },
   "engines": {
     "node": ">=18.0.0"

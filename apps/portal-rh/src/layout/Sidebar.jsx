@@ -78,7 +78,7 @@ function TooltipPortal({ open, text, x, y }) {
   );
 }
 
-export default function Sidebar({ activePath, onNavigate }) {
+export default function Sidebar({ activePath, onNavigate, user: portalUser, onLogout: _onLogout }) {
   const SIDEBAR_W = 'w-[76px]';
   const ICON_SIZE = 18;
 
@@ -130,11 +130,11 @@ export default function Sidebar({ activePath, onNavigate }) {
 
   const user = useMemo(
     () => ({
-      name: 'Jéssica',
-      role: currentUser.role || 'RH Operação',
+      name: portalUser?.name || 'Jéssica',
+      role: portalUser?.role || currentUser.role || 'RH Operação',
       avatar: currentUser.avatar,
     }),
-    []
+    [portalUser]
   );
 
   const navItems = useMemo(() => NAV.flatMap((section) => section.items), []);

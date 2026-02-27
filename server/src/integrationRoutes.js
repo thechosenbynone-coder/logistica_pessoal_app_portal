@@ -112,7 +112,6 @@ router.get('/work-orders/rdo', async (req, res) => {
   }
 });
 
-// Mantemos a rota base do store para não quebrar o resto do app na demo
 router.get('/sync/:employeeId', (req, res) => {
   const store = readStore();
   const journey = composeJourney(req.params.employeeId);

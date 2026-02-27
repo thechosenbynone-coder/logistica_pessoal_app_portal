@@ -60,3 +60,29 @@ export const guardEmployeeScope = (source = 'params') => (req, res, next) => {
 
   next();
 };
+
+
+const PORTAL_ACCESS_SECRET = process.env.PORTAL_ACCESS_SECRET || `${JWT_SECRET}_portal_access`;
+const PORTAL_REFRESH_SECRET = process.env.PORTAL_REFRESH_SECRET || `${JWT_SECRET}_portal_refresh`;
+
+export const signPortalAccessToken = (userId) =>
+  jwt.sign({ role: 'portal', sub: userId }, PORTAL_ACCESS_SECRET, { expiresIn: '15m' });
+
+export const signPortalRefreshToken = (userId) =>
+  jwt.sign({ role: 'portal', sub: userId }, PORTAL_REFRESH_SECRET, { expiresIn: '30d' });
+
+export const verifyPortalAccessToken = (token) => jwt.verify(token, PORTAL_ACCESS_SECRET);
+export const verifyPortalRefreshToken = (token) => jwt.verify(token, PORTAL_REFRESH_SECRET);
+
+export const requirePortalAuth = (req, res, next) => {
+  const authHeader = req.header('authorization') || '';
+  if (!authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ errorCode: 'UNAUTHORIZED', message: 'Token obrigatório.' });
+  }
+  try {
+    req.portalUser = verifyPortalAccessToken(authHeader.slice(7).trim());
+    next();
+  } catch {
+    return res.status(401).json({ errorCode: 'TOKEN_EXPIRED', message: 'Token expirado.' });
+  }
+};
