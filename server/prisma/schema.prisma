@@ -71,6 +71,7 @@ model EmployeeDocStatus {
   @@unique([employeeId, docType], map: "idx_employee_doc_status_employee_doc_type_unique")
   @@index([status], map: "idx_employee_doc_status_status")
   @@index([expiresAt], map: "idx_employee_doc_status_expires_at")
+  @@index([employeeId], map: "idx_employee_doc_status_employee_id")
   @@map("employee_doc_status")
 }
 
