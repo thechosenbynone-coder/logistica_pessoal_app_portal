@@ -1,5 +1,5 @@
-// Prisma Decimal objects can't be JSON-stringified directly in some runtimes.
-// This helper converts Decimal, Date, and BigInt to JSON-friendly formats.
+// Utilitário de serialização para saída JSON.
+// Converte tipos especiais do Prisma (Decimal, Date, BigInt) para formatos compatíveis.
 
 function isDecimalLike(v) {
   return v && typeof v === 'object' && typeof v.toString === 'function' && v.constructor && v.constructor.name === 'Decimal';

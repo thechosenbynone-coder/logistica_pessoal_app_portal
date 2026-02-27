@@ -127,6 +127,20 @@ const apiService = {
     create: async (data) =>
       (await api.post('/financial-requests', { ...data, type: 'Adiantamento' })).data,
   },
+  portalAuth: {
+    login: async (data) => {
+      const res = await apiFetch('/api/portal/auth/login', { method: 'POST', body: data, skipAuth: true });
+      return res.json();
+    },
+    refresh: async () => {
+      const res = await apiFetch('/api/portal/auth/refresh', { method: 'POST', skipAuth: true });
+      return res.json();
+    },
+    logout: async () => {
+      const res = await apiFetch('/api/portal/auth/logout', { method: 'POST' });
+      return res.json();
+    },
+  },
   profile: {
     get: async (reg) => (await api.get(`/profile?registration=${reg}`)).data,
   },

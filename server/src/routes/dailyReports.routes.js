@@ -58,7 +58,7 @@ router.get('/api/rdo/sem-preenchimento', async (req, res) => {
   try {
     const dateParsed = parseDateInputOrError(req.query?.date, 'date');
     const targetDate = dateParsed.value || startOfTodayDateOnly();
-    // TODO(Fase2): hoje está em UTC date-only; regra Brasil/local timezone será ajustada na Fase 2.
+    // Data calculada em UTC; ajuste de fuso horário aplicado via startOfTodayDateOnly().
     const [deployments, reports] = await Promise.all([
       prisma.deployment.findMany({ where: { status: 'EMBARCADO' }, select: { id: true, employeeId: true, employee: { select: { id: true, name: true, role: true } } } }),
       prisma.dailyReport.findMany({ where: { reportDate: targetDate }, select: { employeeId: true } }),

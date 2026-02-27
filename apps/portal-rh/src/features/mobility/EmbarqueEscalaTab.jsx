@@ -173,14 +173,7 @@ export default function EmbarqueEscalaTab({ employee }) {
               Campo livre para instruções rápidas (checklist, ponto de encontro, documentos).
             </div>
           </div>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => {
-              // placeholder: integração futura com persistência
-              alert('Salvamento ainda não implementado. (Mock)');
-            }}
-          >
+          <Button type="button" variant="secondary" disabled>
             Salvar
           </Button>
         </div>
@@ -195,10 +188,7 @@ export default function EmbarqueEscalaTab({ employee }) {
       </Card>
 
       <Card className="p-6">
-        <div className="text-sm font-semibold text-slate-900">Histórico (mock)</div>
-        <div className="mt-1 text-sm text-slate-500">
-          Se você já tiver um array de embarques no colaborador, ele aparece aqui.
-        </div>
+        <div className="text-sm font-semibold text-slate-900">Histórico</div>
 
         <div className="mt-4 rounded-xl border border-slate-200 p-4">
           {Array.isArray(deployments) && deployments.length ? (

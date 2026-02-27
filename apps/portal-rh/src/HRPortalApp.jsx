@@ -8,7 +8,6 @@ import MobilityPage from './features/mobility/MobilityPage';
 import FinancePage from './features/finance/FinancePage';
 import EquipmentPage from './features/equipment/EquipmentPage';
 import RequestsPage from './features/requests/RequestsPage.jsx';
-import ModulePlaceholderPage from './features/common/ModulePlaceholderPage';
 import WorkPage from './features/work/WorkPage.jsx';
 import NotFoundPage from './features/common/NotFoundPage';
 import { ROUTE_PATHS, resolvePathByKey } from './navigation/routes.js';
@@ -27,7 +26,7 @@ const ROUTE_COMPONENTS = {
   '/daily-reports': () => <WorkPage />,
   '/os': () => <WorkPage />,
   '/service-orders': () => <WorkPage />,
-  [ROUTE_PATHS.hotel]: () => <ModulePlaceholderPage title="Hotelaria" />,
+  [ROUTE_PATHS.hotel]: () => <DashboardRoute />,
   [ROUTE_PATHS.requests]: () => <RequestsPage />,
 };
 
@@ -97,7 +96,7 @@ function DocsRoute() {
   return <DocsPage search={search} onOpenEmployee={() => navigate(ROUTE_PATHS.employees)} />;
 }
 
-export default function HRPortalApp() {
+export default function HRPortalApp({ user, onLogout }) {
   const { location, navigate } = usePortalRouter();
   const path = getPathname(location);
   const search = getSearch(location);
@@ -116,7 +115,7 @@ export default function HRPortalApp() {
   return (
     <NavigationContext.Provider value={{ location, path, search, navigate }}>
       <div className="flex min-h-screen bg-slate-50">
-        <Sidebar activePath={activePath} onNavigate={navigate} />
+        <Sidebar activePath={activePath} onNavigate={navigate} user={user} onLogout={onLogout} />
         <main className="flex-1 p-8">
           {CurrentPage ? <CurrentPage /> : <NotFoundPage onNavigate={navigate} />}
         </main>
