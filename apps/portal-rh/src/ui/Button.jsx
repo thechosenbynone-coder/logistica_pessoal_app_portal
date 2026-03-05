@@ -1,15 +1,53 @@
-import React from 'react'
-import { cn } from './ui.js'
+import React from 'react';
+import { cn } from './ui.js';
 
-export default function Button({ variant = 'primary', className, ...props }) {
-  const base = 'inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed'
-  const styles = {
-    primary: 'bg-blue-600 text-white hover:bg-blue-700',
-    secondary: 'bg-white text-gray-800 border border-gray-200 hover:bg-gray-50',
-    danger: 'bg-red-600 text-white hover:bg-red-700',
-    ghost: 'bg-transparent text-gray-700 hover:bg-gray-100'
-  }
+const styles = {
+  primary: {
+    background: 'var(--amber)',
+    color: '#000',
+    border: 'none',
+  },
+  secondary: {
+    background: 'var(--surface2)',
+    color: 'var(--text)',
+    border: '1px solid var(--border)',
+  },
+  danger: {
+    background: 'var(--red-bg)',
+    color: 'var(--red)',
+    border: '1px solid var(--red-dim)',
+  },
+  ghost: {
+    background: 'transparent',
+    color: 'var(--muted)',
+    border: '1px solid var(--border)',
+  },
+};
+
+export default function Button({ variant = 'primary', className, style, ...props }) {
   return (
-    <button className={cn(base, styles[variant] || styles.primary, className)} {...props} />
-  )
+    <button
+      className={cn(className)}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '6px',
+        padding: '6px 14px',
+        borderRadius: '6px',
+        fontFamily: "'IBM Plex Mono', monospace",
+        fontSize: '10px',
+        fontWeight: 500,
+        letterSpacing: '0.06em',
+        textTransform: 'uppercase',
+        cursor: 'pointer',
+        transition: 'opacity 0.15s',
+        ...(styles[variant] || styles.primary),
+        ...style,
+      }}
+      onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+      onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+      {...props}
+    />
+  );
 }
