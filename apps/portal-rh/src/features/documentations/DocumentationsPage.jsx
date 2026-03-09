@@ -1,8 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import Card from '../../ui/Card.jsx';
-import Badge from '../../ui/Badge.jsx';
-import Button from '../../ui/Button.jsx';
-import Input from '../../ui/Input.jsx';
+import { panel, chip, actionBtn, monoLabel, secTitle, tabStyle, thStyle, tdStyle } from '../../ui/pageStyles.js';
 import api from '../../services/api';
 import {
   REQUIRED_DOC_TYPES,
@@ -12,6 +9,8 @@ import {
 } from '../../lib/documentationUtils';
 import DocumentationFormModal from './DocumentationFormModal.jsx';
 
+// ─── helpers ──────────────────────────────────────────────────────
+
 function mapQueryStatus(value) {
   if (value === 'expired') return 'VENCIDO';
   if (value === 'expiringSoon') return 'VENCENDO';
@@ -20,10 +19,10 @@ function mapQueryStatus(value) {
   return '';
 }
 
-function badgeTone(status) {
+function statusTone(status) {
   if (status === 'VENCIDO') return 'red';
   if (status === 'VENCENDO' || status === 'DURANTE_EMBARQUE') return 'amber';
-  if (status === 'FALTANDO') return 'gray';
+  if (status === 'FALTANDO') return 'muted';
   if (status === 'SEM_VALIDADE') return 'blue';
   return 'green';
 }
@@ -33,7 +32,7 @@ function statusLabel(status) {
     OK: 'OK',
     VENCIDO: 'Vencido',
     VENCENDO: 'Vencendo',
-    DURANTE_EMBARQUE: 'Vence durante embarque',
+    DURANTE_EMBARQUE: 'Vence no embarque',
     SEM_VALIDADE: 'Sem validade',
     FALTANDO: 'Faltando',
   };
@@ -64,12 +63,62 @@ function getCurrentSearch() {
   return window.location.search || '';
 }
 
-
 function normalizeEmployeeRow(employee) {
   const base = employee?.base ?? employee?.hub ?? '';
   const unit = employee?.unit ?? employee?.client ?? '';
   return { ...employee, base, unit };
 }
+
+// ─── Componente de métrica resumo ─────────────────────────────────
+
+function SummaryCard({ label, value, tone = 'muted', onClick }) {
+  const colors = {
+    red: 'var(--red)', amber: 'var(--amber)',
+    blue: 'var(--blue)', muted: 'var(--muted)', green: 'var(--green)',
+  };
+  const color = colors[tone] || colors.muted;
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: '6px', padding: '10px 12px', cursor: onClick ? 'pointer' : 'default',
+        position: 'relative', overflow: 'hidden', transition: 'border-color 0.15s',
+      }}
+      onMouseEnter={e => { if (onClick) e.currentTarget.style.borderColor = 'var(--border2)'; }}
+      onMouseLeave={e => { if (onClick) e.currentTarget.style.borderColor = 'var(--border)'; }}
+    >
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: color }} />
+      <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '8px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 4 }}>
+        {label}
+      </div>
+      <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '22px', lineHeight: 1, letterSpacing: '-0.5px', color }}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+// ─── Select estilizado ────────────────────────────────────────────
+
+function StyledSelect({ value, onChange, children }) {
+  return (
+    <select
+      value={value}
+      onChange={onChange}
+      style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: '6px', padding: '7px 10px', color: 'var(--text)',
+        fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px',
+        outline: 'none', cursor: 'pointer', width: '100%',
+      }}
+    >
+      {children}
+    </select>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────
 
 export default function DocumentationsPage({ onOpenEmployee }) {
   const [loading, setLoading] = useState(true);
@@ -98,8 +147,6 @@ export default function DocumentationsPage({ onOpenEmployee }) {
       setEmployees((data?.employees || []).map(normalizeEmployeeRow));
       setDocTypes(data?.doc_types || []);
       setDocuments(rows);
-      // Deduplica deployments — um colaborador pode ter múltiplos docs,
-      // o mesmo active_deployment apareceria várias vezes sem o Set
       const uniqueDeployments = [];
       const deploymentIds = new Set();
       rows.forEach((row) => {
@@ -112,18 +159,13 @@ export default function DocumentationsPage({ onOpenEmployee }) {
     } catch (err) {
       console.error('Falha ao carregar documentações.', err);
       setError('Não foi possível carregar as documentações. Tente novamente.');
-      setEmployees([]);
-      setDocTypes([]);
-      setDocuments([]);
-      setDeployments([]);
+      setEmployees([]); setDocTypes([]); setDocuments([]); setDeployments([]);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   useEffect(() => {
     const onPop = () => setSearch(getCurrentSearch());
@@ -158,38 +200,30 @@ export default function DocumentationsPage({ onOpenEmployee }) {
 
   const requiredCodes = useMemo(() => REQUIRED_DOC_TYPES.map(normalizeDocType), []);
 
-  const documentRows = useMemo(
-    () =>
-      (documents || []).map((doc) => {
-        const employee = employeesById.get(normalizeText(doc.employee_id));
-        const docType = typeById.get(Number(doc.document_type_id));
-        const deployment = activeDeploymentsByEmployee.get(normalizeText(doc.employee_id));
-        const status = computeDocumentStatus({ doc, docType, deploymentActive: deployment });
-        const code = normalizeDocType(docType?.code || docType?.name || doc.document_code);
-        return {
-          kind: 'document',
-          id: `doc-${doc.id}`,
-          employee,
-          doc,
-          docType,
-          code,
-          required: requiredCodes.includes(code),
-          status,
-          evidenceStatus: getEvidenceStatus(doc),
-        };
-      }),
+  const documentRows = useMemo(() =>
+    (documents || []).map((doc) => {
+      const employee = employeesById.get(normalizeText(doc.employee_id));
+      const docType = typeById.get(Number(doc.document_type_id));
+      const deployment = activeDeploymentsByEmployee.get(normalizeText(doc.employee_id));
+      const status = computeDocumentStatus({ doc, docType, deploymentActive: deployment });
+      const code = normalizeDocType(docType?.code || docType?.name || doc.document_code);
+      return {
+        kind: 'document', id: `doc-${doc.id}`,
+        employee, doc, docType, code,
+        required: requiredCodes.includes(code),
+        status, evidenceStatus: getEvidenceStatus(doc),
+      };
+    }),
     [activeDeploymentsByEmployee, documents, employeesById, requiredCodes, typeById]
   );
 
   const missingRows = useMemo(() => {
     const docsByEmployee = new Map();
-
     documentRows.forEach((row) => {
       const employeeId = normalizeText(row.doc.employee_id);
       if (!docsByEmployee.has(employeeId)) docsByEmployee.set(employeeId, new Set());
       docsByEmployee.get(employeeId).add(row.code);
     });
-
     const rows = [];
     employees.forEach((employee) => {
       const employeeId = normalizeText(employee.id);
@@ -197,20 +231,15 @@ export default function DocumentationsPage({ onOpenEmployee }) {
       requiredCodes.forEach((requiredCode) => {
         if (!present.has(requiredCode)) {
           rows.push({
-            kind: 'missing',
-            id: `missing-${employeeId}-${requiredCode}`,
-            employee,
-            doc: null,
+            kind: 'missing', id: `missing-${employeeId}-${requiredCode}`,
+            employee, doc: null,
             docType: { code: requiredCode, name: requiredCode, requires_expiration: true },
-            code: requiredCode,
-            required: true,
-            status: 'FALTANDO',
-            evidenceStatus: 'SEM_EVIDENCIA',
+            code: requiredCode, required: true,
+            status: 'FALTANDO', evidenceStatus: 'SEM_EVIDENCIA',
           });
         }
       });
     });
-
     return rows;
   }, [documentRows, employees, requiredCodes]);
 
@@ -221,14 +250,9 @@ export default function DocumentationsPage({ onOpenEmployee }) {
     return rows.filter((row) => {
       const employee = row.employee || {};
       const fullText = [
-        normalizeText(employee.name),
-        normalizeText(employee.cpf),
-        normalizeText(row.docType?.name),
-        normalizeText(row.docType?.code),
-      ]
-        .join(' ')
-        .toLowerCase();
-
+        normalizeText(employee.name), normalizeText(employee.cpf),
+        normalizeText(row.docType?.name), normalizeText(row.docType?.code),
+      ].join(' ').toLowerCase();
       if (q && !fullText.includes(q)) return false;
       if (statusFilter && row.status !== statusFilter) return false;
       if (baseFilter && normalizeText(employee.base) !== baseFilter) return false;
@@ -239,23 +263,14 @@ export default function DocumentationsPage({ onOpenEmployee }) {
   }, [baseFilter, query, requiredOnly, rows, statusFilter, unitFilter]);
 
   const summary = useMemo(() => {
-    const total = {
-      vencidos: 0,
-      vencendo: 0,
-      duranteEmbarque: 0,
-      faltando: 0,
-      semEvidencia: 0,
-      pendenteVerificacao: 0,
-    };
+    const total = { vencidos: 0, vencendo: 0, duranteEmbarque: 0, faltando: 0, semEvidencia: 0, pendenteVerificacao: 0 };
     rows.forEach((row) => {
       if (row.status === 'VENCIDO') total.vencidos += 1;
       if (row.status === 'VENCENDO') total.vencendo += 1;
       if (row.status === 'DURANTE_EMBARQUE') total.duranteEmbarque += 1;
       if (row.status === 'FALTANDO') total.faltando += 1;
       if (row.kind === 'document' && row.evidenceStatus === 'SEM_EVIDENCIA') total.semEvidencia += 1;
-      if (row.kind === 'document' && row.evidenceStatus === 'PENDENTE_VERIFICACAO') {
-        total.pendenteVerificacao += 1;
-      }
+      if (row.kind === 'document' && row.evidenceStatus === 'PENDENTE_VERIFICACAO') total.pendenteVerificacao += 1;
     });
     return total;
   }, [rows]);
@@ -272,11 +287,9 @@ export default function DocumentationsPage({ onOpenEmployee }) {
 
   const handleSaveDocument = async (payload) => {
     try {
-      setSaving(true);
-      setSaveError('');
+      setSaving(true); setSaveError('');
       await api.documents.create(payload);
-      setModalEmployeeId('');
-      setIsModalOpen(false);
+      setModalEmployeeId(''); setIsModalOpen(false);
       await loadData();
     } catch (err) {
       console.error('Erro ao salvar documento.', err);
@@ -288,45 +301,61 @@ export default function DocumentationsPage({ onOpenEmployee }) {
 
   const handleOpenEmployee = (employeeId) => {
     if (!employeeId) return;
-    if (typeof onOpenEmployee === 'function') {
-      onOpenEmployee(employeeId, 'docs');
-      return;
-    }
+    if (typeof onOpenEmployee === 'function') { onOpenEmployee(employeeId, 'docs'); return; }
     const next = `/colaboradores?employeeId=${encodeURIComponent(employeeId)}&tab=docs`;
     window.location.assign(next);
   };
 
-  return (
-    <div className="space-y-4">
-      <Card className="p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Documentações</h1>
-            <p className="text-sm text-slate-500">Status real de documentação por colaborador.</p>
-          </div>
-          <Button
-            onClick={() => {
-              setModalEmployeeId('');
-              setIsModalOpen(true);
-            }}
-          >
-            Adicionar documento
-          </Button>
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-6">
-          <div className="rounded-xl border border-slate-200 p-3"><div className="text-xs text-slate-500">Vencidos</div><div className="text-xl font-bold text-red-600">{summary.vencidos}</div></div>
-          <div className="rounded-xl border border-slate-200 p-3"><div className="text-xs text-slate-500">Vencendo (30 dias)</div><div className="text-xl font-bold text-amber-600">{summary.vencendo}</div></div>
-          <div className="rounded-xl border border-slate-200 p-3"><div className="text-xs text-slate-500">Vence durante embarque</div><div className="text-xl font-bold text-amber-600">{summary.duranteEmbarque}</div></div>
-          <div className="rounded-xl border border-slate-200 p-3"><div className="text-xs text-slate-500">Faltando</div><div className="text-xl font-bold text-slate-700">{summary.faltando}</div></div>
-          <div className="rounded-xl border border-slate-200 p-3"><div className="text-xs text-slate-500">Sem evidência</div><div className="text-xl font-bold text-slate-700">{summary.semEvidencia}</div></div>
-          <div className="rounded-xl border border-slate-200 p-3"><div className="text-xs text-slate-500">Pendente verificação</div><div className="text-xl font-bold text-slate-700">{summary.pendenteVerificacao}</div></div>
-        </div>
-      </Card>
+  // ─── Render ───────────────────────────────────────────────────
 
-      <Card className="p-6">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar por nome, CPF, tipo ou código" />
-          <select className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={secTitle()}>Documentações</div>
+          <div style={monoLabel({ marginTop: 2 })}>Status real de documentação por colaborador</div>
+        </div>
+        <button
+          onClick={() => { setModalEmployeeId(''); setIsModalOpen(true); }}
+          style={{
+            background: 'var(--amber)', color: '#000', border: 'none',
+            borderRadius: '6px', padding: '7px 14px', cursor: 'pointer',
+            fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px',
+            fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase',
+          }}
+        >
+          + Adicionar documento
+        </button>
+      </div>
+
+      {/* Métricas de resumo */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
+        <SummaryCard label="Vencidos"          value={summary.vencidos}            tone="red"   onClick={() => setStatusFilter('VENCIDO')} />
+        <SummaryCard label="Vencendo (30d)"    value={summary.vencendo}            tone="amber" onClick={() => setStatusFilter('VENCENDO')} />
+        <SummaryCard label="Vence no embarque" value={summary.duranteEmbarque}     tone="amber" onClick={() => setStatusFilter('DURANTE_EMBARQUE')} />
+        <SummaryCard label="Faltando"          value={summary.faltando}            tone="muted" onClick={() => setStatusFilter('FALTANDO')} />
+        <SummaryCard label="Sem evidência"     value={summary.semEvidencia}        tone="muted" />
+        <SummaryCard label="Pend. verificação" value={summary.pendenteVerificacao} tone="blue" />
+      </div>
+
+      {/* Filtros */}
+      <div style={panel({ padding: 12 })}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: 8, alignItems: 'center' }}>
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Buscar por nome, CPF, tipo ou código..."
+            style={{
+              background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: '6px', padding: '7px 10px', color: 'var(--text)',
+              fontFamily: "'DM Sans', sans-serif", fontSize: '13px', outline: 'none',
+            }}
+            onFocus={e => e.target.style.borderColor = 'var(--amber)'}
+            onBlur={e => e.target.style.borderColor = 'var(--border)'}
+          />
+          <StyledSelect value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
             <option value="">Todos os status</option>
             <option value="OK">OK</option>
             <option value="VENCIDO">Vencido</option>
@@ -334,45 +363,70 @@ export default function DocumentationsPage({ onOpenEmployee }) {
             <option value="DURANTE_EMBARQUE">Durante embarque</option>
             <option value="SEM_VALIDADE">Sem validade</option>
             <option value="FALTANDO">Faltando</option>
-          </select>
-          <select className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" value={baseFilter} onChange={(e) => setBaseFilter(e.target.value)}>
+          </StyledSelect>
+          <StyledSelect value={baseFilter} onChange={e => setBaseFilter(e.target.value)}>
             <option value="">Todas as bases</option>
-            {bases.map((value) => (
-              <option key={value} value={value}>{value}</option>
-            ))}
-          </select>
-          <select className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" value={unitFilter} onChange={(e) => setUnitFilter(e.target.value)}>
+            {bases.map(v => <option key={v} value={v}>{v}</option>)}
+          </StyledSelect>
+          <StyledSelect value={unitFilter} onChange={e => setUnitFilter(e.target.value)}>
             <option value="">Todas as unidades</option>
-            {units.map((value) => (
-              <option key={value} value={value}>{value}</option>
-            ))}
-          </select>
-          <label className="flex items-center gap-2 text-sm text-slate-600">
-            <input type="checkbox" checked={requiredOnly} onChange={(e) => setRequiredOnly(e.target.checked)} />
-            Somente obrigatórios
+            {units.map(v => <option key={v} value={v}>{v}</option>)}
+          </StyledSelect>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <input
+              type="checkbox"
+              checked={requiredOnly}
+              onChange={e => setRequiredOnly(e.target.checked)}
+              style={{ accentColor: 'var(--amber)' }}
+            />
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Somente obrigatórios
+            </span>
           </label>
         </div>
+      </div>
 
-        {loading && <div className="mt-4 rounded-xl border border-slate-200 p-4 text-sm text-slate-500">Carregando documentações...</div>}
-        {error && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">{error}</div>}
+      {/* Feedback de estado */}
+      {loading && (
+        <div style={{
+          padding: '40px 0', textAlign: 'center',
+          fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px',
+          color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em',
+        }}>
+          Carregando documentações...
+        </div>
+      )}
 
-        {!loading && !error && filteredRows.length === 0 && (
-          <div className="mt-4 rounded-xl border border-slate-200 p-4 text-sm text-slate-500">Nenhum item de documentação encontrado.</div>
-        )}
+      {error && (
+        <div style={{
+          background: 'var(--red-bg)', border: '1px solid var(--red-dim)',
+          borderRadius: '6px', padding: '10px 14px',
+          fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px', color: 'var(--red)',
+        }}>
+          {error}
+        </div>
+      )}
 
-        {!loading && !error && filteredRows.length > 0 && (
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full text-sm">
+      {!loading && !error && filteredRows.length === 0 && (
+        <div style={{
+          padding: '40px 0', textAlign: 'center',
+          fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px',
+          color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em',
+        }}>
+          Nenhum documento encontrado
+        </div>
+      )}
+
+      {/* Tabela */}
+      {!loading && !error && filteredRows.length > 0 && (
+        <div style={panel()}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr className="border-b text-left text-xs uppercase tracking-wide text-slate-500">
-                  <th className="py-2 pr-3">Colaborador</th>
-                  <th className="py-2 pr-3">Base / Unidade</th>
-                  <th className="py-2 pr-3">Documento</th>
-                  <th className="py-2 pr-3">Validade</th>
-                  <th className="py-2 pr-3">Evidência</th>
-                  <th className="py-2 pr-3">Verificação</th>
-                  <th className="py-2 pr-3">Status</th>
-                  <th className="py-2 pr-0">Ações</th>
+                <tr>
+                  {['Colaborador', 'Base / Unidade', 'Documento', 'Validade', 'Evidência', 'Verificação', 'Status', 'Ações'].map(h => (
+                    <th key={h} style={thStyle}>{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -381,40 +435,71 @@ export default function DocumentationsPage({ onOpenEmployee }) {
                   const evidenceType = row.doc?.evidence_type || '—';
                   const evidenceRef = row.doc?.evidence_ref || row.doc?.file_url || '—';
                   const isVerified = Boolean(row.doc?.verified ?? row.doc?.VERIFIED ?? false);
+                  const tone = statusTone(row.status);
+                  const rowBorder = tone === 'red' ? 'var(--red)' : tone === 'amber' ? 'var(--amber)' : 'transparent';
+
                   return (
-                    <tr key={row.id} className="border-b last:border-b-0">
-                      <td className="py-3 pr-3">
-                        <div className="font-medium text-slate-900">{row.employee?.name || 'Colaborador não encontrado'}</div>
-                        <div className="text-xs text-slate-500">CPF: {row.employee?.cpf || '—'}</div>
+                    <tr
+                      key={row.id}
+                      style={{
+                        borderBottom: '1px solid var(--border)',
+                        borderLeft: `2px solid ${rowBorder}`,
+                        transition: 'background 0.1s',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <td style={tdStyle()}>
+                        <div style={{ fontWeight: 500, color: 'var(--text)', fontSize: '12px' }}>
+                          {row.employee?.name || 'Colaborador não encontrado'}
+                        </div>
+                        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', color: 'var(--muted)', marginTop: 2 }}>
+                          CPF: {row.employee?.cpf || '—'}
+                        </div>
                       </td>
-                      <td className="py-3 pr-3 text-slate-700">{row.employee?.base || '—'} / {row.employee?.unit || '—'}</td>
-                      <td className="py-3 pr-3 text-slate-700">{row.docType?.name || row.docType?.code || '—'}</td>
-                      <td className="py-3 pr-3 text-slate-700">{row.doc?.expiration_date || '—'}</td>
-                      <td className="py-3 pr-3 text-xs text-slate-600">{evidenceType} • {evidenceRef}</td>
-                      <td className="py-3 pr-3">
-                        {row.kind === 'missing' || !row.doc ? (
-                          <span className="text-xs text-slate-400">—</span>
-                        ) : (
-                          <Badge tone={isVerified ? 'green' : 'gray'}>
-                            {isVerified ? 'Verificado' : 'Pendente'}
-                          </Badge>
+                      <td style={tdStyle({ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px', color: 'var(--text2)' })}>
+                        {row.employee?.base || '—'} / {row.employee?.unit || '—'}
+                      </td>
+                      <td style={tdStyle({ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px', color: 'var(--text2)' })}>
+                        {row.docType?.name || row.docType?.code || '—'}
+                        {row.required && (
+                          <span style={{ ...chip('amber'), marginLeft: 6 }}>Obrig.</span>
                         )}
                       </td>
-                      <td className="py-3 pr-3"><Badge tone={badgeTone(row.status)}>{statusLabel(row.status)}</Badge></td>
-                      <td className="py-3 pr-0">
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            variant="secondary"
-                            onClick={() => {
-                              setModalEmployeeId(employeeId);
-                              setIsModalOpen(true);
-                            }}
+                      <td style={tdStyle({ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px', color: 'var(--text2)' })}>
+                        {row.doc?.expiration_date || '—'}
+                      </td>
+                      <td style={tdStyle({ fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', color: 'var(--muted)', maxWidth: 120 })}>
+                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {evidenceType} · {evidenceRef}
+                        </div>
+                      </td>
+                      <td style={tdStyle()}>
+                        {row.kind === 'missing' || !row.doc ? (
+                          <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', color: 'var(--muted)' }}>—</span>
+                        ) : (
+                          <span style={chip(isVerified ? 'green' : 'muted')}>
+                            {isVerified ? 'Verificado' : 'Pendente'}
+                          </span>
+                        )}
+                      </td>
+                      <td style={tdStyle()}>
+                        <span style={chip(tone)}>{statusLabel(row.status)}</span>
+                      </td>
+                      <td style={tdStyle()}>
+                        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                          <button
+                            onClick={() => { setModalEmployeeId(employeeId); setIsModalOpen(true); }}
+                            style={actionBtn(false)}
                           >
                             Adicionar/Atualizar
-                          </Button>
-                          <Button variant="secondary" onClick={() => handleOpenEmployee(employeeId)}>
-                            Abrir colaborador
-                          </Button>
+                          </button>
+                          <button
+                            onClick={() => handleOpenEmployee(employeeId)}
+                            style={actionBtn(true)}
+                          >
+                            Ver colaborador
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -423,16 +508,12 @@ export default function DocumentationsPage({ onOpenEmployee }) {
               </tbody>
             </table>
           </div>
-        )}
-      </Card>
+        </div>
+      )}
 
       <DocumentationFormModal
         open={isModalOpen}
-        onClose={() => {
-          setModalEmployeeId('');
-          setIsModalOpen(false);
-          setSaveError('');
-        }}
+        onClose={() => { setModalEmployeeId(''); setIsModalOpen(false); setSaveError(''); }}
         onSubmit={handleSaveDocument}
         employeeId={modalEmployeeId}
         lockEmployee={Boolean(modalEmployeeId)}
