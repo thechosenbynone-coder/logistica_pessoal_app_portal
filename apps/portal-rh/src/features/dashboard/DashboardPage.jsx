@@ -225,6 +225,10 @@ export default function DashboardPage({ onNavigate }) {
   const goTo = (url) => {
     window.history.pushState({}, '', url);
     window.dispatchEvent(new PopStateEvent('popstate'));
+    if (typeof onNavigate === 'function') {
+      const key = url.replace(/^\//, '').split('?')[0].split('/')[0] || 'dashboard';
+      try { onNavigate(key, { rawUrl: url }); } catch (_) {}
+    }
   };
 
   useEffect(() => {

@@ -205,22 +205,61 @@ export default function EmployeesPage() {
         </button>
       </div>
 
-      {/* Erro */}
-      {error && (
+      {/* Erro — primeira carga */}
+      {error && !hasEmployees && (
         <div style={{
           background: 'var(--red-bg)', border: '1px solid var(--red-dim)',
           borderRadius: '6px', padding: '10px 14px',
-          fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px', color: 'var(--red)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
         }}>
-          {error}
+          <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px', color: 'var(--red)' }}>
+            {error}
+          </span>
+          <button
+            onClick={retryFirstPage}
+            style={{
+              fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', fontWeight: 500,
+              borderRadius: '3px', padding: '3px 8px', cursor: 'pointer',
+              textTransform: 'uppercase', letterSpacing: '0.06em',
+              background: 'transparent', color: 'var(--red)', border: '1px solid var(--red-dim)',
+              flexShrink: 0,
+            }}
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
+
+      {/* Erro — carregar mais */}
+      {error && hasEmployees && (
+        <div style={{
+          background: 'var(--amber-bg)', border: '1px solid var(--amber-dim)',
+          borderRadius: '6px', padding: '8px 14px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        }}>
+          <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px', color: 'var(--amber)' }}>
+            Falha ao carregar mais colaboradores.
+          </span>
+          <button
+            onClick={retryLoadMore}
+            style={{
+              fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', fontWeight: 500,
+              borderRadius: '3px', padding: '3px 8px', cursor: 'pointer',
+              textTransform: 'uppercase', letterSpacing: '0.06em',
+              background: 'transparent', color: 'var(--amber)', border: '1px solid var(--amber-dim)',
+              flexShrink: 0,
+            }}
+          >
+            Tentar novamente
+          </button>
         </div>
       )}
 
       {/* Lista */}
       <div>
-        {loading ? (
+        {loading && !hasEmployees ? (
           <EmployeeSkeletonList />
-        ) : employees.length === 0 ? (
+        ) : employees.length === 0 && !loading ? (
           <div style={{
             padding: '40px 0', textAlign: 'center',
             fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px',

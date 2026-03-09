@@ -2,6 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap');
+
 html, body {
   height: 100%;
 }
@@ -62,6 +64,7 @@ html, body {
 body {
   background: var(--bg);
   color: var(--text);
+  font-family: 'DM Sans', sans-serif;
   transition: background 0.25s, color 0.25s;
 }
 
@@ -69,10 +72,3 @@ body {
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
-
-/* ─── FONTES ─── */
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap');
-
-body {
-  font-family: 'DM Sans', sans-serif;
-}

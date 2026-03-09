@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { panel, tabStyle, secTitle, monoLabel, chip, actionBtn } from '../../ui/pageStyles.js';
+import { tabStyle, secTitle, monoLabel, actionBtn } from '../../ui/pageStyles.js';
 import apiService from '../../services/api';
 import DeploymentCard from './DeploymentCard';
 import DeploymentDetailModal from './DeploymentDetailModal';
