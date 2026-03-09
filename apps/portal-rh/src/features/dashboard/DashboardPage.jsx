@@ -298,24 +298,30 @@ export default function DashboardPage({ onNavigate }) {
 
         {/* Embarcações */}
         <div>
-          <SecTitle sub="Ativas e previstas">
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              Embarcações
-              <span style={{ display: 'flex', gap: 4 }}>
-                {['ativas', 'proximas'].map(t => (
-                  <span key={t} onClick={() => setEmbTab(t)} style={{
-                    fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px',
-                    borderRadius: '3px', padding: '2px 6px', cursor: 'pointer', fontWeight: 500,
-                    ...(embTab === t
-                      ? { background: 'var(--blue-bg)', color: 'var(--blue)', border: '1px solid rgba(96,165,250,0.2)' }
-                      : { background: 'var(--surface2)', color: 'var(--muted)', border: '1px solid var(--border)' })
-                  }}>
-                    {t === 'ativas' ? 'Ativas' : 'Próximas'}
-                  </span>
-                ))}
-              </span>
-            </span>
-          </SecTitle>
+          {/* Header Embarcações */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '12px', color: 'var(--text)' }}>
+                Embarcações
+              </div>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', color: 'var(--muted)', letterSpacing: '0.06em', marginTop: 2 }}>
+                Ativas e previstas
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {['ativas', 'proximas'].map(t => (
+                <span key={t} onClick={() => setEmbTab(t)} style={{
+                  fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px',
+                  borderRadius: '3px', padding: '2px 6px', cursor: 'pointer', fontWeight: 500,
+                  ...(embTab === t
+                    ? { background: 'var(--blue-bg)', color: 'var(--blue)', border: '1px solid rgba(96,165,250,0.2)' }
+                    : { background: 'var(--surface2)', color: 'var(--muted)', border: '1px solid var(--border)' })
+                }}>
+                  {t === 'ativas' ? 'Ativas' : 'Próximas'}
+                </span>
+              ))}
+            </div>
+          </div>
           <Panel>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <tbody>

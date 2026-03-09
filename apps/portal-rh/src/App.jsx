@@ -55,13 +55,6 @@ export default function App() {
   const { user, checked, handleLoginSuccess, handleLogout } = useAuth();
 
 
-  // Detectar preferência do sistema e aplicar data-theme no html
-  useEffect(() => {
-    const saved = localStorage.getItem('portal_theme');
-    const theme = saved || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-    document.documentElement.setAttribute('data-theme', theme);
-  }, []);
-
   if (!checked) return null;
 
   return (

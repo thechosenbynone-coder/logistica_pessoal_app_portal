@@ -134,6 +134,15 @@ export default function HRPortalApp({ user, onLogout }) {
     return () => clearInterval(id);
   }, []);
 
+
+  const [criticalCount, setCriticalCount] = useState(0);
+  useEffect(() => {
+    fetch('/api/portal/dashboard', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data?.documentsExpired > 0) setCriticalCount(data.documentsExpired); })
+      .catch(() => {});
+  }, []);
+
   return (
     <NavigationContext.Provider value={{ location, path, search, navigate }}>
       <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
@@ -212,36 +221,38 @@ export default function HRPortalApp({ user, onLogout }) {
             </div>
           </div>
 
-          {/* Alert bar — sempre visível enquanto houver críticos */}
-          <div style={{
-            background: 'var(--red-bg)',
-            borderBottom: '1px solid var(--red-dim)',
-            padding: '9px 20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            flexShrink: 0,
-          }}>
-            <svg width="15" height="15" fill="none" stroke="var(--red)" strokeWidth="2" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
-              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-            <div style={{ fontSize: '12.5px', color: 'var(--text)', flex: 1 }}>
-              <strong style={{ color: 'var(--red)', fontWeight: 600 }}>3 colaboradores</strong>
-              {' '}com documentos vencidos têm embarque nos próximos 7 dias — ação necessária antes da saída.
+          {/* Alert bar — só renderiza quando houver críticos */}
+          {criticalCount > 0 && (
+            <div style={{
+              background: 'var(--red-bg)',
+              borderBottom: '1px solid var(--red-dim)',
+              padding: '9px 20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              flexShrink: 0,
+            }}>
+              <svg width="15" height="15" fill="none" stroke="var(--red)" strokeWidth="2" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              <div style={{ fontSize: '12.5px', color: 'var(--text)', flex: 1 }}>
+                <strong style={{ color: 'var(--red)', fontWeight: 600 }}>{criticalCount} colaborador{criticalCount > 1 ? 'es' : ''}</strong>
+                {' '}com documentos vencidos {criticalCount > 1 ? 'têm' : 'tem'} embarque nos próximos 7 dias — ação necessária antes da saída.
+              </div>
+              <div
+                onClick={() => navigate(ROUTE_PATHS.docs)}
+                style={{
+                  fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px',
+                  color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.08em',
+                  border: '1px solid var(--red-dim)', padding: '3px 8px', borderRadius: '3px',
+                  cursor: 'pointer',
+                }}
+              >
+                Ver agora →
+              </div>
             </div>
-            <div
-              onClick={() => navigate(ROUTE_PATHS.docs)}
-              style={{
-                fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px',
-                color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.08em',
-                border: '1px solid var(--red-dim)', padding: '3px 8px', borderRadius: '3px',
-                cursor: 'pointer',
-              }}
-            >
-              Ver agora →
-            </div>
-          </div>
+          )}
 
           {/* Conteúdo da página */}
           <main style={{ flex: 1, overflowY: 'auto', padding: '18px 20px' }}>
