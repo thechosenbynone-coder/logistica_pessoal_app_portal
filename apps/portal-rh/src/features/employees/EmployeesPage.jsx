@@ -1,8 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
-import Card from '../../ui/Card';
-import Input from '../../ui/Input';
-import Button from '../../ui/Button';
 import api from '../../services/api';
 
 const PAGE_SIZE = 25;
@@ -31,10 +28,14 @@ function mergeWithoutDuplicates(current, incoming) {
 
 function EmployeeSkeletonList({ rows = 6 }) {
   return Array.from({ length: rows }).map((_, index) => (
-    <Card key={`skeleton-${index}`} className="mb-2 animate-pulse p-4">
-      <div className="mb-2 h-4 w-1/3 rounded bg-slate-200" />
-      <div className="h-3 w-1/2 rounded bg-slate-200" />
-    </Card>
+    <div key={`skeleton-${index}`} style={{
+      background: 'var(--surface)', border: '1px solid var(--border)',
+      borderRadius: '6px', padding: '12px 14px', marginBottom: 4,
+      animation: 'pulse 1.5s infinite',
+    }}>
+      <div style={{ height: 12, width: '33%', background: 'var(--surface2)', borderRadius: 3, marginBottom: 6 }} />
+      <div style={{ height: 10, width: '50%', background: 'var(--surface2)', borderRadius: 3 }} />
+    </div>
   ));
 }
 
@@ -147,70 +148,211 @@ export default function EmployeesPage() {
     fetchPage({ page: page + 1, q: query, append: true });
   };
 
+  const refetch = retryFirstPage;
+
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar por nome, CPF, função..."
-        />
-        <Button onClick={retryFirstPage} disabled={loading || loadingMore}>
-          <RefreshCw size={20} className={loading || loadingMore ? 'animate-spin' : ''} />
-        </Button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '12px', color: 'var(--text)' }}>
+            Colaboradores
+          </div>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', color: 'var(--muted)', letterSpacing: '0.06em', marginTop: 2 }}>
+            {employees.length} registros carregados
+          </div>
+        </div>
+        <button
+          onClick={() => { /* onNavigate para criar novo — manter comportamento existente */ }}
+          style={{
+            background: 'var(--amber)', color: '#000', border: 'none',
+            borderRadius: '6px', padding: '7px 14px', cursor: 'pointer',
+            fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px',
+            fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase',
+          }}
+        >
+          + Novo colaborador
+        </button>
       </div>
 
+      {/* Busca */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ flex: 1, position: 'relative' }}>
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Buscar por nome, função ou CPF..."
+            style={{
+              width: '100%', background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: '6px', padding: '8px 12px', fontFamily: "'DM Sans', sans-serif",
+              fontSize: '13px', color: 'var(--text)', outline: 'none', boxSizing: 'border-box',
+            }}
+            onFocus={e => e.target.style.borderColor = 'var(--amber)'}
+            onBlur={e => e.target.style.borderColor = 'var(--border)'}
+          />
+        </div>
+        <button
+          onClick={() => { if (typeof refetch === 'function') refetch(); }}
+          style={{
+            background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px',
+            padding: '8px 12px', cursor: 'pointer', color: 'var(--muted)',
+            display: 'flex', alignItems: 'center',
+          }}
+          title="Recarregar"
+        >
+          <RefreshCw size={14} />
+        </button>
+      </div>
+
+      {/* Erro — primeira carga */}
       {error && !hasEmployees && (
-        <Card className="flex items-center justify-between gap-2 p-4 text-sm text-red-600">
-          <span>{error}</span>
-          <Button onClick={retryFirstPage} variant="ghost">
+        <div style={{
+          background: 'var(--red-bg)', border: '1px solid var(--red-dim)',
+          borderRadius: '6px', padding: '10px 14px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        }}>
+          <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px', color: 'var(--red)' }}>
+            {error}
+          </span>
+          <button
+            onClick={retryFirstPage}
+            style={{
+              fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', fontWeight: 500,
+              borderRadius: '3px', padding: '3px 8px', cursor: 'pointer',
+              textTransform: 'uppercase', letterSpacing: '0.06em',
+              background: 'transparent', color: 'var(--red)', border: '1px solid var(--red-dim)',
+              flexShrink: 0,
+            }}
+          >
             Tentar novamente
-          </Button>
-        </Card>
+          </button>
+        </div>
       )}
 
+      {/* Erro — carregar mais */}
       {error && hasEmployees && (
-        <Card className="flex items-center justify-between gap-2 p-3 text-xs text-amber-700">
-          <span>Falha ao carregar mais colaboradores.</span>
-          <Button onClick={retryLoadMore} variant="ghost">
+        <div style={{
+          background: 'var(--amber-bg)', border: '1px solid var(--amber-dim)',
+          borderRadius: '6px', padding: '8px 14px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        }}>
+          <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px', color: 'var(--amber)' }}>
+            Falha ao carregar mais colaboradores.
+          </span>
+          <button
+            onClick={retryLoadMore}
+            style={{
+              fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', fontWeight: 500,
+              borderRadius: '3px', padding: '3px 8px', cursor: 'pointer',
+              textTransform: 'uppercase', letterSpacing: '0.06em',
+              background: 'transparent', color: 'var(--amber)', border: '1px solid var(--amber-dim)',
+              flexShrink: 0,
+            }}
+          >
             Tentar novamente
-          </Button>
-        </Card>
+          </button>
+        </div>
       )}
 
-      <div className="grid grid-cols-12 gap-6">
-        <div className="col-span-12">
-          {loading && !hasEmployees ? (
-            <EmployeeSkeletonList />
-          ) : !loading && employees.length === 0 ? (
-            query.trim() ? (
-              <Card className="p-4 text-sm text-slate-600">Nenhum colaborador encontrado.</Card>
-            ) : (
-              <Card className="p-4 text-sm text-slate-600">Em desenvolvimento</Card>
-            )
-          ) : (
-            employees.map((employee) => (
-              <Card
-                key={employee.id || `${employee.cpf || 'no-cpf'}-${employee.registration || 'no-reg'}`}
-                className="mb-2 p-4"
-              >
-                <div className="font-medium text-slate-900">{employee.name || 'Sem nome'}</div>
-                <div className="text-xs text-slate-500">
-                  CPF: {employee.cpf || '—'} • Matrícula: {employee.registration || '—'}
-                </div>
-              </Card>
-            ))
-          )}
-          <div ref={sentinelRef} className="h-1" aria-hidden="true" />
-        </div>
+      {/* Lista */}
+      <div>
+        {loading && !hasEmployees ? (
+          <EmployeeSkeletonList />
+        ) : employees.length === 0 && !loading ? (
+          <div style={{
+            padding: '40px 0', textAlign: 'center',
+            fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px',
+            color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em',
+          }}>
+            Nenhum colaborador encontrado
+          </div>
+        ) : (
+          <div style={{
+            background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden',
+          }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  {['Nome', 'Função', 'Status', 'Docs', ''].map(h => (
+                    <th key={h} style={{
+                      fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px',
+                      textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--muted)',
+                      padding: '8px 12px', textAlign: 'left',
+                      background: 'var(--bg)', borderBottom: '1px solid var(--border)',
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {employees.map(emp => (
+                  <tr
+                    key={emp.id}
+                    style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: 'background 0.1s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <td style={{ padding: '10px 12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{
+                          width: 28, height: 28, borderRadius: '50%',
+                          background: 'var(--surface2)', border: '1px solid var(--border)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontFamily: "'Syne', sans-serif", fontSize: '10px', fontWeight: 800, color: 'var(--text2)',
+                          flexShrink: 0,
+                        }}>
+                          {(emp.name || '?').charAt(0).toUpperCase()}
+                        </div>
+                        <span style={{ fontSize: '13px', color: 'var(--text)', fontWeight: 500 }}>{emp.name || `#${emp.id}`}</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '10px 12px', fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px', color: 'var(--text2)' }}>
+                      {emp.role || emp.cargo || '—'}
+                    </td>
+                    <td style={{ padding: '10px 12px' }}>
+                      <span style={{
+                        display: 'inline-flex', fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px',
+                        borderRadius: '3px', padding: '2px 6px', letterSpacing: '0.04em', fontWeight: 500,
+                        ...(emp.active === false
+                          ? { background: 'var(--surface2)', color: 'var(--muted)', border: '1px solid var(--border)' }
+                          : { background: 'var(--green-bg)', color: 'var(--green)', border: '1px solid rgba(34,197,94,0.2)' }),
+                      }}>
+                        {emp.active === false ? 'Inativo' : 'Ativo'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '10px 12px' }}>
+                      <div style={{ width: 60, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: '80%', background: 'var(--green)', borderRadius: 2 }} />
+                      </div>
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                      <button
+                        style={{
+                          fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', fontWeight: 500,
+                          borderRadius: '3px', padding: '3px 7px', cursor: 'pointer',
+                          textTransform: 'uppercase', letterSpacing: '0.06em',
+                          background: 'transparent', color: 'var(--muted)', border: '1px solid var(--border)',
+                          transition: 'color 0.15s',
+                        }}
+                      >
+                        Ver perfil
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Sentinel de scroll infinito — manter ref existente */}
+            <div ref={sentinelRef} style={{ height: 1 }} />
+            {loadingMore && (
+              <div style={{ padding: '12px', textAlign: 'center', fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', color: 'var(--muted)' }}>
+                Carregando...
+              </div>
+            )}
+          </div>
+        )}
       </div>
-
-      {loadingMore && (
-        <div className="pointer-events-none fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <span className="sr-only">Carregando mais colaboradores...</span>
-          <div className="h-2 w-2 rounded-full bg-slate-500/40 animate-pulse" />
-        </div>
-      )}
     </div>
   );
 }

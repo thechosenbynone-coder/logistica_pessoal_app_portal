@@ -54,6 +54,7 @@ function useAuth() {
 export default function App() {
   const { user, checked, handleLoginSuccess, handleLogout } = useAuth();
 
+
   if (!checked) return null;
 
   return (

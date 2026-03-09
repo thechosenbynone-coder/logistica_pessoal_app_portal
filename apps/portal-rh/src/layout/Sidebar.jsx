@@ -1,15 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { cn } from '../ui/ui.js';
+import React, { useMemo, useState } from 'react';
 import {
-  ClipboardList,
-  FileText,
-  HardHat,
-  LayoutDashboard,
-  Plane,
-  Users,
-  Wallet,
-  MessageSquareMore,
+  ClipboardList, FileText, HardHat, LayoutDashboard,
+  Plane, Users, Wallet, MessageSquareMore,
 } from 'lucide-react';
 import { currentUser } from '../services/currentUser';
 import { ROUTE_PATHS } from '../navigation/routes.js';
@@ -24,22 +16,17 @@ const NAV = [
   {
     title: 'Operação',
     items: [
-      { key: 'mobility', path: ROUTE_PATHS.mobility, label: 'Escala e Embarque', icon: Plane },
-      { key: 'equipment', path: ROUTE_PATHS.equipment, label: 'EPIs', icon: HardHat },
-      { key: 'work', path: ROUTE_PATHS.rdo, label: 'RDOs', icon: ClipboardList },
+      { key: 'mobility',  path: ROUTE_PATHS.mobility,  label: 'Escala e Embarque', icon: Plane },
+      { key: 'equipment', path: ROUTE_PATHS.equipment, label: 'EPIs',               icon: HardHat },
+      { key: 'work',      path: ROUTE_PATHS.rdo,       label: 'RDOs',               icon: ClipboardList },
     ],
   },
   {
     title: 'RH',
     items: [
-      { key: 'employees', path: ROUTE_PATHS.employees, label: 'Colaboradores', icon: Users },
-      { key: 'docs', path: ROUTE_PATHS.docs, label: 'Documentações', icon: FileText },
-      {
-        key: 'requests',
-        path: ROUTE_PATHS.requests,
-        label: 'Solicitações',
-        icon: MessageSquareMore,
-      },
+      { key: 'employees', path: ROUTE_PATHS.employees, label: 'Colaboradores',  icon: Users },
+      { key: 'docs',      path: ROUTE_PATHS.docs,      label: 'Documentações',  icon: FileText },
+      { key: 'requests',  path: ROUTE_PATHS.requests,  label: 'Solicitações',   icon: MessageSquareMore },
     ],
   },
   {
@@ -50,183 +37,180 @@ const NAV = [
   },
 ];
 
-function TooltipPortal({ open, text, x, y }) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
-  if (!mounted || !open) return null;
-
-  return createPortal(
-    <div
-      style={{
-        position: 'fixed',
-        left: x,
-        top: y,
-        transform: 'translateY(-50%)',
-        zIndex: 99999,
-        pointerEvents: 'none',
-      }}
-      className="opacity-100 transition-opacity duration-100"
-      aria-hidden="true"
-    >
-      <div className="relative rounded-xl bg-slate-900/95 text-white text-xs font-semibold px-3 py-2 shadow-xl whitespace-nowrap border border-white/10 backdrop-blur-sm">
-        {text}
-        <div className="absolute left-[-6px] top-1/2 -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-r-[6px] border-r-slate-900/95" />
-      </div>
-    </div>,
-    document.body
-  );
-}
+// Badges de contagem por módulo — em produção viriam da API
+const BADGES = {
+  equipment: { count: 4,  tone: 'warn' },   // EPIs pendentes
+  work:      { count: 7,  tone: 'alert' },  // RDOs para revisar
+  docs:      { count: 3,  tone: 'alert' },  // Docs vencidos
+};
 
 export default function Sidebar({ activePath, onNavigate, user: portalUser, onLogout: _onLogout }) {
-  const SIDEBAR_W = 'w-[76px]';
-  const ICON_SIZE = 18;
+  const [hovered, setHovered] = useState(false);
 
-  const ttAnchorRef = useRef(null);
-  const [tt, setTt] = useState({ open: false, text: '', x: 0, y: 0 });
+  const user = useMemo(() => ({
+    name:   portalUser?.name || 'Jéssica',
+    role:   portalUser?.role || currentUser.role || 'RH · Operação',
+    initials: (portalUser?.name || 'Jéssica').charAt(0).toUpperCase(),
+  }), [portalUser]);
 
-  const hideTooltip = () => {
-    ttAnchorRef.current = null;
-    setTt((v) => (v.open ? { ...v, open: false } : v));
+  const sidebarStyle = {
+    width:      hovered ? '220px' : '56px',
+    minWidth:   hovered ? '220px' : '56px',
+    background: 'var(--surface)',
+    borderRight: '1px solid var(--border)',
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100vh',
+    overflow: 'hidden',
+    transition: 'width 0.22s cubic-bezier(0.4,0,0.2,1), min-width 0.22s cubic-bezier(0.4,0,0.2,1), box-shadow 0.22s',
+    flexShrink: 0,
+    position: 'relative',
+    zIndex: 100,
+    boxShadow: hovered ? 'var(--shadow)' : 'none',
   };
 
-  const showTooltip = (el, text) => {
-    if (!el) return;
-    ttAnchorRef.current = el;
-    const r = el.getBoundingClientRect();
-    setTt({
-      open: true,
-      text,
-      x: Math.round(r.right + 12),
-      y: Math.round(r.top + r.height / 2),
-    });
+  const labelStyle = {
+    opacity:   hovered ? 1 : 0,
+    transform: hovered ? 'translateX(0)' : 'translateX(-6px)',
+    transition: 'opacity 0.16s 0.05s, transform 0.16s 0.05s',
+    fontSize: '13px',
+    fontWeight: 500,
+    flex: 1,
+    whiteSpace: 'nowrap',
+    color: 'var(--text)',
   };
 
-  useEffect(() => {
-    if (!tt.open) return;
-
-    const update = () => {
-      const el = ttAnchorRef.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      setTt((v) => ({
-        ...v,
-        x: Math.round(r.right + 12),
-        y: Math.round(r.top + r.height / 2),
-      }));
-    };
-
-    const onScroll = () => update();
-    const onResize = () => update();
-
-    window.addEventListener('scroll', onScroll, true);
-    window.addEventListener('resize', onResize);
-
-    return () => {
-      window.removeEventListener('scroll', onScroll, true);
-      window.removeEventListener('resize', onResize);
-    };
-  }, [tt.open]);
-
-  const user = useMemo(
-    () => ({
-      name: portalUser?.name || 'Jéssica',
-      role: portalUser?.role || currentUser.role || 'RH Operação',
-      avatar: currentUser.avatar,
-    }),
-    [portalUser]
-  );
-
-  const navItems = useMemo(() => NAV.flatMap((section) => section.items), []);
+  const fadeStyle = {
+    opacity:   hovered ? 1 : 0,
+    transform: hovered ? 'translateX(0)' : 'translateX(-6px)',
+    transition: 'opacity 0.16s 0.06s, transform 0.16s 0.06s',
+    overflow: 'hidden',
+    whiteSpace: 'nowrap',
+  };
 
   return (
-    <>
-      <TooltipPortal open={tt.open} text={tt.text} x={tt.x} y={tt.y} />
-
-      <aside
-        className={cn(
-          'h-screen sticky top-0 bg-white border-r border-slate-100 flex flex-col overflow-hidden',
-          SIDEBAR_W
-        )}
-        aria-label="Menu lateral"
-      >
-        <div className="w-full pt-3 pb-2 shrink-0">
-          <div className="w-full grid place-items-center">
-            <div className="h-9 w-9 rounded-xl bg-blue-600 text-white grid place-items-center text-[11px] font-extrabold tracking-wide shrink-0">
-              RH
-            </div>
+    <aside
+      style={sidebarStyle}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      aria-label="Menu lateral"
+    >
+      {/* Logo */}
+      <div style={{
+        padding: '14px 13px',
+        borderBottom: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center', gap: '10px',
+        minHeight: '52px', overflow: 'hidden', flexShrink: 0,
+      }}>
+        <div style={{
+          width: 30, height: 30, minWidth: 30,
+          background: 'var(--amber)', borderRadius: '6px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '11px', color: '#000',
+        }}>
+          RH
+        </div>
+        <div style={fadeStyle}>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '13px', color: 'var(--text)', lineHeight: 1.2 }}>
+            Portal RH
+          </div>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', color: 'var(--muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            Offshore · Ops
           </div>
         </div>
+      </div>
 
-        <nav className="w-full flex-1 min-h-0 flex flex-col justify-center items-center">
-          <div className="flex flex-col items-center gap-3">
-            {navItems.map((it) => {
-              const Icon = it.icon;
-              const isActive = activePath === it.path;
+      {/* Nav */}
+      <nav style={{ flex: 1, padding: '10px 0', overflowY: 'auto', overflowX: 'hidden' }}>
+        {NAV.map((group) => (
+          <div key={group.title} style={{ marginBottom: '16px' }}>
+            <div style={{
+              fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px',
+              letterSpacing: '0.12em', textTransform: 'uppercase',
+              color: 'var(--muted)', padding: '0 0 4px 18px',
+              whiteSpace: 'nowrap', overflow: 'hidden',
+              opacity: hovered ? 1 : 0, transition: 'opacity 0.15s 0.04s',
+            }}>
+              {group.title}
+            </div>
+
+            {group.items.map((item) => {
+              const Icon = item.icon;
+              const isActive = activePath === item.path;
+              const badge = BADGES[item.key];
+
               return (
                 <a
-                  key={it.key}
-                  href={it.path}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    onNavigate(it.path);
+                  key={item.key}
+                  href={item.path}
+                  onClick={(e) => { e.preventDefault(); onNavigate(item.path); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '10px',
+                    padding: isActive ? '8px 13px 8px 11px' : '8px 13px',
+                    cursor: 'pointer', textDecoration: 'none',
+                    background: isActive ? 'var(--surface2)' : 'transparent',
+                    borderLeft: isActive ? '2px solid var(--amber)' : '2px solid transparent',
+                    color: isActive ? 'var(--amber)' : 'var(--muted)',
+                    transition: 'all 0.15s',
+                    overflow: 'hidden', whiteSpace: 'nowrap',
                   }}
-                  onMouseEnter={(e) => showTooltip(e.currentTarget, it.label)}
-                  onMouseLeave={hideTooltip}
-                  onFocus={(e) => showTooltip(e.currentTarget, it.label)}
-                  onBlur={hideTooltip}
-                  aria-label={it.label}
-                  className={cn(
-                    'grid h-11 w-11 place-items-center rounded-xl bg-transparent border-0 p-0 m-0 transition',
-                    'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60',
-                    isActive
-                      ? 'ring-2 ring-blue-400/60 shadow-[0_0_0_5px_rgba(59,130,246,0.12)]'
-                      : 'hover:ring-2 hover:ring-blue-400/45'
-                  )}
+                  onMouseEnter={e => {
+                    if (!isActive) {
+                      e.currentTarget.style.background = 'var(--surface2)';
+                      e.currentTarget.style.color = 'var(--text)';
+                    }
+                  }}
+                  onMouseLeave={e => {
+                    if (!isActive) {
+                      e.currentTarget.style.background = 'transparent';
+                      e.currentTarget.style.color = 'var(--muted)';
+                    }
+                  }}
                 >
-                  <Icon
-                    size={ICON_SIZE}
-                    className={isActive ? 'text-blue-700' : 'text-slate-700'}
-                  />
+                  <Icon size={18} style={{ minWidth: 18, flexShrink: 0 }} />
+                  <span style={labelStyle}>{item.label}</span>
+                  {badge && (
+                    <span style={{
+                      fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', fontWeight: 500,
+                      background: badge.tone === 'warn' ? 'var(--amber-bg)' : 'var(--red)',
+                      color: badge.tone === 'warn' ? 'var(--amber)' : '#fff',
+                      border: badge.tone === 'warn' ? '1px solid var(--amber-dim)' : 'none',
+                      borderRadius: '3px', padding: '1px 4px',
+                      opacity: hovered ? 1 : 0, transition: 'opacity 0.15s 0.08s',
+                      flexShrink: 0,
+                    }}>
+                      {badge.count}
+                    </span>
+                  )}
                 </a>
               );
             })}
           </div>
-        </nav>
+        ))}
+      </nav>
 
-        <div className="p-3 shrink-0 overflow-hidden">
-          <button
-            type="button"
-            aria-label={`${user.name} • ${user.role}`}
-            className={cn(
-              'relative w-full rounded-2xl border border-slate-100 bg-white shadow-sm',
-              'flex items-center p-2.5',
-              'gap-0 justify-center'
-            )}
-            onMouseEnter={(e) => showTooltip(e.currentTarget, `${user.name} • ${user.role}`)}
-            onMouseLeave={hideTooltip}
-            onFocus={(e) => showTooltip(e.currentTarget, `${user.name} • ${user.role}`)}
-            onBlur={hideTooltip}
-          >
-            {user.avatar ? (
-              <img
-                src={user.avatar}
-                alt={user.name}
-                className="h-11 w-11 rounded-full object-cover border border-slate-100"
-              />
-            ) : (
-              <div className="h-11 w-11 rounded-full bg-gradient-to-br from-blue-100 via-indigo-100 to-sky-100 border border-blue-200/70 grid place-items-center text-sm font-bold text-blue-700">
-                JM
-              </div>
-            )}
-          </button>
-
-          <div className="mt-2 text-center text-[11px] font-semibold text-slate-700">Jéssica</div>
-          <div className="mt-2 text-center text-[10px] font-medium text-slate-400">
-            desenvolvido por Hubye
+      {/* Footer usuário */}
+      <div style={{
+        padding: '10px 13px', borderTop: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center', gap: '10px',
+        overflow: 'hidden', flexShrink: 0,
+      }}>
+        <div style={{
+          width: 30, height: 30, minWidth: 30, borderRadius: '50%',
+          background: 'var(--surface2)', border: '1px solid var(--border2)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: "'Syne', sans-serif", fontSize: '11px', fontWeight: 800,
+          color: 'var(--amber)',
+        }}>
+          {user.initials}
+        </div>
+        <div style={fadeStyle}>
+          <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text)' }}>{user.name}</div>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            {user.role}
           </div>
         </div>
-      </aside>
-    </>
+      </div>
+    </aside>
   );
 }
