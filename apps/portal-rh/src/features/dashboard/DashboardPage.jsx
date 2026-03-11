@@ -111,50 +111,21 @@ function Metric({ label, value, hint, tone, icon, onClick }) {
   );
 }
 
-// ─── Card Kanban ─────────────────────────────────────────────────
-
-function KCol({ title, count, children }) {
-  return (
-    <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '6px', padding: '8px', minHeight: 120 }}>
-      <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 7, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        {title}
-        <span style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0 4px', color: 'var(--text2)', fontSize: '9px' }}>{count}</span>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function KCard({ name, meta, gate }) {
-  const gateColor = gate === 'ok' ? 'var(--green)' : gate === 'warn' ? 'var(--amber)' : 'var(--red)';
-  return (
-    <div style={{
-      background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '5px',
-      padding: '7px 8px', marginBottom: 5, cursor: 'pointer', transition: 'all 0.12s',
-    }}
-    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border2)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'none'; }}
-    >
-      <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 3 }}>
-        {name}
-      </div>
-      <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-        <span style={{ width: 5, height: 5, borderRadius: '50%', background: gateColor, flexShrink: 0 }} />
-        {meta}
-      </div>
-    </div>
-  );
-}
-
 // ─── List Item ───────────────────────────────────────────────────
 
-function ListItem({ dot, text, chip, chipTone, meta }) {
+function ListItem({ dot, name, detail, chip, chipTone }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+    <div
+      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: 'background 0.1s' }}
+      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+    >
       <div style={{ width: 7, height: 7, borderRadius: '50%', background: dot, flexShrink: 0 }} />
-      <div style={{ flex: 1, fontSize: '12px', color: 'var(--text)', lineHeight: 1.4 }}>{text}</div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text)' }}>{name}</div>
+        {detail && <div style={{ fontSize: '11px', color: 'var(--text2)', marginTop: 1 }}>{detail}</div>}
+      </div>
       {chip && <Chip tone={chipTone}>{chip}</Chip>}
-      {meta && <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', color: 'var(--muted)' }}>{meta}</div>}
     </div>
   );
 }
@@ -250,51 +221,98 @@ export default function DashboardPage({ onNavigate }) {
       icon: <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.25C17.25 22.15 21 17.25 21 12V7z"/></svg> },
   ], [metrics, onNavigate]);
 
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 4 }}>
+        <div>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '20px', color: 'var(--text)', letterSpacing: '-0.5px' }}>
+            {greeting}, Jéssica
+          </div>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 3 }}>
+            {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          </div>
+        </div>
+      </div>
 
       {/* NÍVEL 1 — 4 métricas */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
         {pills.map(p => <Metric key={p.label} label={p.label} value={p.value} hint={p.hint} tone={p.tone} icon={p.icon} onClick={p.onClick} />)}
       </div>
 
-      {/* NÍVEL 2 — Pendências Críticas */}
-      <div>
-        <SecTitle sub="Requerem ação antes do embarque" action="Ver todas →" onAction={() => onNavigate('docs')}>
-          Pendências Críticas
-        </SecTitle>
-        <Panel>
-          <div style={{ padding: '4px 14px 0' }}>
-            <ListItem dot="var(--red)"   text="M. Ferreira — ASO vencido"         chip="Hoje" chipTone="red" />
-            <ListItem dot="var(--red)"   text="C. Oliveira — NR-33 expirado"       chip="2d"   chipTone="red" />
-            <ListItem dot="var(--red)"   text="A. Lima — EPI sem assinatura"       chip="2d"   chipTone="red" />
-            <ListItem dot="var(--amber)" text="J. Rocha — RDO pendente revisão"    chip="5d"   chipTone="amber" />
-            <ListItem dot="var(--amber)" text="P. Mendes — solicitação #482"       chip="7d"   chipTone="amber" />
-          </div>
-        </Panel>
-      </div>
+      {/* NÍVEL 2+3 — grid 2 colunas */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
 
-      {/* NÍVEL 3 — Escalas e Embarques */}
-      <div>
-        <SecTitle sub="29 colaboradores em acompanhamento" action="Ver página completa →" onAction={() => onNavigate('mobility')}>
-          Escalas e Embarques
-        </SecTitle>
-        <Panel>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, padding: 12 }}>
-            <KCol title="Embarque Planejado" count={ESCALAS_DATA.planejado.length}>
-              {ESCALAS_DATA.planejado.map(c => <KCard key={c.name} {...c} />)}
-            </KCol>
-            <KCol title="Embarcado" count={ESCALAS_DATA.embarcado.length}>
-              {ESCALAS_DATA.embarcado.map(c => <KCard key={c.name} {...c} />)}
-            </KCol>
-            <KCol title="Desembarque" count={ESCALAS_DATA.desembarque.length}>
-              {ESCALAS_DATA.desembarque.map(c => <KCard key={c.name} {...c} />)}
-            </KCol>
-            <KCol title="Folga" count={ESCALAS_DATA.folga.length}>
-              {ESCALAS_DATA.folga.map(c => <KCard key={c.name} {...c} />)}
-            </KCol>
-          </div>
-        </Panel>
+        <div>
+          <SecTitle sub="Requerem ação antes do embarque" action="Ver todas →" onAction={() => onNavigate('docs')}>
+            Pendências Críticas
+          </SecTitle>
+          <Panel>
+            <div style={{ padding: '4px 0 0' }}>
+              <ListItem dot="var(--red)"   name="M. Ferreira" detail="ASO vencido · embarque 12/03" chip="Hoje" chipTone="red" />
+              <ListItem dot="var(--red)"   name="C. Oliveira" detail="NR-33 expirado · embarque 10/03" chip="2d" chipTone="red" />
+              <ListItem dot="var(--red)"   name="A. Lima" detail="EPI sem assinatura · embarque 11/03" chip="2d" chipTone="red" />
+              <ListItem dot="var(--amber)" name="J. Rocha" detail="RDO pendente revisão" chip="5d" chipTone="amber" />
+              <ListItem dot="var(--amber)" name="P. Mendes" detail="Solicitação #482 aguardando" chip="7d" chipTone="amber" />
+            </div>
+          </Panel>
+        </div>
+
+        <div>
+          <SecTitle sub="29 colaboradores em acompanhamento" action="Ver página completa →" onAction={() => onNavigate('mobility')}>
+            Escalas e Embarques
+          </SecTitle>
+          <Panel>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
+              {[
+                { label: 'Planejado', color: 'var(--amber)', data: ESCALAS_DATA.planejado },
+                { label: 'Embarcado', color: 'var(--blue)', data: ESCALAS_DATA.embarcado },
+                { label: 'Desembarque', color: 'var(--green)', data: ESCALAS_DATA.desembarque },
+                { label: 'Folga', color: 'var(--muted)', data: ESCALAS_DATA.folga },
+              ].map((col, i, arr) => (
+                <div
+                  key={col.label}
+                  onClick={() => onNavigate('mobility')}
+                  style={{
+                    padding: '20px 16px',
+                    textAlign: 'center',
+                    borderRight: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
+                    cursor: 'pointer',
+                    transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '8px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 6 }}>
+                    {col.label}
+                  </div>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '36px', lineHeight: 1, letterSpacing: '-2px', color: col.color, marginBottom: 8 }}>
+                    {col.data.length}
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--text2)', lineHeight: 1.6 }}>
+                    {col.data.slice(0, 2).map(c => c.name).join('\n').split('\n').map((n, idx) => (
+                      <div key={idx}>{n}</div>
+                    ))}
+                    {col.data.length > 2 && (
+                      <div style={{ color: 'var(--muted)' }}>+ {col.data.length - 2}</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', color: 'var(--muted)' }}>
+                Atualizado agora
+              </span>
+              <Chip tone="amber">
+                {ESCALAS_DATA.embarcado.length + ESCALAS_DATA.desembarque.length} ativos offshore
+              </Chip>
+            </div>
+          </Panel>
+        </div>
       </div>
 
       {/* NÍVEL 4 — Embarcações + Atividade Recente */}
@@ -327,26 +345,52 @@ export default function DashboardPage({ onNavigate }) {
             </div>
           </div>
           <Panel>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <tbody>
-                {embTab === 'ativas'
-                  ? EMBARCACOES_ATIVAS.map((e, i) => (
-                    <tr key={e.nome} style={{ borderBottom: i < EMBARCACOES_ATIVAS.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                      <td style={{ padding: '9px 12px', fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px', fontWeight: 600, color: 'var(--text)' }}>{e.nome}</td>
-                      <td style={{ padding: '9px 12px', fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px', color: 'var(--text2)', textAlign: 'right' }}>{e.abordo}</td>
-                      <td style={{ padding: '9px 12px', textAlign: 'right' }}><Chip tone={e.status}>Ativa</Chip></td>
-                    </tr>
-                  ))
-                  : EMBARCACOES_PROXIMAS.map((e, i) => (
-                    <tr key={e.nome} style={{ borderBottom: i < EMBARCACOES_PROXIMAS.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                      <td style={{ padding: '9px 12px', fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px', fontWeight: 600, color: 'var(--text)' }}>{e.nome}</td>
-                      <td style={{ padding: '9px 12px', fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px', color: 'var(--text2)' }}>{e.embarque}</td>
-                      <td style={{ padding: '9px 12px', textAlign: 'right' }}><Chip tone={e.gate}>{e.gate === 'green' ? 'Apto' : e.gate === 'red' ? 'Não apto' : 'Atenção'}</Chip></td>
-                    </tr>
-                  ))
-                }
-              </tbody>
-            </table>
+            {embTab === 'ativas'
+              ? EMBARCACOES_ATIVAS.map((e, i) => (
+                <div
+                  key={e.nome}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '9px 16px',
+                    borderBottom: i < EMBARCACOES_ATIVAS.length - 1 ? '1px solid var(--border)' : 'none',
+                    cursor: 'pointer', transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={ev => ev.currentTarget.style.background = 'var(--surface2)'}
+                  onMouseLeave={ev => ev.currentTarget.style.background = 'transparent'}
+                >
+                  <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px', fontWeight: 600, color: 'var(--text)', flex: 1 }}>
+                    {e.nome}
+                  </div>
+                  <div style={{ textAlign: 'right', marginRight: 8 }}>
+                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '15px', color: 'var(--text2)' }}>{e.abordo}</div>
+                    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '8px', color: 'var(--muted)' }}>a bordo</div>
+                  </div>
+                  <Chip tone={e.status}>Ativa</Chip>
+                </div>
+              ))
+              : EMBARCACOES_PROXIMAS.map((e, i) => (
+                <div
+                  key={e.nome}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '9px 16px',
+                    borderBottom: i < EMBARCACOES_PROXIMAS.length - 1 ? '1px solid var(--border)' : 'none',
+                    cursor: 'pointer', transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={ev => ev.currentTarget.style.background = 'var(--surface2)'}
+                  onMouseLeave={ev => ev.currentTarget.style.background = 'transparent'}
+                >
+                  <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px', fontWeight: 600, color: 'var(--text)', flex: 1 }}>
+                    {e.nome}
+                  </div>
+                  <div style={{ textAlign: 'right', marginRight: 8 }}>
+                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '15px', color: 'var(--text2)' }}>{e.embarque}</div>
+                    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '8px', color: 'var(--muted)' }}>embarque</div>
+                  </div>
+                  <Chip tone={e.gate}>{e.gate === 'green' ? 'Apto' : e.gate === 'red' ? 'Não apto' : 'Atenção'}</Chip>
+                </div>
+              ))
+            }
           </Panel>
         </div>
 
