@@ -52,6 +52,7 @@ model Employee {
   dailyReports       DailyReport[]
   serviceOrders      ServiceOrder[]
   financialRequests  FinancialRequest[]
+  deploymentMembers  DeploymentMember[]
 
   @@map("employees")
 }
@@ -105,6 +106,7 @@ model Deployment {
   employee        Employee? @relation(fields: [employeeId], references: [id])
   vessel          Vessel?   @relation(fields: [vesselId], references: [id])
   tickets         DeploymentTicket[]
+  members         DeploymentMember[]
 
   @@map("deployments")
 }
@@ -309,3 +311,19 @@ model PortalUser {
   @@map("portal_users")
 }
 
+model DeploymentMember {
+  id           Int      @id @default(autoincrement())
+  deploymentId Int      @map("deployment_id")
+  employeeId   Int      @map("employee_id")
+  gateStatus   String   @default("PENDENTE") @map("gate_status")
+  gateNotes    String?  @map("gate_notes")
+  addedAt      DateTime @default(now()) @map("added_at") @db.Timestamptz(6)
+
+  deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([deploymentId, employeeId])
+  @@index([deploymentId])
+  @@index([employeeId])
+  @@map("deployment_members")
+}

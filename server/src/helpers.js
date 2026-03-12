@@ -146,6 +146,17 @@ export const mapDocument = (d) => ({
   document_code: d.documentType?.code,
   document_name: d.documentType?.name,
 });
+
+export const mapDeploymentMember = (m) => ({
+  id: m.id,
+  deployment_id: m.deploymentId,
+  employee_id: m.employeeId,
+  gate_status: m.gateStatus,
+  gate_notes: m.gateNotes,
+  added_at: m.addedAt,
+  employee: m.employee ? mapEmployee(m.employee) : undefined,
+});
+
 export const mapDeployment = (d) => ({
   id: d.id,
   employee_id: d.employeeId,
@@ -158,6 +169,9 @@ export const mapDeployment = (d) => ({
   transport_type: d.transportType,
   departure_hub: d.departureHub,
   service_type: d.serviceType,
+  members: Array.isArray(d.members)
+    ? d.members.map(mapDeploymentMember)
+    : undefined,
   employee: d.employee ? mapEmployee(d.employee) : undefined,
   vessel: d.vessel ? mapVessel(d.vessel) : undefined,
   created_at: d.createdAt,

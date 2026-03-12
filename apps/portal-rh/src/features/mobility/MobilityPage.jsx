@@ -83,7 +83,12 @@ export default function MobilityPage() {
         })}
       </div>
 
-      <DeploymentDetailModal open={!!selected} deployment={selected} onClose={() => setSelected(null)} />
+      <DeploymentDetailModal
+  open={!!selected}
+  deployment={selected}
+  onClose={() => setSelected(null)}
+  onReload={load}
+/>
       <DeploymentFormModal
         open={openForm}
         onClose={() => setOpenForm(false)}
