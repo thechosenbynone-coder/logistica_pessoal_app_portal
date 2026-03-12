@@ -3,8 +3,8 @@ import { cn } from './ui.js';
 
 const tones = {
   gray:   { background: 'var(--surface2)', color: 'var(--muted)',  border: '1px solid var(--border)' },
-  blue:   { background: 'var(--blue-bg)',  color: 'var(--blue)',   border: '1px solid rgba(96,165,250,0.2)' },
-  green:  { background: 'var(--green-bg)', color: 'var(--green)',  border: '1px solid rgba(34,197,94,0.2)' },
+  blue:   { background: 'var(--blue-bg)',  color: 'var(--blue)',   border: '1px solid var(--blue-dim)' },
+  green:  { background: 'var(--green-bg)', color: 'var(--green)',  border: '1px solid var(--green-dim)' },
   yellow: { background: 'var(--amber-bg)', color: 'var(--amber)',  border: '1px solid var(--amber-dim)' },
   amber:  { background: 'var(--amber-bg)', color: 'var(--amber)',  border: '1px solid var(--amber-dim)' },
   red:    { background: 'var(--red-bg)',   color: 'var(--red)',    border: '1px solid var(--red-dim)' },

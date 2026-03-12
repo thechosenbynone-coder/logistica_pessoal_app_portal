@@ -104,6 +104,7 @@ const apiService = {
     pendencias: async () => (await api.get('/dashboard/pendencias')).data,
     escalas: async () => (await api.get('/dashboard/escalas')).data,
     vesselsSummary: async () => (await api.get('/dashboard/vessels-summary')).data,
+    vesselsUpcoming: async () => (await api.get('/dashboard/vessels-upcoming')).data,
     activity: async () => (await api.get('/dashboard/activity')).data,
   },
   employees: {

@@ -13,9 +13,9 @@ export const chip = (tone = 'muted') => {
     muted:  { background: 'var(--surface2)', color: 'var(--muted)',  border: '1px solid var(--border)' },
     red:    { background: 'var(--red-bg)',   color: 'var(--red)',    border: '1px solid var(--red-dim)' },
     amber:  { background: 'var(--amber-bg)', color: 'var(--amber)',  border: '1px solid var(--amber-dim)' },
-    green:  { background: 'var(--green-bg)', color: 'var(--green)',  border: '1px solid rgba(34,197,94,0.2)' },
-    blue:   { background: 'var(--blue-bg)',  color: 'var(--blue)',   border: '1px solid rgba(96,165,250,0.2)' },
-    orange: { background: 'var(--orange-bg)',color: 'var(--orange)', border: '1px solid rgba(251,146,60,0.2)' },
+    green:  { background: 'var(--green-bg)', color: 'var(--green)',  border: '1px solid var(--green-dim)' },
+    blue:   { background: 'var(--blue-bg)',  color: 'var(--blue)',   border: '1px solid var(--blue-dim)' },
+    orange: { background: 'var(--orange-bg)',color: 'var(--orange)', border: '1px solid var(--orange-dim)' },
   };
   return {
     display: 'inline-flex',
