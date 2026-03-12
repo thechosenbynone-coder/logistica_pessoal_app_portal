@@ -100,6 +100,7 @@ model Deployment {
   status          DeploymentStatus @default(PLANEJADO)
   transportType   String?    @map("transport_type")
   departureHub    String?    @map("departure_hub")
+  serviceType     String?    @map("service_type")
 
   employee        Employee? @relation(fields: [employeeId], references: [id])
   vessel          Vessel?   @relation(fields: [vesselId], references: [id])

@@ -44,7 +44,9 @@ export default function MobilityPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={secTitle()}>Escalas e Embarques</div>
-          <div style={monoLabel({ marginTop: 2 })}>{items.length} colaboradores em acompanhamento</div>
+          <div style={monoLabel({ marginTop: 2 })}>
+            {items.filter(i => ['PLANEJADO','CONFIRMADO','DOCS_OK','EMBARCADO'].includes(i.status)).length} embarques ativos
+          </div>
         </div>
         <button
           onClick={() => setOpenForm(true)}

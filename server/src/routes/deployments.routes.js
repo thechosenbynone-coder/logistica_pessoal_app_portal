@@ -46,7 +46,7 @@ router.get('/api/employees/:id/deployments', ...employeeParamsAuth, async (req, 
 router.post('/api/deployments', requireAdminKeyIfConfigured, async (req, res) => {
   try {
     const data = req.body || {};
-    if (!data.employee_id || !data.start_date || !data.end_date_expected) return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'employee_id, start_date, end_date_expected são obrigatórios' });
+    if (!data.start_date || !data.end_date_expected) return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'start_date e end_date_expected são obrigatórios' });
     const startDateParsed = parseDateInputOrError(data.start_date, 'start_date', true);
     if (startDateParsed.error) return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: startDateParsed.error });
     const endDateExpectedParsed = parseDateInputOrError(data.end_date_expected, 'end_date_expected', true);
@@ -54,8 +54,24 @@ router.post('/api/deployments', requireAdminKeyIfConfigured, async (req, res) =>
     const endDateActualParsed = parseDateInputOrError(data.end_date_actual, 'end_date_actual');
     if (endDateActualParsed.error) return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: endDateActualParsed.error });
 
-    const row = await prisma.deployment.create({ data: { employeeId: Number(data.employee_id), vesselId: data.vessel_id ? Number(data.vessel_id) : null, startDate: startDateParsed.value, endDateExpected: endDateExpectedParsed.value, endDateActual: endDateActualParsed.value, notes: data.notes || null, status: data.status || undefined, transportType: data.transport_type || null, departureHub: data.departure_hub || null }, include: { employee: true, vessel: true } });
-    await computeEmployeeDocStatus(Number(data.employee_id));
+    const row = await prisma.deployment.create({
+      data: {
+        employeeId: data.employee_id ? Number(data.employee_id) : null,
+        vesselId: data.vessel_id ? Number(data.vessel_id) : null,
+        startDate: startDateParsed.value,
+        endDateExpected: endDateExpectedParsed.value,
+        endDateActual: endDateActualParsed.value,
+        notes: data.notes || null,
+        status: data.status || undefined,
+        transportType: data.transport_type || null,
+        departureHub: data.departure_hub || null,
+        serviceType: data.service_type || null,
+      },
+      include: { employee: true, vessel: true },
+    });
+    if (data.employee_id) {
+      await computeEmployeeDocStatus(Number(data.employee_id));
+    }
     res.status(201).json(mapDeployment(row));
   } catch (error) { handleServerError(res, error, 'deployments-create'); }
 });

@@ -157,6 +157,7 @@ export const mapDeployment = (d) => ({
   status: d.status,
   transport_type: d.transportType,
   departure_hub: d.departureHub,
+  service_type: d.serviceType,
   employee: d.employee ? mapEmployee(d.employee) : undefined,
   vessel: d.vessel ? mapVessel(d.vessel) : undefined,
   created_at: d.createdAt,
