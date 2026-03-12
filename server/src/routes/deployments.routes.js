@@ -1,7 +1,7 @@
 import express from 'express';
 import { prisma } from '../prismaClient.js';
 import { computeEmployeeDocStatus } from '../services/employeeDocStatus.js';
-import { employeeParamsAuth, handleServerError, mapDeployment, parseDateInputOrError, parseEmployeeIdParam, parseRequiredInteger, requireAdminKeyIfConfigured, resolvePagination, shouldUsePaginatedResponse } from '../helpers.js';
+import { employeeParamsAuth, handleServerError, mapDeployment, mapDeploymentMember, parseDateInputOrError, parseEmployeeIdParam, parseRequiredInteger, requireAdminKeyIfConfigured, resolvePagination, shouldUsePaginatedResponse } from '../helpers.js';
 
 const router = express.Router();
 const transitions = {
@@ -25,7 +25,7 @@ const buildWhere = (query, includeQ = false) => {
 router.get('/api/deployments', async (req, res) => {
   try {
     if (!shouldUsePaginatedResponse(req.query)) {
-      const rows = await prisma.deployment.findMany({ where: buildWhere(req.query), include: { employee: true, vessel: true }, orderBy: { id: 'asc' } });
+      const rows = await prisma.deployment.findMany({ where: buildWhere(req.query), include: { employee: true, vessel: true, members: { include: { employee: true } } }, orderBy: { id: 'asc' } });
       return res.json(rows.map(mapDeployment));
     }
 
@@ -34,13 +34,13 @@ router.get('/api/deployments', async (req, res) => {
     const total = await prisma.deployment.count({ where });
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     const safePage = Math.min(page, totalPages);
-    const rows = await prisma.deployment.findMany({ where, include: { employee: true, vessel: true }, orderBy: { id: 'asc' }, skip: (safePage - 1) * pageSize, take: pageSize });
+    const rows = await prisma.deployment.findMany({ where, include: { employee: true, vessel: true, members: { include: { employee: true } } }, orderBy: { id: 'asc' }, skip: (safePage - 1) * pageSize, take: pageSize });
 
     return res.json({ items: rows.map(mapDeployment), page: safePage, pageSize, total, totalPages, hasMore: safePage < totalPages });
   } catch (error) { handleServerError(res, error, 'deployments-list'); }
 });
 router.get('/api/employees/:id/deployments', ...employeeParamsAuth, async (req, res) => {
-  try { const employeeId = parseEmployeeIdParam(req, res); if (!employeeId) return; const rows = await prisma.deployment.findMany({ where: { employeeId }, include: { employee: true, vessel: true }, orderBy: { id: 'asc' } }); res.json(rows.map(mapDeployment)); }
+  try { const employeeId = parseEmployeeIdParam(req, res); if (!employeeId) return; const rows = await prisma.deployment.findMany({ where: { employeeId }, include: { employee: true, vessel: true, members: { include: { employee: true } } }, orderBy: { id: 'asc' } }); res.json(rows.map(mapDeployment)); }
   catch (error) { handleServerError(res, error, 'deployments-by-employee'); }
 });
 router.post('/api/deployments', requireAdminKeyIfConfigured, async (req, res) => {
@@ -67,7 +67,7 @@ router.post('/api/deployments', requireAdminKeyIfConfigured, async (req, res) =>
         departureHub: data.departure_hub || null,
         serviceType: data.service_type || null,
       },
-      include: { employee: true, vessel: true },
+      include: { employee: true, vessel: true, members: { include: { employee: true } } },
     });
     if (data.employee_id) {
       await computeEmployeeDocStatus(Number(data.employee_id));
@@ -86,7 +86,7 @@ router.patch('/api/deployments/:id/status', requireAdminKeyIfConfigured, async (
     if (!transitions[deployment.status]?.includes(target)) {
       return res.status(400).json({ errorCode: 'INVALID_TRANSITION', message: `Transição inválida de ${deployment.status} para ${target}` });
     }
-    const updated = await prisma.deployment.update({ where: { id: id.value }, data: { status: target }, include: { employee: true, vessel: true } });
+    const updated = await prisma.deployment.update({ where: { id: id.value }, data: { status: target }, include: { employee: true, vessel: true, members: { include: { employee: true } } } });
     res.json(mapDeployment(updated));
   } catch (error) { handleServerError(res, error, 'deployments-status-update'); }
 });
@@ -117,6 +117,105 @@ router.delete('/api/deployments/:id/tickets/:tid', requireAdminKeyIfConfigured, 
     await prisma.deploymentTicket.delete({ where: { id: tid.value } });
     res.status(204).send();
   } catch (error) { handleServerError(res, error, 'deployment-tickets-delete'); }
+});
+
+
+// ─── Membros do embarque ─────────────────────────────────────────
+
+router.get('/api/deployments/:id/members', async (req, res) => {
+  try {
+    const id = parseRequiredInteger(req.params.id, 'id');
+    if (id?.error) return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: id.error });
+
+    const members = await prisma.deploymentMember.findMany({
+      where: { deploymentId: id.value },
+      include: { employee: true },
+      orderBy: { addedAt: 'asc' },
+    });
+
+    res.json(members.map(mapDeploymentMember));
+  } catch (error) { handleServerError(res, error, 'deployment-members-list'); }
+});
+
+router.post('/api/deployments/:id/members', requireAdminKeyIfConfigured, async (req, res) => {
+  try {
+    const id = parseRequiredInteger(req.params.id, 'id');
+    if (id?.error) return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: id.error });
+
+    const employeeId = Number(req.body?.employee_id);
+    if (!employeeId || !Number.isInteger(employeeId)) {
+      return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'employee_id é obrigatório' });
+    }
+
+    const existing = await prisma.deploymentMember.findUnique({
+      where: { deploymentId_employeeId: { deploymentId: id.value, employeeId } },
+    });
+    if (existing) {
+      return res.status(409).json({ errorCode: 'ALREADY_MEMBER', message: 'Colaborador já está neste embarque' });
+    }
+
+    const activeDeployment = await prisma.deploymentMember.findFirst({
+      where: {
+        employeeId,
+        deploymentId: { not: id.value },
+        deployment: { status: 'EMBARCADO' },
+      },
+    });
+
+    await computeEmployeeDocStatus(employeeId);
+    const docStatuses = await prisma.employeeDocStatus.findMany({
+      where: { employeeId },
+    });
+
+    const vencidos = docStatuses.filter((d) => d.status === 'VENCIDO');
+    const atencao = docStatuses.filter((d) => ['VENCENDO', 'VENCE_NO_EMBARQUE', 'RISCO_REEMBARQUE'].includes(d.status));
+
+    let gateStatus = 'APTO';
+    const notes = [];
+
+    if (activeDeployment) {
+      gateStatus = 'NAO_APTO';
+      notes.push('Colaborador já está embarcado em outro embarque ativo.');
+    }
+
+    if (vencidos.length > 0) {
+      gateStatus = 'NAO_APTO';
+      notes.push(`Documentos vencidos: ${vencidos.map((d) => d.docType).join(', ')}`);
+    }
+
+    if (gateStatus === 'APTO' && atencao.length > 0) {
+      gateStatus = 'ATENCAO';
+      notes.push(`Documentos próximos do vencimento: ${atencao.map((d) => d.docType).join(', ')}`);
+    }
+
+    const member = await prisma.deploymentMember.create({
+      data: {
+        deploymentId: id.value,
+        employeeId,
+        gateStatus,
+        gateNotes: notes.length > 0 ? notes.join(' | ') : null,
+      },
+      include: { employee: true },
+    });
+
+    res.status(201).json(mapDeploymentMember(member));
+  } catch (error) { handleServerError(res, error, 'deployment-members-add'); }
+});
+
+router.delete('/api/deployments/:id/members/:employeeId', requireAdminKeyIfConfigured, async (req, res) => {
+  try {
+    const id = parseRequiredInteger(req.params.id, 'id');
+    if (id?.error) return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: id.error });
+
+    const employeeId = Number(req.params.employeeId);
+    if (!employeeId) return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'employeeId inválido' });
+
+    await prisma.deploymentMember.deleteMany({
+      where: { deploymentId: id.value, employeeId },
+    });
+
+    res.status(204).send();
+  } catch (error) { handleServerError(res, error, 'deployment-members-remove'); }
 });
 
 export default router;

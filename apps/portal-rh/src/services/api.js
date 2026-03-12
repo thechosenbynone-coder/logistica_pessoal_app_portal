@@ -192,6 +192,12 @@ const apiService = {
       normalizeListResponse((await api.get(`/deployments/${id}/tickets`)).data),
     createTicket: async (id, data) => (await api.post(`/deployments/${id}/tickets`, data)).data,
     removeTicket: async (id, tid) => (await api.delete(`/deployments/${id}/tickets/${tid}`)).data,
+    listMembers: async (id) =>
+      (await api.get(`/deployments/${id}/members`)).data || [],
+    addMember: async (id, employeeId) =>
+      (await api.post(`/deployments/${id}/members`, { employee_id: employeeId })).data,
+    removeMember: async (id, employeeId) =>
+      (await api.delete(`/deployments/${id}/members/${employeeId}`)).data,
     listByEmployee: async (employeeId) =>
       normalizeListResponse((await api.get(`/employees/${employeeId}/deployments`)).data),
   },
