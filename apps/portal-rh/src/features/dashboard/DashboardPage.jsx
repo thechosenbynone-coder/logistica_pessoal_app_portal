@@ -94,17 +94,17 @@ function Chip({ tone = 'muted', children }) {
     green: {
       background: 'var(--green-bg)',
       color: 'var(--green)',
-      border: '1px solid rgba(34,197,94,0.2)',
+      border: '1px solid var(--green-dim)',
     },
     blue: {
       background: 'var(--blue-bg)',
       color: 'var(--blue)',
-      border: '1px solid rgba(96,165,250,0.2)',
+      border: '1px solid var(--blue-dim)',
     },
     orange: {
       background: 'var(--orange-bg)',
       color: 'var(--orange)',
-      border: '1px solid rgba(251,146,60,0.2)',
+      border: '1px solid var(--orange-dim)',
     },
   };
   return (
@@ -275,19 +275,12 @@ function ListItem({ dot, name, detail, chip, chipTone }) {
 
 // ─── Dashboard ──────────────────────────────────────────────────
 
-const EMBARCACOES_PROXIMAS = [
-  { nome: 'Plataforma P-58', embarque: '10/03', gate: 'green' },
-  { nome: 'Plataforma P-09', embarque: '11/03', gate: 'red' },
-  { nome: 'Plataforma P-74', embarque: '12/03', gate: 'amber' },
-  { nome: 'FPSO SBM', embarque: '15/03', gate: 'green' },
-  { nome: 'Sonda NS-42', embarque: '18/03', gate: 'green' },
-];
-
 export default function DashboardPage({ onNavigate }) {
   const [metrics, setMetrics] = useState(null);
   const [pendencias, setPendencias] = useState(null);
   const [escalas, setEscalas] = useState(null);
   const [vessels, setVessels] = useState(null);
+  const [vesselsUpcoming, setVesselsUpcoming] = useState(null);
   const [activity, setActivity] = useState(null);
   const [embTab, setEmbTab] = useState('ativas');
   const [detailIdx, setDetailIdx] = useState(null);
@@ -311,13 +304,15 @@ export default function DashboardPage({ onNavigate }) {
       api.dashboard.pendencias(),
       api.dashboard.escalas(),
       api.dashboard.vesselsSummary(),
+      api.dashboard.vesselsUpcoming(),
       api.dashboard.activity(),
-    ]).then(([metricsRes, pendenciasRes, escalasRes, vesselsRes, activityRes]) => {
+    ]).then(([metricsRes, pendenciasRes, escalasRes, vesselsRes, upcomingRes, activityRes]) => {
       if (!mounted) return;
       setMetrics(metricsRes.status === 'fulfilled' ? metricsRes.value || {} : {});
       setPendencias(pendenciasRes.status === 'fulfilled' ? pendenciasRes.value || [] : []);
       setEscalas(escalasRes.status === 'fulfilled' ? escalasRes.value || null : null);
       setVessels(vesselsRes.status === 'fulfilled' ? vesselsRes.value || [] : []);
+      setVesselsUpcoming(upcomingRes.status === 'fulfilled' ? upcomingRes.value || [] : []);
       setActivity(activityRes.status === 'fulfilled' ? activityRes.value || [] : []);
     });
 
@@ -373,7 +368,7 @@ export default function DashboardPage({ onNavigate }) {
         label: 'Solicitações',
         value: formatMetric(metrics?.financialRequestsPending, '0'),
         hint: 'Aguardando aprovação',
-        tone: 'blue',
+        tone: 'orange',
         onClick: () => goTo('/requests?status=pending'),
         icon: (
           <svg
@@ -391,8 +386,22 @@ export default function DashboardPage({ onNavigate }) {
       {
         label: 'EPI Estoque Baixo',
         value: formatMetric(metrics?.equipmentLowStock, '0'),
-        hint: 'Estoque mínimo',
-        tone: 'orange',
+        hint:
+          metrics === null
+            ? '—'
+            : metrics.equipmentLowStock === 0
+              ? 'Estoque ok'
+              : metrics.equipmentLowStock < 5
+                ? 'Atenção ao estoque'
+                : 'Estoque crítico',
+        tone:
+          metrics === null
+            ? 'muted'
+            : metrics.equipmentLowStock === 0
+              ? 'blue'
+              : metrics.equipmentLowStock < 5
+                ? 'amber'
+                : 'red',
         onClick: () => goTo('/equipment?filter=low_stock'),
         icon: (
           <svg
@@ -678,7 +687,7 @@ export default function DashboardPage({ onNavigate }) {
                       ? {
                           background: 'var(--blue-bg)',
                           color: 'var(--blue)',
-                          border: '1px solid rgba(96,165,250,0.2)',
+                          border: '1px solid var(--blue-dim)',
                         }
                       : {
                           background: 'var(--surface2)',
@@ -773,60 +782,86 @@ export default function DashboardPage({ onNavigate }) {
               )
             ) : (
               <>
-                {/* TODO: endpoint de próximas embarcações ainda não implementado */}
-                {EMBARCACOES_PROXIMAS.map((e, i) => (
-                  <div
-                    key={e.nome}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      padding: '9px 16px',
-                      borderBottom:
-                        i < EMBARCACOES_PROXIMAS.length - 1 ? '1px solid var(--border)' : 'none',
-                      cursor: 'pointer',
-                      transition: 'background 0.1s',
-                    }}
-                    onMouseEnter={(ev) => (ev.currentTarget.style.background = 'var(--surface2)')}
-                    onMouseLeave={(ev) => (ev.currentTarget.style.background = 'transparent')}
-                  >
+                {vesselsUpcoming === null ? (
+                  Array.from({ length: 3 }).map((_, i) => (
                     <div
+                      key={i}
                       style={{
-                        fontFamily: "'IBM Plex Mono', monospace",
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: 'var(--text)',
-                        flex: 1,
+                        height: 44,
+                        background: 'var(--surface2)',
+                        borderRadius: 4,
+                        margin: '6px 16px',
+                        opacity: 0.5,
                       }}
+                    />
+                  ))
+                ) : vesselsUpcoming.length === 0 ? (
+                  <div
+                    style={{
+                      padding: '20px 16px',
+                      textAlign: 'center',
+                      fontFamily: "'IBM Plex Mono', monospace",
+                      fontSize: '11px',
+                      color: 'var(--muted)',
+                    }}
+                  >
+                    Nenhum embarque previsto nos próximos 30 dias
+                  </div>
+                ) : (
+                  vesselsUpcoming.map((e, i) => (
+                    <div
+                      key={e.name}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '9px 16px',
+                        borderBottom:
+                          i < vesselsUpcoming.length - 1 ? '1px solid var(--border)' : 'none',
+                        cursor: 'pointer',
+                        transition: 'background 0.1s',
+                      }}
+                      onMouseEnter={(ev) => (ev.currentTarget.style.background = 'var(--surface2)')}
+                      onMouseLeave={(ev) => (ev.currentTarget.style.background = 'transparent')}
                     >
-                      {e.nome}
-                    </div>
-                    <div style={{ textAlign: 'right', marginRight: 8 }}>
-                      <div
-                        style={{
-                          fontFamily: "'Syne', sans-serif",
-                          fontWeight: 800,
-                          fontSize: '15px',
-                          color: 'var(--text2)',
-                        }}
-                      >
-                        {e.embarque}
-                      </div>
                       <div
                         style={{
                           fontFamily: "'IBM Plex Mono', monospace",
-                          fontSize: '8px',
-                          color: 'var(--muted)',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          color: 'var(--text)',
+                          flex: 1,
                         }}
                       >
-                        embarque
+                        {e.name}
                       </div>
+                      <div style={{ textAlign: 'right', marginRight: 8 }}>
+                        <div
+                          style={{
+                            fontFamily: "'Syne', sans-serif",
+                            fontWeight: 800,
+                            fontSize: '15px',
+                            color: 'var(--text2)',
+                          }}
+                        >
+                          {e.embarque}
+                        </div>
+                        <div
+                          style={{
+                            fontFamily: "'IBM Plex Mono', monospace",
+                            fontSize: '8px',
+                            color: 'var(--muted)',
+                          }}
+                        >
+                          embarque
+                        </div>
+                      </div>
+                      <Chip tone={e.gate}>
+                        {e.gate === 'green' ? 'Apto' : e.gate === 'red' ? 'Não apto' : 'Atenção'}
+                      </Chip>
                     </div>
-                    <Chip tone={e.gate}>
-                      {e.gate === 'green' ? 'Apto' : e.gate === 'red' ? 'Não apto' : 'Atenção'}
-                    </Chip>
-                  </div>
-                ))}
+                  ))
+                )}
               </>
             )}
           </Panel>

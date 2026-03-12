@@ -315,7 +315,7 @@ export default function EmployeesPage() {
                         borderRadius: '3px', padding: '2px 6px', letterSpacing: '0.04em', fontWeight: 500,
                         ...(emp.active === false
                           ? { background: 'var(--surface2)', color: 'var(--muted)', border: '1px solid var(--border)' }
-                          : { background: 'var(--green-bg)', color: 'var(--green)', border: '1px solid rgba(34,197,94,0.2)' }),
+                          : { background: 'var(--green-bg)', color: 'var(--green)', border: '1px solid var(--green-dim)' }),
                       }}>
                         {emp.active === false ? 'Inativo' : 'Ativo'}
                       </span>

@@ -214,6 +214,46 @@ router.get('/api/dashboard/vessels-summary', async (_req, res) => {
   }
 });
 
+
+router.get('/api/dashboard/vessels-upcoming', async (_req, res) => {
+  try {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() + 30);
+
+    const deployments = await prisma.deployment.findMany({
+      where: {
+        status: 'PLANEJADO',
+        startDate: { lte: cutoff },
+      },
+      include: {
+        vessel: { select: { name: true } },
+      },
+      orderBy: { startDate: 'asc' },
+    });
+
+    const byVessel = {};
+    for (const d of deployments) {
+      const vName = d.vessel?.name || 'Desconhecida';
+      if (!byVessel[vName]) {
+        byVessel[vName] = {
+          name: vName,
+          embarque: new Date(d.startDate).toLocaleDateString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+          }),
+          count: 0,
+          gate: 'green',
+        };
+      }
+      byVessel[vName].count++;
+    }
+
+    res.json(Object.values(byVessel));
+  } catch (error) {
+    handleServerError(res, error, 'dashboard-vessels-upcoming');
+  }
+});
+
 router.get('/api/dashboard/activity', async (_req, res) => {
   try {
     const limit = 5;
