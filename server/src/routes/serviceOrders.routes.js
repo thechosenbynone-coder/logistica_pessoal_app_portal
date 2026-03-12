@@ -1,5 +1,6 @@
 import express from 'express';
 import { prisma } from '../prismaClient.js';
+import { resolveActiveDeploymentId } from './deployments.routes.js';
 import { employeeBodyAuth, employeeParamsAuth, handleServerError, mapServiceOrder, parseDateInputOrError, parseEmployeeIdParam, parseRequiredInteger, resolvePagination, shouldUsePaginatedResponse } from '../helpers.js';
 
 const router = express.Router();
@@ -24,7 +25,7 @@ const buildWhere = (query, includeQ = false) => {
 router.get('/api/service-orders', async (req, res) => {
   try {
     if (!shouldUsePaginatedResponse(req.query)) {
-      const rows = await prisma.serviceOrder.findMany({ where: buildWhere(req.query), include: { employee: true, vessel: true }, orderBy: { id: 'asc' } });
+      const rows = await prisma.serviceOrder.findMany({ where: buildWhere(req.query), include: { employee: true, vessel: true, deployment: { include: { vessel: true } } }, orderBy: { id: 'asc' } });
       return res.json(rows.map(mapServiceOrder));
     }
 
@@ -34,7 +35,7 @@ router.get('/api/service-orders', async (req, res) => {
     const total = await prisma.serviceOrder.count({ where });
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     const safePage = Math.min(page, totalPages);
-    const rows = await prisma.serviceOrder.findMany({ where, include: { employee: true, vessel: true }, orderBy: { id: 'asc' }, skip: (safePage - 1) * pageSize, take: pageSize });
+    const rows = await prisma.serviceOrder.findMany({ where, include: { employee: true, vessel: true, deployment: { include: { vessel: true } } }, orderBy: { id: 'asc' }, skip: (safePage - 1) * pageSize, take: pageSize });
 
     return res.json({ items: rows.map(mapServiceOrder), page: safePage, pageSize, total, totalPages, hasMore: safePage < totalPages });
   } catch (error) { handleServerError(res, error, 'service-orders-list'); }
@@ -49,13 +50,13 @@ router.patch('/api/service-orders/:id/review', async (req, res) => {
     const mapped = mapReviewAction[action];
     if (!mapped) return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'action inválida' });
     if (['REJEITAR', 'SOLICITAR_CORRECAO'].includes(action) && !String(reason || '').trim()) return res.status(400).json({ errorCode: 'VALIDATION_ERROR', message: 'reason é obrigatório para esta ação' });
-    const row = await prisma.serviceOrder.update({ where: { id: id.value }, data: { approvalStatus: mapped, reviewedBy: String(reviewedBy).trim(), reviewedAt: new Date(), rejectionReason: action === 'APROVAR' ? null : String(reason).trim() }, include: { employee: true, vessel: true } });
+    const row = await prisma.serviceOrder.update({ where: { id: id.value }, data: { approvalStatus: mapped, reviewedBy: String(reviewedBy).trim(), reviewedAt: new Date(), rejectionReason: action === 'APROVAR' ? null : String(reason).trim() }, include: { employee: true, vessel: true, deployment: { include: { vessel: true } } } });
     res.json(mapServiceOrder(row));
   } catch (error) { handleServerError(res, error, 'service-orders-review'); }
 });
 
 router.get('/api/employees/:id/service-orders', ...employeeParamsAuth, async (req, res) => {
-  try { const employeeId = parseEmployeeIdParam(req, res); if (!employeeId) return; const rows = await prisma.serviceOrder.findMany({ where: { employeeId }, include: { employee: true, vessel: true }, orderBy: { id: 'desc' } }); res.json(rows.map(mapServiceOrder)); }
+  try { const employeeId = parseEmployeeIdParam(req, res); if (!employeeId) return; const rows = await prisma.serviceOrder.findMany({ where: { employeeId }, include: { employee: true, vessel: true, deployment: { include: { vessel: true } } }, orderBy: { id: 'desc' } }); res.json(rows.map(mapServiceOrder)); }
   catch (error) { handleServerError(res, error, 'service-orders-by-employee'); }
 });
 router.post('/api/service-orders', ...employeeBodyAuth, async (req, res) => {
@@ -72,10 +73,26 @@ router.post('/api/service-orders', ...employeeBodyAuth, async (req, res) => {
     let row; let created = true;
     if (data.client_id) {
       const existing = await prisma.serviceOrder.findUnique({ where: { clientId: data.client_id } });
-      const up = await prisma.serviceOrder.upsert({ where: { clientId: data.client_id }, create: { employeeId: data.employee_id ? Number(data.employee_id) : null, osNumber, title: data.title || null, description: data.description, priority: data.priority || null, openedAt: openedAtParsed.value, approvalStatus: data.approval_status || null, vesselId: data.vessel_id ? Number(data.vessel_id) : null, status: data.status || null, clientId: data.client_id, clientFilledAt: clientFilledAtParsed.value }, update: {}, include: { employee: true, vessel: true } });
+      const up = await prisma.serviceOrder.upsert({ where: { clientId: data.client_id }, create: { employeeId: data.employee_id ? Number(data.employee_id) : null, osNumber, title: data.title || null, description: data.description, priority: data.priority || null, openedAt: openedAtParsed.value, approvalStatus: data.approval_status || null, vesselId: data.vessel_id ? Number(data.vessel_id) : null, status: data.status || null, clientId: data.client_id, clientFilledAt: clientFilledAtParsed.value, deploymentId: data.deployment_id ? Number(data.deployment_id) : await resolveActiveDeploymentId(data.employee_id) }, update: {}, include: { employee: true, vessel: true, deployment: { include: { vessel: true } } } });
       row = up; created = !existing;
     } else {
-      row = await prisma.serviceOrder.create({ data: { employeeId: data.employee_id ? Number(data.employee_id) : null, osNumber, title: data.title || null, description: data.description, priority: data.priority || null, openedAt: openedAtParsed.value, approvalStatus: data.approval_status || null, vesselId: data.vessel_id ? Number(data.vessel_id) : null, status: data.status || null, clientFilledAt: clientFilledAtParsed.value }, include: { employee: true, vessel: true } });
+      const activeDeploymentId = await resolveActiveDeploymentId(data.employee_id);
+      row = await prisma.serviceOrder.create({
+        data: {
+          employeeId: data.employee_id ? Number(data.employee_id) : null,
+          osNumber,
+          title: data.title || null,
+          description: data.description,
+          priority: data.priority || null,
+          openedAt: openedAtParsed.value,
+          approvalStatus: data.approval_status || null,
+          vesselId: data.vessel_id ? Number(data.vessel_id) : null,
+          status: data.status || null,
+          clientFilledAt: clientFilledAtParsed.value,
+          deploymentId: data.deployment_id ? Number(data.deployment_id) : activeDeploymentId,
+        },
+        include: { employee: true, vessel: true, deployment: { include: { vessel: true } } },
+      });
     }
     res.status(data.client_id ? 200 : created ? 201 : 200).json(mapServiceOrder(row));
   } catch (error) { handleServerError(res, error, 'service-orders-create'); }

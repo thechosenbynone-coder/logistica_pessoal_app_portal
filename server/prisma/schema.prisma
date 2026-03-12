@@ -107,6 +107,8 @@ model Deployment {
   vessel          Vessel?   @relation(fields: [vesselId], references: [id])
   tickets         DeploymentTicket[]
   members         DeploymentMember[]
+  dailyReports    DailyReport[]
+  serviceOrders   ServiceOrder[]
 
   @@map("deployments")
 }
@@ -207,10 +209,12 @@ model DailyReport {
   rejectionReason String?   @map("rejection_reason")
   clientId       String?    @unique(map: "idx_daily_reports_client_id_unique") @map("client_id")
   clientFilledAt DateTime?  @map("client_filled_at") @db.Timestamptz(6)
+  deploymentId   Int?       @map("deployment_id")
   createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  employee       Employee?  @relation(fields: [employeeId], references: [id])
+  employee       Employee?    @relation(fields: [employeeId], references: [id])
+  deployment     Deployment?  @relation(fields: [deploymentId], references: [id], onDelete: SetNull)
 
   @@index([employeeId, createdAt(sort: Desc)], map: "idx_daily_reports_employee_created_desc")
   @@map("daily_reports")
@@ -232,11 +236,13 @@ model ServiceOrder {
   status         String?
   clientId       String?    @unique(map: "idx_service_orders_client_id_unique") @map("client_id")
   clientFilledAt DateTime?  @map("client_filled_at") @db.Timestamptz(6)
+  deploymentId   Int?       @map("deployment_id")
   createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  employee       Employee?  @relation(fields: [employeeId], references: [id])
-  vessel         Vessel?    @relation(fields: [vesselId], references: [id])
+  employee       Employee?    @relation(fields: [employeeId], references: [id])
+  vessel         Vessel?      @relation(fields: [vesselId], references: [id])
+  deployment     Deployment?  @relation(fields: [deploymentId], references: [id], onDelete: SetNull)
 
   @@index([employeeId], map: "idx_service_orders_employee_id")
   @@index([employeeId, createdAt(sort: Desc)], map: "idx_service_orders_employee_created_desc")

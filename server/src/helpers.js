@@ -221,6 +221,10 @@ export const mapDailyReport = (d) => ({
   rejection_reason: d.rejectionReason,
   client_id: d.clientId,
   client_filled_at: d.clientFilledAt,
+  deployment_id: d.deploymentId,
+  deployment: d.deployment
+    ? { id: d.deployment.id, service_type: d.deployment.serviceType, vessel: d.deployment.vessel ? mapVessel(d.deployment.vessel) : undefined }
+    : undefined,
   employee: d.employee ? mapEmployee(d.employee) : undefined,
   created_at: d.createdAt,
   updated_at: d.updatedAt,
@@ -241,6 +245,10 @@ export const mapServiceOrder = (s) => ({
   status: s.status,
   client_id: s.clientId,
   client_filled_at: s.clientFilledAt,
+  deployment_id: s.deploymentId,
+  deployment: s.deployment
+    ? { id: s.deployment.id, service_type: s.deployment.serviceType, vessel: s.deployment.vessel ? mapVessel(s.deployment.vessel) : undefined }
+    : undefined,
   employee: s.employee ? mapEmployee(s.employee) : undefined,
   vessel: s.vessel ? mapVessel(s.vessel) : undefined,
   created_at: s.createdAt,

@@ -81,6 +81,7 @@ export default function WorkPage() {
                 <thead>
                   <tr>
                     <th style={thStyle}>Colaborador / Descrição</th>
+                    <th style={thStyle}>Embarque</th>
                     <th style={thStyle}>Status</th>
                     <th style={thStyle}>Ação</th>
                   </tr>
@@ -88,7 +89,7 @@ export default function WorkPage() {
                 <tbody>
                   {list.length === 0 ? (
                     <tr>
-                      <td colSpan={3} style={{ padding: '32px', textAlign: 'center', fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      <td colSpan={4} style={{ padding: '32px', textAlign: 'center', fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                         Nenhum registro encontrado
                       </td>
                     </tr>
@@ -104,6 +105,20 @@ export default function WorkPage() {
                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                       >
                         <td style={tdStyle()}>{item.description || item.title || `#${item.id}`}</td>
+                        <td style={tdStyle()}>
+                          {item.deployment ? (
+                            <div>
+                              <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text)' }}>
+                                {item.deployment.vessel?.name || `#${item.deployment.id}`}
+                              </div>
+                              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', color: 'var(--muted)' }}>
+                                {item.deployment.service_type || '—'}
+                              </div>
+                            </div>
+                          ) : (
+                            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', color: 'var(--muted)' }}>—</span>
+                          )}
+                        </td>
                         <td style={tdStyle()}>
                           <span style={chip(meta.tone)}>{meta.label}</span>
                         </td>
