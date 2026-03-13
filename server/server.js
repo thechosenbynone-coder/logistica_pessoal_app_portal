@@ -17,6 +17,7 @@ import serviceOrdersRouter from './src/routes/serviceOrders.routes.js';
 import financialRequestsRouter from './src/routes/financialRequests.routes.js';
 import dashboardRouter from './src/routes/dashboard.routes.js';
 import portalAuthRouter from './src/routes/portal-auth.routes.js';
+import toolsRouter from './src/routes/tools.routes.js';
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -71,7 +72,9 @@ app.use(express.json());
 app.use(cookieParser());
 app.use((error, _req, res, next) => {
   if (error instanceof SyntaxError && 'body' in error) {
-    return res.status(400).json({ code: 'INVALID_JSON', message: 'JSON inválido no corpo da requisição.' });
+    return res
+      .status(400)
+      .json({ code: 'INVALID_JSON', message: 'JSON inválido no corpo da requisição.' });
   }
   return next(error);
 });
@@ -104,6 +107,7 @@ app.use(dailyReportsRouter);
 app.use(serviceOrdersRouter);
 app.use(financialRequestsRouter);
 app.use(dashboardRouter);
+app.use(toolsRouter);
 
 app.get('/api/checkins', (_req, res) => res.json([]));
 app.post('/api/checkins', ...employeeBodyAuth, (_req, res) => res.status(201).json({ ok: true }));
