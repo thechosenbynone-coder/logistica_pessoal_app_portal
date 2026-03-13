@@ -3,6 +3,20 @@ import { prisma } from '../prismaClient.js';
 import { computeEmployeeDocStatus } from '../services/employeeDocStatus.js';
 import { employeeParamsAuth, handleServerError, mapDeployment, mapDeploymentMember, parseDateInputOrError, parseEmployeeIdParam, parseRequiredInteger, requireAdminKeyIfConfigured, resolvePagination, shouldUsePaginatedResponse } from '../helpers.js';
 
+// Retorna o deployment_id ativo do colaborador (via DeploymentMember + status EMBARCADO)
+async function resolveActiveDeploymentId(employeeId) {
+  if (!employeeId) return null;
+  const member = await prisma.deploymentMember.findFirst({
+    where: {
+      employeeId: Number(employeeId),
+      deployment: { status: 'EMBARCADO' },
+    },
+    select: { deploymentId: true },
+    orderBy: { addedAt: 'desc' },
+  });
+  return member?.deploymentId ?? null;
+}
+
 const router = express.Router();
 const transitions = {
   PLANEJADO: ['CONFIRMADO', 'CANCELADO'],
@@ -217,5 +231,7 @@ router.delete('/api/deployments/:id/members/:employeeId', requireAdminKeyIfConfi
     res.status(204).send();
   } catch (error) { handleServerError(res, error, 'deployment-members-remove'); }
 });
+
+export { resolveActiveDeploymentId };
 
 export default router;
