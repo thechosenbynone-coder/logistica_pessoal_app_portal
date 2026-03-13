@@ -258,11 +258,21 @@ export const mapFinancialRequest = (f) => ({
   id: f.id,
   employee_id: f.employeeId,
   type: f.type,
+  category: f.category,
   amount: f.amount,
   description: f.description,
   status: f.status,
+  deployment_id: f.deploymentId,
+  deployment: f.deployment
+    ? { id: f.deployment.id, service_type: f.deployment.serviceType, vessel: f.deployment.vessel ? mapVessel(f.deployment.vessel) : undefined }
+    : undefined,
+  payment_due_date: f.paymentDueDate,
+  reviewed_by: f.reviewedBy,
+  reviewed_at: f.reviewedAt,
+  rejection_reason: f.rejectionReason,
   client_id: f.clientId,
   client_filled_at: f.clientFilledAt,
+  employee: f.employee ? mapEmployee(f.employee) : undefined,
   created_at: f.createdAt,
   updated_at: f.updatedAt,
 });

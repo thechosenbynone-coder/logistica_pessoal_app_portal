@@ -253,11 +253,19 @@ const apiService = {
   financialRequests: {
     list: async (params) => {
       if (!params || Object.keys(params).length === 0 || !hasValidPaginatedParams(params))
-        return (await api.get('/financial-requests')).data;
+        return normalizeListResponse((await api.get('/financial-requests')).data);
       const query = buildPaginatedQuery(params);
       return (await api.get(`/financial-requests?${query}`)).data;
     },
+    listByType: async (type, status) => {
+      const qs = new URLSearchParams();
+      if (type)   qs.set('type',   type);
+      if (status) qs.set('status', status);
+      return normalizeListResponse((await api.get(`/financial-requests?${qs}`)).data);
+    },
     create: async (data) => (await api.post('/financial-requests', data)).data,
+    review: async (id, payload) =>
+      (await api.patch(`/financial-requests/${id}/review`, payload)).data,
   },
   embarkations: {
     getCurrent: async (employeeId) =>

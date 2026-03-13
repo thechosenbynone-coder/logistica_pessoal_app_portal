@@ -109,6 +109,7 @@ model Deployment {
   members         DeploymentMember[]
   dailyReports    DailyReport[]
   serviceOrders   ServiceOrder[]
+  financialRequests FinancialRequest[]
 
   @@map("deployments")
 }
@@ -257,11 +258,18 @@ model FinancialRequest {
   description    String?
   status         String?
   clientId       String?    @unique(map: "idx_financial_requests_client_id_unique") @map("client_id")
+  category       String?
   clientFilledAt DateTime?  @map("client_filled_at") @db.Timestamptz(6)
+  deploymentId   Int?       @map("deployment_id")
+  paymentDueDate DateTime?  @map("payment_due_date") @db.Date
+  reviewedBy     String?    @map("reviewed_by")
+  reviewedAt     DateTime?  @map("reviewed_at") @db.Timestamptz(6)
+  rejectionReason String?   @map("rejection_reason")
   createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   employee       Employee?  @relation(fields: [employeeId], references: [id])
+  deployment     Deployment? @relation(fields: [deploymentId], references: [id], onDelete: SetNull)
 
   @@index([employeeId, createdAt(sort: Desc)], map: "idx_financial_requests_employee_created_desc")
   @@map("financial_requests")
