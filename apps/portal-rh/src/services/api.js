@@ -212,6 +212,18 @@ const apiService = {
     remove: async (deploymentId, assignmentId) =>
       (await api.delete(`/deployments/${deploymentId}/tools/${assignmentId}`)).data,
   },
+  accommodations: {
+    listByDeployment: async (deploymentId) =>
+      (await api.get(`/deployments/${deploymentId}/accommodations`)).data || [],
+    create: async (deploymentId, data) =>
+      (await api.post(`/deployments/${deploymentId}/accommodations`, data)).data,
+    update: async (deploymentId, accommodationId, data) =>
+      (await api.patch(`/deployments/${deploymentId}/accommodations/${accommodationId}`, data)).data,
+    remove: async (deploymentId, accommodationId) =>
+      (await api.delete(`/deployments/${deploymentId}/accommodations/${accommodationId}`)).data,
+    pendentesCount: async () =>
+      (await api.get('/accommodations/pendentes-count')).data,
+  },
   epiCatalog: {
     list: async () => normalizeListResponse((await api.get('/epi/catalog')).data),
     create: async (data) => (await api.post('/epi/catalog', data)).data,

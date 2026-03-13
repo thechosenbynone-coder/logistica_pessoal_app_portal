@@ -9,6 +9,7 @@ import FinancePage from './features/finance/FinancePage';
 import EquipmentPage from './features/equipment/EquipmentPage';
 import RequestsPage from './features/requests/RequestsPage.jsx';
 import WorkPage from './features/work/WorkPage.jsx';
+import HotelPage from './features/hotel/HotelPage.jsx';
 import NotFoundPage from './features/common/NotFoundPage';
 import { ROUTE_PATHS, resolvePathByKey } from './navigation/routes.js';
 
@@ -26,7 +27,7 @@ const ROUTE_COMPONENTS = {
   '/daily-reports': () => <WorkPage />,
   '/os': () => <WorkPage />,
   '/service-orders': () => <WorkPage />,
-  [ROUTE_PATHS.hotel]: () => <DashboardRoute />,
+  [ROUTE_PATHS.hotel]: () => <HotelPage />,
   [ROUTE_PATHS.requests]: () => <RequestsPage />,
 };
 
@@ -136,10 +137,15 @@ export default function HRPortalApp({ user, onLogout }) {
 
 
   const [criticalCount, setCriticalCount] = useState(0);
+  const [pendingAccommodations, setPendingAccommodations] = useState(0);
   useEffect(() => {
-    fetch('/api/portal/dashboard', { credentials: 'include' })
+    fetch('/api/dashboard/metrics', { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => { if (data?.documentsExpired > 0) setCriticalCount(data.documentsExpired); })
+      .catch(() => {});
+    fetch('/api/accommodations/pendentes-count', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data?.count > 0) setPendingAccommodations(data.count); })
       .catch(() => {});
   }, []);
 
@@ -250,6 +256,38 @@ export default function HRPortalApp({ user, onLogout }) {
                 }}
               >
                 Ver agora →
+              </div>
+            </div>
+          )}
+
+          {pendingAccommodations > 0 && (
+            <div style={{
+              background: 'var(--amber-bg)',
+              borderBottom: '1px solid var(--amber-dim)',
+              padding: '9px 20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              flexShrink: 0,
+            }}>
+              <svg width="15" height="15" fill="none" stroke="var(--amber)" strokeWidth="2" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+                <polyline points="9 22 9 12 15 12 15 22"/>
+              </svg>
+              <div style={{ fontSize: '12.5px', color: 'var(--text)', flex: 1 }}>
+                <strong style={{ color: 'var(--amber)', fontWeight: 600 }}>{pendingAccommodations} embarque{pendingAccommodations > 1 ? 's' : ''}</strong>
+                {' '}com membros sem hospedagem confirmada nos próximos 14 dias.
+              </div>
+              <div
+                onClick={() => navigate(ROUTE_PATHS.hotel)}
+                style={{
+                  fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px',
+                  color: 'var(--amber)', textTransform: 'uppercase', letterSpacing: '0.08em',
+                  border: '1px solid var(--amber-dim)', padding: '3px 8px', borderRadius: '3px',
+                  cursor: 'pointer',
+                }}
+              >
+                Gerenciar →
               </div>
             </div>
           )}

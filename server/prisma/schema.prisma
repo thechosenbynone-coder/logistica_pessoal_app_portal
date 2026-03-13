@@ -54,6 +54,7 @@ model Employee {
   financialRequests  FinancialRequest[]
   deploymentMembers  DeploymentMember[]
   toolAssignments    ToolAssignment[]
+  accommodations     Accommodation[]
 
   @@map("employees")
 }
@@ -112,6 +113,7 @@ model Deployment {
   serviceOrders   ServiceOrder[]
   financialRequests FinancialRequest[]
   toolAssignments ToolAssignment[]
+  accommodations  Accommodation[]
 
   @@map("deployments")
 }
@@ -325,6 +327,30 @@ model ToolAssignment {
   @@index([deploymentId])
   @@index([employeeId])
   @@map("tool_assignments")
+}
+
+model Accommodation {
+  id               Int       @id @default(autoincrement())
+  deploymentId     Int       @map("deployment_id")
+  employeeId       Int       @map("employee_id")
+  type             String    @default("HOTEL")
+  providerName     String?   @map("provider_name")
+  checkIn          DateTime? @map("check_in") @db.Date
+  checkOut         DateTime? @map("check_out") @db.Date
+  address          String?
+  confirmationCode String?   @map("confirmation_code")
+  notes            String?
+  status           String    @default("PENDENTE")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  employee   Employee   @relation(fields: [employeeId], references: [id])
+
+  @@index([deploymentId])
+  @@index([employeeId])
+  @@map("accommodations")
 }
 
 model DeploymentTicket {

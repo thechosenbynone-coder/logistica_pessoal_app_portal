@@ -184,6 +184,38 @@ export const mapToolAssignment = (a) => ({
   employee: a.employee ? mapEmployee(a.employee) : undefined,
 });
 
+export const mapAccommodation = (a) => ({
+  id: a.id,
+  deployment_id: a.deploymentId,
+  employee_id: a.employeeId,
+  type: a.type,
+  provider_name: a.providerName,
+  check_in: a.checkIn,
+  check_out: a.checkOut,
+  address: a.address,
+  confirmation_code: a.confirmationCode,
+  notes: a.notes,
+  status: a.status,
+  created_at: a.createdAt,
+  updated_at: a.updatedAt,
+  employee: a.employee ? mapEmployee(a.employee) : undefined,
+});
+
+export const mapDeploymentTicket = (t) => ({
+  id: t.id,
+  deployment_id: t.deploymentId,
+  type: t.type,
+  provider: t.provider,
+  locator: t.locator,
+  departure: t.departure,
+  arrival: t.arrival,
+  origin: t.origin,
+  destination: t.destination,
+  file_url: t.fileUrl,
+  notes: t.notes,
+  created_at: t.createdAt,
+});
+
 export const mapDeployment = (d) => ({
   id: d.id,
   employee_id: d.employeeId,

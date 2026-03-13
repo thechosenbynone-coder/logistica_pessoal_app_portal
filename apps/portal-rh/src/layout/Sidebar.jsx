@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  ClipboardList, FileText, HardHat, LayoutDashboard,
+  BedDouble, ClipboardList, FileText, HardHat, LayoutDashboard,
   Plane, Users, Wallet, MessageSquareMore,
 } from 'lucide-react';
 import { currentUser } from '../services/currentUser';
@@ -18,6 +18,7 @@ const NAV = [
     items: [
       { key: 'mobility',  path: ROUTE_PATHS.mobility,  label: 'Escala e Embarque', icon: Plane },
       { key: 'equipment', path: ROUTE_PATHS.equipment, label: 'EPIs',               icon: HardHat },
+      { key: 'hotel',     path: ROUTE_PATHS.hotel,     label: 'Hotelaria',           icon: BedDouble },
       { key: 'work',      path: ROUTE_PATHS.rdo,       label: 'RDOs',               icon: ClipboardList },
     ],
   },
