@@ -192,14 +192,25 @@ const apiService = {
       normalizeListResponse((await api.get(`/deployments/${id}/tickets`)).data),
     createTicket: async (id, data) => (await api.post(`/deployments/${id}/tickets`, data)).data,
     removeTicket: async (id, tid) => (await api.delete(`/deployments/${id}/tickets/${tid}`)).data,
-    listMembers: async (id) =>
-      (await api.get(`/deployments/${id}/members`)).data || [],
+    listMembers: async (id) => (await api.get(`/deployments/${id}/members`)).data || [],
     addMember: async (id, employeeId) =>
       (await api.post(`/deployments/${id}/members`, { employee_id: employeeId })).data,
     removeMember: async (id, employeeId) =>
       (await api.delete(`/deployments/${id}/members/${employeeId}`)).data,
     listByEmployee: async (employeeId) =>
       normalizeListResponse((await api.get(`/employees/${employeeId}/deployments`)).data),
+  },
+  tools: {
+    list: async () => normalizeListResponse((await api.get('/tools')).data),
+    create: async (data) => (await api.post('/tools', data)).data,
+    listByDeployment: async (deploymentId) =>
+      (await api.get(`/deployments/${deploymentId}/tools`)).data || [],
+    assign: async (deploymentId, data) =>
+      (await api.post(`/deployments/${deploymentId}/tools`, data)).data,
+    updateStatus: async (deploymentId, assignmentId, data) =>
+      (await api.patch(`/deployments/${deploymentId}/tools/${assignmentId}/status`, data)).data,
+    remove: async (deploymentId, assignmentId) =>
+      (await api.delete(`/deployments/${deploymentId}/tools/${assignmentId}`)).data,
   },
   epiCatalog: {
     list: async () => normalizeListResponse((await api.get('/epi/catalog')).data),
@@ -259,7 +270,7 @@ const apiService = {
     },
     listByType: async (type, status) => {
       const qs = new URLSearchParams();
-      if (type)   qs.set('type',   type);
+      if (type) qs.set('type', type);
       if (status) qs.set('status', status);
       return normalizeListResponse((await api.get(`/financial-requests?${qs}`)).data);
     },

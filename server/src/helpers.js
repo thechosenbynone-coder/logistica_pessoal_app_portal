@@ -105,7 +105,10 @@ export const resolvePagination = (query, defaultPageSize = 25) => {
   const pageRaw = Number.parseInt(String(query?.page ?? '1'), 10);
   const pageSizeRaw = Number.parseInt(String(query?.pageSize ?? String(defaultPageSize)), 10);
   const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
-  const pageSize = Math.min(100, Math.max(1, Number.isFinite(pageSizeRaw) ? pageSizeRaw : defaultPageSize));
+  const pageSize = Math.min(
+    100,
+    Math.max(1, Number.isFinite(pageSizeRaw) ? pageSizeRaw : defaultPageSize)
+  );
   const q = String(query?.q ?? '').trim();
   return { page, pageSize, q };
 };
@@ -157,6 +160,30 @@ export const mapDeploymentMember = (m) => ({
   employee: m.employee ? mapEmployee(m.employee) : undefined,
 });
 
+export const mapTool = (t) => ({
+  id: t.id,
+  name: t.name,
+  code: t.code,
+  type: t.type,
+  notes: t.notes,
+  active: t.active,
+  created_at: t.createdAt,
+  updated_at: t.updatedAt,
+});
+
+export const mapToolAssignment = (a) => ({
+  id: a.id,
+  tool_id: a.toolId,
+  deployment_id: a.deploymentId,
+  employee_id: a.employeeId,
+  status: a.status,
+  assigned_at: a.assignedAt,
+  returned_at: a.returnedAt,
+  notes: a.notes,
+  tool: a.tool ? mapTool(a.tool) : undefined,
+  employee: a.employee ? mapEmployee(a.employee) : undefined,
+});
+
 export const mapDeployment = (d) => ({
   id: d.id,
   employee_id: d.employeeId,
@@ -169,9 +196,7 @@ export const mapDeployment = (d) => ({
   transport_type: d.transportType,
   departure_hub: d.departureHub,
   service_type: d.serviceType,
-  members: Array.isArray(d.members)
-    ? d.members.map(mapDeploymentMember)
-    : undefined,
+  members: Array.isArray(d.members) ? d.members.map(mapDeploymentMember) : undefined,
   employee: d.employee ? mapEmployee(d.employee) : undefined,
   vessel: d.vessel ? mapVessel(d.vessel) : undefined,
   created_at: d.createdAt,
@@ -223,7 +248,11 @@ export const mapDailyReport = (d) => ({
   client_filled_at: d.clientFilledAt,
   deployment_id: d.deploymentId,
   deployment: d.deployment
-    ? { id: d.deployment.id, service_type: d.deployment.serviceType, vessel: d.deployment.vessel ? mapVessel(d.deployment.vessel) : undefined }
+    ? {
+        id: d.deployment.id,
+        service_type: d.deployment.serviceType,
+        vessel: d.deployment.vessel ? mapVessel(d.deployment.vessel) : undefined,
+      }
     : undefined,
   employee: d.employee ? mapEmployee(d.employee) : undefined,
   created_at: d.createdAt,
@@ -247,7 +276,11 @@ export const mapServiceOrder = (s) => ({
   client_filled_at: s.clientFilledAt,
   deployment_id: s.deploymentId,
   deployment: s.deployment
-    ? { id: s.deployment.id, service_type: s.deployment.serviceType, vessel: s.deployment.vessel ? mapVessel(s.deployment.vessel) : undefined }
+    ? {
+        id: s.deployment.id,
+        service_type: s.deployment.serviceType,
+        vessel: s.deployment.vessel ? mapVessel(s.deployment.vessel) : undefined,
+      }
     : undefined,
   employee: s.employee ? mapEmployee(s.employee) : undefined,
   vessel: s.vessel ? mapVessel(s.vessel) : undefined,
@@ -264,7 +297,11 @@ export const mapFinancialRequest = (f) => ({
   status: f.status,
   deployment_id: f.deploymentId,
   deployment: f.deployment
-    ? { id: f.deployment.id, service_type: f.deployment.serviceType, vessel: f.deployment.vessel ? mapVessel(f.deployment.vessel) : undefined }
+    ? {
+        id: f.deployment.id,
+        service_type: f.deployment.serviceType,
+        vessel: f.deployment.vessel ? mapVessel(f.deployment.vessel) : undefined,
+      }
     : undefined,
   payment_due_date: f.paymentDueDate,
   reviewed_by: f.reviewedBy,
@@ -290,7 +327,9 @@ export const requireAdminKeyIfConfigured = (req, res, next) => {
   if (!process.env.ADMIN_KEY) return next();
   const headerKey = req.header('x-admin-key');
   if (headerKey && headerKey === process.env.ADMIN_KEY) return next();
-  return res.status(401).json({ errorCode: 'UNAUTHORIZED', message: 'x-admin-key inválido ou ausente' });
+  return res
+    .status(401)
+    .json({ errorCode: 'UNAUTHORIZED', message: 'x-admin-key inválido ou ausente' });
 };
 
 export const startOfTodayDateOnly = () => {
