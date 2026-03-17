@@ -42,6 +42,10 @@ model Employee {
   base               String?
   accessPinHash      String?    @map("access_pin_hash")
   accessPinUpdatedAt DateTime?  @map("access_pin_updated_at") @db.Timestamptz(6)
+  currentStatus      String     @default("BASE") @map("current_status")
+  statusUpdatedAt    DateTime?  @map("status_updated_at") @db.Timestamptz(6)
+  postDisembarkPlan  String?    @map("post_disembark_plan")
+  folgaReturnDate    DateTime?  @map("folga_return_date") @db.Date
   createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -55,8 +59,26 @@ model Employee {
   deploymentMembers  DeploymentMember[]
   toolAssignments    ToolAssignment[]
   accommodations     Accommodation[]
+  statusLogs         EmployeeStatusLog[]
+  transferLegs       TransferLeg[]
 
   @@map("employees")
+}
+
+model EmployeeStatusLog {
+  id         Int      @id @default(autoincrement())
+  employeeId Int      @map("employee_id")
+  fromStatus String?  @map("from_status")
+  toStatus   String   @map("to_status")
+  origin     String   @default("CHECKIN_APP") @map("origin")
+  geo        Json?
+  notes      String?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("employee_status_logs")
 }
 
 model EmployeeDocStatus {
@@ -105,17 +127,44 @@ model Deployment {
   departureHub    String?    @map("departure_hub")
   serviceType     String?    @map("service_type")
 
-  employee        Employee? @relation(fields: [employeeId], references: [id])
-  vessel          Vessel?   @relation(fields: [vesselId], references: [id])
-  tickets         DeploymentTicket[]
-  members         DeploymentMember[]
-  dailyReports    DailyReport[]
-  serviceOrders   ServiceOrder[]
+  employee          Employee?          @relation(fields: [employeeId], references: [id])
+  vessel            Vessel?            @relation(fields: [vesselId], references: [id])
+  tickets           DeploymentTicket[]
+  members           DeploymentMember[]
+  dailyReports      DailyReport[]
+  serviceOrders     ServiceOrder[]
   financialRequests FinancialRequest[]
-  toolAssignments ToolAssignment[]
-  accommodations  Accommodation[]
+  toolAssignments   ToolAssignment[]
+  accommodations    Accommodation[]
+  transferLegs      TransferLeg[]
 
   @@map("deployments")
+}
+
+model TransferLeg {
+  id           Int       @id @default(autoincrement())
+  deploymentId Int       @map("deployment_id")
+  employeeId   Int       @map("employee_id")
+  sequence     Int       @default(0)
+  type         String
+  origin       String?
+  destination  String?
+  scheduledAt  DateTime? @map("scheduled_at") @db.Timestamptz(6)
+  actualAt     DateTime? @map("actual_at") @db.Timestamptz(6)
+  provider     String?
+  locator      String?
+  status       String    @default("PENDENTE")
+  cost         Decimal?  @db.Decimal(10, 2)
+  notes        String?
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  deployment   Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  employee     Employee   @relation(fields: [employeeId], references: [id])
+
+  @@index([deploymentId])
+  @@index([employeeId])
+  @@map("transfer_legs")
 }
 
 model DocumentType {
@@ -177,21 +226,21 @@ model EpiCatalog {
 }
 
 model EpiDelivery {
-  id           Int        @id @default(autoincrement())
-  employeeId   Int        @map("employee_id")
-  epiItemId    Int        @map("epi_item_id")
-  deliveryDate DateTime   @default(dbgenerated("CURRENT_DATE")) @map("delivery_date") @db.Date
-  quantity     Int        @default(1)
-  signatureUrl String?    @map("signature_url")
-  status       EpiDeliveryStatus @default(EMITIDO)
-  location     String?
-  responsible  String?
-  notes        String?
-  returnedAt   DateTime?  @map("returned_at") @db.Timestamptz(6)
-  returnedQty  Int?       @map("returned_qty")
-  returnedNotes String?   @map("returned_notes")
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
+  id            Int               @id @default(autoincrement())
+  employeeId    Int               @map("employee_id")
+  epiItemId     Int               @map("epi_item_id")
+  deliveryDate  DateTime          @default(dbgenerated("CURRENT_DATE")) @map("delivery_date") @db.Date
+  quantity      Int               @default(1)
+  signatureUrl  String?           @map("signature_url")
+  status        EpiDeliveryStatus @default(EMITIDO)
+  location      String?
+  responsible   String?
+  notes         String?
+  returnedAt    DateTime?         @map("returned_at") @db.Timestamptz(6)
+  returnedQty   Int?              @map("returned_qty")
+  returnedNotes String?           @map("returned_notes")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
 
   employee     Employee   @relation(fields: [employeeId], references: [id])
   epiItem      EpiCatalog @relation(fields: [epiItemId], references: [id])
@@ -202,52 +251,52 @@ model EpiDelivery {
 }
 
 model DailyReport {
-  id             Int        @id @default(autoincrement())
-  employeeId     Int?       @map("employee_id")
-  reportDate     DateTime?  @map("report_date") @db.Date
-  description    String?
-  hoursWorked    Decimal?   @map("hours_worked") @db.Decimal(10, 2)
-  approvalStatus String?    @map("approval_status")
-  approvedBy     String?    @map("approved_by")
-  reviewedBy     String?    @map("reviewed_by")
-  reviewedAt     DateTime?  @map("reviewed_at") @db.Timestamptz(6)
-  rejectionReason String?   @map("rejection_reason")
-  clientId       String?    @unique(map: "idx_daily_reports_client_id_unique") @map("client_id")
-  clientFilledAt DateTime?  @map("client_filled_at") @db.Timestamptz(6)
-  deploymentId   Int?       @map("deployment_id")
-  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id              Int        @id @default(autoincrement())
+  employeeId      Int?       @map("employee_id")
+  reportDate      DateTime?  @map("report_date") @db.Date
+  description     String?
+  hoursWorked     Decimal?   @map("hours_worked") @db.Decimal(10, 2)
+  approvalStatus  String?    @map("approval_status")
+  approvedBy      String?    @map("approved_by")
+  reviewedBy      String?    @map("reviewed_by")
+  reviewedAt      DateTime?  @map("reviewed_at") @db.Timestamptz(6)
+  rejectionReason String?    @map("rejection_reason")
+  clientId        String?    @unique(map: "idx_daily_reports_client_id_unique") @map("client_id")
+  clientFilledAt  DateTime?  @map("client_filled_at") @db.Timestamptz(6)
+  deploymentId    Int?       @map("deployment_id")
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  employee       Employee?    @relation(fields: [employeeId], references: [id])
-  deployment     Deployment?  @relation(fields: [deploymentId], references: [id], onDelete: SetNull)
+  employee   Employee?   @relation(fields: [employeeId], references: [id])
+  deployment Deployment? @relation(fields: [deploymentId], references: [id], onDelete: SetNull)
 
   @@index([employeeId, createdAt(sort: Desc)], map: "idx_daily_reports_employee_created_desc")
   @@map("daily_reports")
 }
 
 model ServiceOrder {
-  id             Int        @id @default(autoincrement())
-  employeeId     Int?       @map("employee_id")
-  osNumber       String?    @map("os_number")
-  title          String?
-  description    String?
-  priority       String?
-  openedAt       DateTime?  @map("opened_at") @db.Date
-  approvalStatus String?    @map("approval_status")
-  reviewedBy     String?    @map("reviewed_by")
-  reviewedAt     DateTime?  @map("reviewed_at") @db.Timestamptz(6)
-  rejectionReason String?   @map("rejection_reason")
-  vesselId       Int?       @map("vessel_id")
-  status         String?
-  clientId       String?    @unique(map: "idx_service_orders_client_id_unique") @map("client_id")
-  clientFilledAt DateTime?  @map("client_filled_at") @db.Timestamptz(6)
-  deploymentId   Int?       @map("deployment_id")
-  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id              Int        @id @default(autoincrement())
+  employeeId      Int?       @map("employee_id")
+  osNumber        String?    @map("os_number")
+  title           String?
+  description     String?
+  priority        String?
+  openedAt        DateTime?  @map("opened_at") @db.Date
+  approvalStatus  String?    @map("approval_status")
+  reviewedBy      String?    @map("reviewed_by")
+  reviewedAt      DateTime?  @map("reviewed_at") @db.Timestamptz(6)
+  rejectionReason String?    @map("rejection_reason")
+  vesselId        Int?       @map("vessel_id")
+  status          String?
+  clientId        String?    @unique(map: "idx_service_orders_client_id_unique") @map("client_id")
+  clientFilledAt  DateTime?  @map("client_filled_at") @db.Timestamptz(6)
+  deploymentId    Int?       @map("deployment_id")
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  employee       Employee?    @relation(fields: [employeeId], references: [id])
-  vessel         Vessel?      @relation(fields: [vesselId], references: [id])
-  deployment     Deployment?  @relation(fields: [deploymentId], references: [id], onDelete: SetNull)
+  employee   Employee?   @relation(fields: [employeeId], references: [id])
+  vessel     Vessel?     @relation(fields: [vesselId], references: [id])
+  deployment Deployment? @relation(fields: [deploymentId], references: [id], onDelete: SetNull)
 
   @@index([employeeId], map: "idx_service_orders_employee_id")
   @@index([employeeId, createdAt(sort: Desc)], map: "idx_service_orders_employee_created_desc")
@@ -255,30 +304,29 @@ model ServiceOrder {
 }
 
 model FinancialRequest {
-  id             Int        @id @default(autoincrement())
-  employeeId     Int?       @map("employee_id")
-  type           String?
-  amount         Decimal?   @db.Decimal(10, 2)
-  description    String?
-  status         String?
-  clientId       String?    @unique(map: "idx_financial_requests_client_id_unique") @map("client_id")
-  category       String?
-  clientFilledAt DateTime?  @map("client_filled_at") @db.Timestamptz(6)
-  deploymentId   Int?       @map("deployment_id")
-  paymentDueDate DateTime?  @map("payment_due_date") @db.Date
-  reviewedBy     String?    @map("reviewed_by")
-  reviewedAt     DateTime?  @map("reviewed_at") @db.Timestamptz(6)
-  rejectionReason String?   @map("rejection_reason")
-  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id              Int        @id @default(autoincrement())
+  employeeId      Int?       @map("employee_id")
+  type            String?
+  amount          Decimal?   @db.Decimal(10, 2)
+  description     String?
+  status          String?
+  clientId        String?    @unique(map: "idx_financial_requests_client_id_unique") @map("client_id")
+  category        String?
+  clientFilledAt  DateTime?  @map("client_filled_at") @db.Timestamptz(6)
+  deploymentId    Int?       @map("deployment_id")
+  paymentDueDate  DateTime?  @map("payment_due_date") @db.Date
+  reviewedBy      String?    @map("reviewed_by")
+  reviewedAt      DateTime?  @map("reviewed_at") @db.Timestamptz(6)
+  rejectionReason String?    @map("rejection_reason")
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  employee       Employee?  @relation(fields: [employeeId], references: [id])
-  deployment     Deployment? @relation(fields: [deploymentId], references: [id], onDelete: SetNull)
+  employee   Employee?   @relation(fields: [employeeId], references: [id])
+  deployment Deployment? @relation(fields: [deploymentId], references: [id], onDelete: SetNull)
 
   @@index([employeeId, createdAt(sort: Desc)], map: "idx_financial_requests_employee_created_desc")
   @@map("financial_requests")
 }
-
 
 model EpiFunctionRequirement {
   id        Int      @id @default(autoincrement())
@@ -296,14 +344,14 @@ model EpiFunctionRequirement {
 }
 
 model Tool {
-  id          Int      @id @default(autoincrement())
-  name        String
-  code        String?
-  type        String?
-  notes       String?
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id        Int      @id @default(autoincrement())
+  name      String
+  code      String?
+  type      String?
+  notes     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   assignments ToolAssignment[]
 
@@ -341,9 +389,8 @@ model Accommodation {
   confirmationCode String?   @map("confirmation_code")
   notes            String?
   status           String    @default("PENDENTE")
-
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
   employee   Employee   @relation(fields: [employeeId], references: [id])
@@ -354,37 +401,24 @@ model Accommodation {
 }
 
 model DeploymentTicket {
-  id          Int       @id @default(autoincrement())
-  deploymentId Int      @map("deployment_id")
-  type        String
-  provider    String?
-  locator     String?
-  departure   DateTime? @db.Timestamptz(6)
-  arrival     DateTime? @db.Timestamptz(6)
-  origin      String?
-  destination String?
-  fileUrl     String?   @map("file_url")
-  notes       String?
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id           Int       @id @default(autoincrement())
+  deploymentId Int       @map("deployment_id")
+  type         String
+  provider     String?
+  locator      String?
+  departure    DateTime? @db.Timestamptz(6)
+  arrival      DateTime? @db.Timestamptz(6)
+  origin       String?
+  destination  String?
+  fileUrl      String?   @map("file_url")
+  notes        String?
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
 
   @@index([deploymentId])
   @@map("deployment_tickets")
-}
-
-model PortalUser {
-  id           Int      @id @default(autoincrement())
-  username     String   @unique
-  passwordHash String   @map("password_hash")
-  name         String
-  role         String   @default("operator")
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  @@map("portal_users")
 }
 
 model DeploymentMember {
@@ -402,4 +436,17 @@ model DeploymentMember {
   @@index([deploymentId])
   @@index([employeeId])
   @@map("deployment_members")
+}
+
+model PortalUser {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  role         String   @default("operator")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("portal_users")
 }
