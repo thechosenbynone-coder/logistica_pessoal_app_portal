@@ -19,6 +19,8 @@ import dashboardRouter from './src/routes/dashboard.routes.js';
 import portalAuthRouter from './src/routes/portal-auth.routes.js';
 import toolsRouter from './src/routes/tools.routes.js';
 import accommodationsRouter from './src/routes/accommodations.routes.js';
+import checkinRouter from './src/routes/checkin.routes.js';
+import transferLegsRouter from './src/routes/transferLegs.routes.js';
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -110,6 +112,8 @@ app.use(financialRequestsRouter);
 app.use(dashboardRouter);
 app.use(toolsRouter);
 app.use(accommodationsRouter);
+app.use(checkinRouter);
+app.use(transferLegsRouter);
 
 app.get('/api/checkins', (_req, res) => res.json([]));
 app.post('/api/checkins', ...employeeBodyAuth, (_req, res) => res.status(201).json({ ok: true }));
