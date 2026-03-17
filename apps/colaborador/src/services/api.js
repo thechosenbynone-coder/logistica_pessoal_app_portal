@@ -215,6 +215,12 @@ const api = {
     syncRdo: async (payload, options) =>
       request('/integration/sync/rdo', { method: 'POST', body: payload, ...options }),
   },
+  checkin: {
+    getStatus: async (employeeId, options) =>
+      request(`/employees/${employeeId}/status`, options),
+    doCheckin: async (employeeId, payload, options) =>
+      request(`/employees/${employeeId}/checkin`, { method: 'POST', body: payload, ...options }),
+  },
 };
 
 export default api;
