@@ -121,6 +121,10 @@ export const mapEmployee = (e) => ({
   email: e.email,
   phone: e.phone,
   base: e.base,
+  current_status: e.currentStatus,
+  status_updated_at: e.statusUpdatedAt,
+  post_disembark_plan: e.postDisembarkPlan,
+  folga_return_date: e.folgaReturnDate,
   created_at: e.createdAt,
 });
 export const mapVessel = (v) => ({ id: v.id, name: v.name, type: v.type, client: v.client });

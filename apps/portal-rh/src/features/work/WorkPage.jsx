@@ -23,8 +23,10 @@ export default function WorkPage() {
 
   const load = useCallback(async () => {
     const filter = status === 'Todos' ? {} : { approvalStatus: status };
-    setRdos(await apiService.dailyReports.list(filter));
-    setOss(await apiService.serviceOrders.list(filter));
+    const r = await apiService.dailyReports.list(filter);
+    const o = await apiService.serviceOrders.list(filter);
+    setRdos(Array.isArray(r) ? r : r?.items ?? []);
+    setOss(Array.isArray(o) ? o : o?.items ?? []);
   }, [status]);
 
   useEffect(() => { load(); }, [load]);

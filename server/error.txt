@@ -1,0 +1,10 @@
+[BOOT] erro fatal ao iniciar API: PrismaClientInitializationError: [1;91merror[0m: [1mError validating datasource `db`: You must provide a nonempty URL. The environment variable `DATABASE_URL` resolved to an empty string.[0m
+  [1;94m-->[0m  [4mschema.prisma:7[0m
+[1;94m   | [0m
+[1;94m 6 | [0m  provider = "postgresql"
+[1;94m 7 | [0m  url      = [1;91menv("DATABASE_URL")[0m
+[1;94m   | [0m
+
+Validation Error Count: 1
+    at r (C:\Users\Compras.2\LPS - SISTEMA\logistica_pessoal_app_portal\server\node_modules\@prisma\client\runtime\library.js:113:2493)
+    at async bootstrap (file:///C:/Users/Compras.2/LPS%20-%20SISTEMA/logistica_pessoal_app_portal/server/server.js:124:3)

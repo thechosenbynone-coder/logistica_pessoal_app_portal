@@ -10,6 +10,7 @@ import EquipmentPage from './features/equipment/EquipmentPage';
 import RequestsPage from './features/requests/RequestsPage.jsx';
 import WorkPage from './features/work/WorkPage.jsx';
 import HotelPage from './features/hotel/HotelPage.jsx';
+import TransladoPage from './features/translado/TransladoPage';
 import NotFoundPage from './features/common/NotFoundPage';
 import { ROUTE_PATHS, resolvePathByKey } from './navigation/routes.js';
 
@@ -20,6 +21,7 @@ const ROUTE_COMPONENTS = {
   '/colaboradores/novo': () => <CreateEmployeeRoute />,
   [ROUTE_PATHS.docs]: () => <DocsRoute />,
   [ROUTE_PATHS.mobility]: () => <MobilityPage />,
+  [ROUTE_PATHS.translado]: () => <TransladoPage />,
   [ROUTE_PATHS.equipment]: () => <EquipmentPage />,
   [ROUTE_PATHS.finance]: () => <FinancePage />,
   '/financial-requests': () => <FinancePage />,

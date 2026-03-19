@@ -3,6 +3,7 @@ export const ROUTE_PATHS = {
   employees: '/colaboradores',
   docs: '/documentacoes',
   mobility: '/mobility',
+  translado: '/translado',
   rdo: '/rdo',
   finance: '/financeiro',
   equipment: '/epi',

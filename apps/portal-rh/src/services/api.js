@@ -132,6 +132,16 @@ const apiService = {
     create: async (data) =>
       (await api.post('/financial-requests', { ...data, type: 'Adiantamento' })).data,
   },
+  checkin: {
+    getStatus: async (employeeId) => (await api.get(`/employees/${employeeId}/status`)).data,
+    updateStatus: async (employeeId, data) => (await api.patch(`/employees/${employeeId}/status`, data)).data,
+  },
+  transferLegs: {
+    listByDeployment: async (deploymentId) => normalizeListResponse((await api.get(`/deployments/${deploymentId}/transfer-legs`)).data),
+    create: async (deploymentId, data) => (await api.post(`/deployments/${deploymentId}/transfer-legs`, data)).data,
+    update: async (deploymentId, legId, data) => (await api.patch(`/deployments/${deploymentId}/transfer-legs/${legId}`, data)).data,
+    remove: async (deploymentId, legId) => (await api.delete(`/deployments/${deploymentId}/transfer-legs/${legId}`)).data,
+  },
   portalAuth: {
     login: async (data) => {
       const res = await apiFetch('/api/portal/auth/login', {

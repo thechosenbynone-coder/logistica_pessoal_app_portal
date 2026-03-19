@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, Plane, QrCode, XCircle } from 'lucide-react';
 import { formatDateBR } from '../../utils';
+import CheckinWidget from './CheckinWidget';
+import api from '../../services/api';
 
 function normalizeStepStatus(value) {
   const v = String(value || 'pending').toLowerCase();
@@ -71,6 +73,8 @@ export function TripTab({
 
   return (
     <div className="space-y-4 pb-20">
+      <CheckinWidget employeeId={employee.id} api={api} />
+
       {!trip && (
         <section className="rounded-xl bg-white p-4 shadow-md">
           <h3 className="font-bold text-gray-800">Meu embarque</h3>
