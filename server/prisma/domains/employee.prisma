@@ -1,0 +1,2 @@
+/// Domínio employee (documentação arquitetural incremental)
+/// Modelos atualmente permanecem em schema.prisma para manter compatibilidade com prisma generate.
