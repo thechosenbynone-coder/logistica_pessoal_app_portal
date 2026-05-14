@@ -32,7 +32,7 @@ import { helmetLike, rateLimitLike } from './src/middlewares/security.middleware
 patchAsyncErrors();
 const app = express();
 const port = process.env.PORT || 3001;
-app.set('trust proxy', 1); // Correção: IP real atrás de proxy reverso (Render/Railway/Nginx/Cloudflare).
+app.set('trust proxy', 1); // behind reverse proxy
 
 const normalizeOrigin = (value) => {
   if (typeof value !== 'string') return value;

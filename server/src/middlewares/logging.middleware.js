@@ -10,7 +10,7 @@ export function structuredRequestLog(req, res, next) {
 
   res.on('finish', () => {
     const elapsedMs = Date.now() - startedAt;
-    // Correção: não logar headers/cookies para evitar vazamento de credenciais.
+    
     console.log(JSON.stringify({
       type: 'http_request',
       method: req.method,

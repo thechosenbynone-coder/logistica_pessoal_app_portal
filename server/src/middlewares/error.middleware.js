@@ -3,7 +3,7 @@ export function notFoundHandler(req, res) {
 }
 
 export function globalErrorHandler(error, _req, res, next) {
-  // Correção: evita "Cannot set headers after they are sent" em fluxos parcialmente respondidos.
+  // delegate when response already started
   if (res.headersSent) return next(error);
 
   if (error instanceof SyntaxError && 'body' in error) {

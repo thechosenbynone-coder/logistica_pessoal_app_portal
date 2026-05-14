@@ -17,13 +17,13 @@ function trimWhitelistedFields(source, fields, allowNested) {
 
     const value = source[field];
     if (typeof value === 'string') {
-      // Correção: trim seletivo evita alterar credenciais/tokens por acidente.
+      
       source[field] = value.trim();
       continue;
     }
 
     if (allowNested && value && typeof value === 'object' && !Array.isArray(value)) {
-      // Correção incremental: suporta nested object raso mantendo whitelist explícita.
+      // shallow nested trim
       trimWhitelistedFields(value, fields, false);
     }
   }
@@ -38,7 +38,7 @@ export function sanitizeInput(options = {}) {
     }
 
     if (req.query && typeof req.query === 'object') {
-      // Compatibilidade Express: mutação pontual sem reatribuir req.query.
+      
       trimWhitelistedFields(req.query, trimFields, true);
     }
 

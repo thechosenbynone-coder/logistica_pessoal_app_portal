@@ -25,7 +25,7 @@ function flattenAndWrapHandlers(handlers) {
 export function patchAsyncErrors() {
   if (patched) return;
 
-  // Correção: suporte a arrays aninhados de middlewares sem perder captura de async throw/reject.
+  
   const methods = ['use', 'get', 'post', 'put', 'patch', 'delete', 'options', 'all'];
 
   for (const method of methods) {

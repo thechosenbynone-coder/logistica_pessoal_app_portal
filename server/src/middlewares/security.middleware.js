@@ -10,12 +10,12 @@ const ipHits = new Map();
 let lastSweepAt = 0;
 
 export function rateLimitLike({ windowMs = 15 * 60 * 1000, max = 500 } = {}) {
-  // Nota operacional: store in-memory (Map) não é global entre múltiplas instâncias/serverless.
+  // in-memory only (not shared across instances)
   return (req, res, next) => {
     const now = Date.now();
     const key = req.ip || 'unknown';
 
-    // Correção: sweep incremental para evitar crescimento infinito em produção.
+    // cleanup expired entries
     if (now - lastSweepAt > windowMs) {
       for (const [ip, item] of ipHits.entries()) {
         if (now - item.start > windowMs) ipHits.delete(ip);

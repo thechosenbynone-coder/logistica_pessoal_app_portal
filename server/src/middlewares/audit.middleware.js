@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 
 export function auditTrail(req, _res, next) {
   req.audit = {
-    // Correção: UUID reduz risco de colisão em alta concorrência e múltiplas instâncias.
+    
     requestId: req.headers['x-request-id'] || randomUUID(),
     actorId: req.auth?.userId || null,
     actorRole: req.auth?.role || null,
