@@ -21,6 +21,12 @@ import toolsRouter from './src/routes/tools.routes.js';
 import accommodationsRouter from './src/routes/accommodations.routes.js';
 import checkinRouter from './src/routes/checkin.routes.js';
 import transferLegsRouter from './src/routes/transferLegs.routes.js';
+import { registerModuleRoutes } from './src/modules/index.js';
+import { sanitizeInput } from './src/middlewares/sanitize.middleware.js';
+import { auditTrail } from './src/middlewares/audit.middleware.js';
+import { structuredRequestLog } from './src/middlewares/logging.middleware.js';
+import { globalErrorHandler, notFoundHandler } from './src/middlewares/error.middleware.js';
+import { helmetLike, rateLimitLike } from './src/middlewares/security.middleware.js';
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -70,8 +76,12 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+
+app.use(helmetLike);
+app.use(rateLimitLike({ windowMs: 15 * 60 * 1000, max: Number(process.env.RATE_LIMIT_MAX || 500) }));
 app.options('*', cors(corsOptions));
 app.use(express.json());
+app.use(sanitizeInput);
 app.use(cookieParser());
 app.use((error, _req, res, next) => {
   if (error instanceof SyntaxError && 'body' in error) {
@@ -82,12 +92,9 @@ app.use((error, _req, res, next) => {
   return next(error);
 });
 app.use(authOptional);
+app.use(auditTrail);
+app.use(structuredRequestLog);
 registerIntegrationRoutes(app);
-
-app.use((req, _res, next) => {
-  console.log(`[REQUEST] ${req.method} ${req.url}`);
-  next();
-});
 
 app.get(['/api/health', '/health'], async (_req, res) => {
   try {
@@ -99,26 +106,23 @@ app.get(['/api/health', '/health'], async (_req, res) => {
   }
 });
 
-app.use(authRouter);
 app.use(portalAuthRouter);
-app.use(employeesRouter);
 app.use(vesselsRouter);
-app.use(documentsRouter);
-app.use(deploymentsRouter);
-app.use(epiRouter);
 app.use(dailyReportsRouter);
-app.use(serviceOrdersRouter);
-app.use(financialRequestsRouter);
 app.use(dashboardRouter);
 app.use(toolsRouter);
 app.use(accommodationsRouter);
 app.use(checkinRouter);
 app.use(transferLegsRouter);
+registerModuleRoutes(app);
 
 app.get('/api/checkins', (_req, res) => res.json([]));
 app.post('/api/checkins', ...employeeBodyAuth, (_req, res) => res.status(201).json({ ok: true }));
 
 app.get('/', (_req, res) => res.send('API Logística Offshore - Online 🚀'));
+
+app.use(notFoundHandler);
+app.use(globalErrorHandler);
 
 const bootstrap = async () => {
   await prisma.$connect();
