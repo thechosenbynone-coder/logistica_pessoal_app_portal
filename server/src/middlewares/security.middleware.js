@@ -10,6 +10,7 @@ const ipHits = new Map();
 let lastSweepAt = 0;
 
 export function rateLimitLike({ windowMs = 15 * 60 * 1000, max = 500 } = {}) {
+  // Nota operacional: store in-memory (Map) não é global entre múltiplas instâncias/serverless.
   return (req, res, next) => {
     const now = Date.now();
     const key = req.ip || 'unknown';

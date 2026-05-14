@@ -7,13 +7,24 @@ const DEFAULT_TRIM_FIELDS = new Set([
   'search',
 ]);
 
-function trimWhitelistedFields(source, fields) {
+const SENSITIVE_FIELDS = /password|senha|token|hash|secret|pin/i;
+
+function trimWhitelistedFields(source, fields, allowNested) {
   if (!source || typeof source !== 'object') return;
 
   for (const field of fields) {
-    if (typeof source[field] === 'string') {
-      // Correção: trim seletivo evita alterar senha/token/hash por acidente.
-      source[field] = source[field].trim();
+    if (SENSITIVE_FIELDS.test(field)) continue;
+
+    const value = source[field];
+    if (typeof value === 'string') {
+      // Correção: trim seletivo evita alterar credenciais/tokens por acidente.
+      source[field] = value.trim();
+      continue;
+    }
+
+    if (allowNested && value && typeof value === 'object' && !Array.isArray(value)) {
+      // Correção incremental: suporta nested object raso mantendo whitelist explícita.
+      trimWhitelistedFields(value, fields, false);
     }
   }
 }
@@ -22,14 +33,13 @@ export function sanitizeInput(options = {}) {
   const trimFields = new Set(options.trimFields || DEFAULT_TRIM_FIELDS);
 
   return (req, _res, next) => {
-    // Correção: aplica apenas campos explícitos para reduzir risco de quebra comportamental.
     if (req.body && typeof req.body === 'object') {
-      trimWhitelistedFields(req.body, trimFields);
+      trimWhitelistedFields(req.body, trimFields, true);
     }
 
     if (req.query && typeof req.query === 'object') {
-      // Correção: não reatribuir req.query, apenas mutação pontual compatível com Express.
-      trimWhitelistedFields(req.query, trimFields);
+      // Compatibilidade Express: mutação pontual sem reatribuir req.query.
+      trimWhitelistedFields(req.query, trimFields, true);
     }
 
     next();

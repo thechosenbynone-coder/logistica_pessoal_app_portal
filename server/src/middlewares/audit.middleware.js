@@ -1,6 +1,9 @@
+import { randomUUID } from 'crypto';
+
 export function auditTrail(req, _res, next) {
   req.audit = {
-    requestId: req.headers['x-request-id'] || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    // Correção: UUID reduz risco de colisão em alta concorrência e múltiplas instâncias.
+    requestId: req.headers['x-request-id'] || randomUUID(),
     actorId: req.auth?.userId || null,
     actorRole: req.auth?.role || null,
     ip: req.ip,
