@@ -7,11 +7,21 @@ export function helmetLike(_req, res, next) {
 }
 
 const ipHits = new Map();
+let lastSweepAt = 0;
 
 export function rateLimitLike({ windowMs = 15 * 60 * 1000, max = 500 } = {}) {
   return (req, res, next) => {
     const now = Date.now();
     const key = req.ip || 'unknown';
+
+    // Correção: sweep incremental para evitar crescimento infinito em produção.
+    if (now - lastSweepAt > windowMs) {
+      for (const [ip, item] of ipHits.entries()) {
+        if (now - item.start > windowMs) ipHits.delete(ip);
+      }
+      lastSweepAt = now;
+    }
+
     const current = ipHits.get(key) || { count: 0, start: now };
 
     if (now - current.start > windowMs) {

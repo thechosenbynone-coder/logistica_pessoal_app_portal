@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import 'dotenv/config';
+import { patchAsyncErrors } from './src/middlewares/async.middleware.js';
 import { authOptional } from './src/auth.js';
 import { registerIntegrationRoutes } from './src/integrationRoutes.js';
 import { prisma } from './src/prismaClient.js';
@@ -28,8 +29,10 @@ import { structuredRequestLog } from './src/middlewares/logging.middleware.js';
 import { globalErrorHandler, notFoundHandler } from './src/middlewares/error.middleware.js';
 import { helmetLike, rateLimitLike } from './src/middlewares/security.middleware.js';
 
+patchAsyncErrors();
 const app = express();
 const port = process.env.PORT || 3001;
+app.set('trust proxy', 1); // Correção: IP real atrás de proxy reverso (Render/Railway/Nginx/Cloudflare).
 
 const normalizeOrigin = (value) => {
   if (typeof value !== 'string') return value;
@@ -81,7 +84,7 @@ app.use(helmetLike);
 app.use(rateLimitLike({ windowMs: 15 * 60 * 1000, max: Number(process.env.RATE_LIMIT_MAX || 500) }));
 app.options('*', cors(corsOptions));
 app.use(express.json());
-app.use(sanitizeInput);
+app.use(sanitizeInput());
 app.use(cookieParser());
 app.use((error, _req, res, next) => {
   if (error instanceof SyntaxError && 'body' in error) {
